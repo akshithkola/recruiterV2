@@ -1,6 +1,7 @@
 import React from 'react'
 import { RequirementDetailOverviewProps } from './preamble'
 import { useRequirementDetailOverview } from './useRequirementDetailOverview'
+import { CreateJobDemandForm } from '../CreateJobDemandForm'
 import { ReqDetailTop } from './ReqDetailTop'
 import { ReqDetailMetrics } from './ReqDetailMetrics'
 import { ReqDetailProgressTabs } from './ReqDetailProgressTabs'
@@ -14,6 +15,25 @@ import { ReqDetailModals } from './ReqDetailModals'
 
 export function RequirementDetailOverview(props: RequirementDetailOverviewProps) {
   const vm = useRequirementDetailOverview(props)
+
+  if (vm.isInternalEditing) {
+    return (
+      <CreateJobDemandForm
+        userRole={
+          vm.role === 'superadmin'
+            ? 'Super Admin View'
+            : vm.role === 'admin'
+            ? 'Admin View'
+            : 'Recruiter View'
+        }
+        mode="edit"
+        initialData={vm.requirement}
+        onCancel={() => vm.setIsInternalEditing(false)}
+        onSubmit={vm.handleSaveRequirement}
+      />
+    )
+  }
+
   return (
     <div className="space-y-6 w-full pb-16 font-sans text-gray-800">
       <ReqDetailTop vm={vm} />

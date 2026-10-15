@@ -23,6 +23,9 @@ export interface CandidateFormFields {
   currentLocation?: string
   preferredLocation?: string
   offerInHand?: string
+  interviewAvailability?: string
+  reasonForChange?: string
+  notes?: string
   status?: string
 }
 
@@ -45,6 +48,9 @@ export interface ApiCandidate {
   currentLocation?: string | null
   preferredLocation?: string | null
   offerInHand?: string
+  interviewAvailability?: string | null
+  reasonForChange?: string | null
+  notes?: string | null
   status?: string
   createdAt?: string
 }
@@ -116,6 +122,9 @@ export function buildCandidateBody(fields: CandidateFormFields, mode: 'create' |
   body.preferredLocation = fields.preferredLocation?.trim() || ''
   const offer = normalizeOffer(fields.offerInHand)
   if (offer) body.offerInHand = offer
+  body.interviewAvailability = fields.interviewAvailability?.trim() || ''
+  body.reasonForChange = fields.reasonForChange?.trim() || ''
+  body.notes = fields.notes?.trim() || ''
   body.skills = splitSkills(fields.skills, fields.technologies)
   if (mode === 'create') {
     const status = fields.status && CREATE_STATUSES.has(fields.status) ? fields.status : 'Parsed'
@@ -159,6 +168,9 @@ export function apiCandidateToUi(doc: ApiCandidate): UiCandidate {
     currentLocation: blankToEmpty(doc.currentLocation),
     preferredLocation: blankToEmpty(doc.preferredLocation),
     offerInHand: offer,
+    interviewAvailability: blankToEmpty(doc.interviewAvailability),
+    reasonForChange: blankToEmpty(doc.reasonForChange),
+    notes: blankToEmpty(doc.notes),
     status: status as Candidate['status'],
   }
 }

@@ -29,24 +29,48 @@ export function RequirementsDetail({ vm }: { vm: RequirementsVm }) {
     setEditingReq,
     handleConfirmModalAssignment,
     handleOpenRevoke,
+    showToast,
   } = vm
   if (!selectedReqForDetail) return null
+  const isHold = selectedReqForDetail.status === 'Hold' || selectedReqForDetail.status === 'On Hold'
+  const isUnassigned = !selectedReqForDetail.owner || selectedReqForDetail.owner === 'Unassigned'
+  const isRecruiterSelfOnly = role === 'recruiter' && isUnassigned
   return (
       <>
         <RequirementDetailOverview
           requirement={selectedReqForDetail}
           role={role}
           onBack={() => setSelectedReqForDetail(null)}
-          onAddCandidate={() => onOpenSubmit?.(selectedReqForDetail.id)}
+          onAddCandidate={() => {
+            if (isHold) {
+              showToast(`Cannot add candidate: Requirement ${selectedReqForDetail.id} is On Hold`)
+              return
+            }
+            onOpenSubmit?.(selectedReqForDetail.id)
+          }}
           onEditRequirement={() => {
+            if (isHold) {
+              showToast(`Cannot edit requirement: Requirement ${selectedReqForDetail.id} is On Hold`)
+              return
+            }
             setEditingReq(selectedReqForDetail)
             setIsEditingDemand(true)
           }}
-          onOpenAssignModal={role !== 'recruiter' ? () => {
+          onOpenAssignModal={() => {
+            if (isHold) {
+              showToast(`Cannot assign recruiters: Requirement ${selectedReqForDetail.id} is On Hold`)
+              return
+            }
             setSelectedReqIds(new Set([selectedReqForDetail.id]))
             setIsAssignModalOpen(true)
-          } : undefined}
-          onRevokeRequirement={() => handleOpenRevoke(selectedReqForDetail)}
+          }}
+          onRevokeRequirement={() => {
+            if (isHold) {
+              showToast(`Cannot revoke requirement: Requirement ${selectedReqForDetail.id} is On Hold`)
+              return
+            }
+            handleOpenRevoke(selectedReqForDetail)
+          }}
         />
 
         {/* REASSIGN MODAL OVERLAY */}
@@ -57,10 +81,12 @@ export function RequirementsDetail({ vm }: { vm: RequirementsVm }) {
               <div className="flex items-start justify-between px-6 py-5 border-b border-slate-100">
                 <div>
                   <h3 className="text-xl font-bold text-slate-900 tracking-tight">
-                    Reassign
+                    {isRecruiterSelfOnly ? 'Self Assign' : 'Reassign'}
                   </h3>
                   <p className="text-xs text-slate-500 font-normal mt-1">
-                    Select yourself and/or other recruiters for this requirement in one step.
+                    {isRecruiterSelfOnly
+                      ? 'Assign this requirement to yourself.'
+                      : 'Select yourself and/or other recruiters for this requirement in one step.'}
                   </p>
                 </div>
                 <button
@@ -83,64 +109,70 @@ export function RequirementsDetail({ vm }: { vm: RequirementsVm }) {
                   />
                   <div>
                     <div className="text-sm font-bold text-blue-900 leading-snug">
-                      Assign myself ({currentUserName})
+                      {isRecruiterSelfOnly ? 'Assign myself' : 'Keep / assign myself'} ({currentUserName})
                     </div>
                     <div className="text-xs text-blue-600/90 leading-normal mt-0.5 font-normal">
-                      Include yourself along with any recruiters selected below.
+                      {isRecruiterSelfOnly
+                        ? 'Assign this requirement to your recruiter workload.'
+                        : 'Include yourself along with any recruiters selected below.'}
                     </div>
                   </div>
                 </label>
 
-                {/* Search recruiter input */}
-                <div className="space-y-1">
-                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                    ASSIGN TO RECRUITER
-                  </div>
-                  <input
-                    type="text"
-                    placeholder="Search recruiter by name or email"
-                    value={recruiterSearchQuery}
-                    onChange={e => setRecruiterSearchQuery(e.target.value)}
-                    className="w-full h-11 px-4 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 text-slate-800 placeholder:text-slate-400 shadow-2xs transition-all"
-                  />
-                </div>
+                {!isRecruiterSelfOnly && (
+                  <>
+                    {/* Search recruiter input */}
+                    <div className="space-y-1">
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                        ASSIGN TO RECRUITER
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="Search recruiter by name or email"
+                        value={recruiterSearchQuery}
+                        onChange={e => setRecruiterSearchQuery(e.target.value)}
+                        className="w-full h-11 px-4 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 text-slate-800 placeholder:text-slate-400 shadow-2xs transition-all"
+                      />
+                    </div>
 
-                {/* Showing counter */}
-                <div className="text-xs text-slate-500 font-medium px-0.5">
-                  Showing {filteredRecruiterList.length} of {recruiterList.length} recruiters
-                </div>
+                    {/* Showing counter */}
+                    <div className="text-xs text-slate-500 font-medium px-0.5">
+                      Showing {filteredRecruiterList.length} of {recruiterList.length} recruiters
+                    </div>
 
-                {/* Recruiter cards scrollable list */}
-                <div className="max-h-56 overflow-y-auto space-y-2.5 pr-1.5 custom-scrollbar">
-                  {filteredRecruiterList.map(rec => {
-                    const isChecked = selectedRecruiterNames.has(rec.name)
-                    return (
-                      <label
-                        key={rec.id}
-                        className={`border rounded-2xl p-3.5 flex items-center gap-3.5 cursor-pointer transition-all ${
-                          isChecked
-                            ? 'border-blue-300 bg-blue-50/50'
-                            : 'border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50/60'
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={() => toggleRecruiterSelection(rec.name)}
-                          className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer shrink-0"
-                        />
-                        <div>
-                          <div className="text-sm font-bold text-slate-900 leading-snug">
-                            {rec.name}
-                          </div>
-                          <div className="text-xs text-slate-400 mt-0.5 font-normal">
-                            {rec.email}
-                          </div>
-                        </div>
-                      </label>
-                    )
-                  })}
-                </div>
+                    {/* Recruiter cards scrollable list */}
+                    <div className="max-h-56 overflow-y-auto space-y-2.5 pr-1.5 custom-scrollbar">
+                      {filteredRecruiterList.map(rec => {
+                        const isChecked = selectedRecruiterNames.has(rec.name)
+                        return (
+                          <label
+                            key={rec.id}
+                            className={`border rounded-2xl p-3.5 flex items-center gap-3.5 cursor-pointer transition-all ${
+                              isChecked
+                                ? 'border-blue-300 bg-blue-50/50'
+                                : 'border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50/60'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => toggleRecruiterSelection(rec.name)}
+                              className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer shrink-0"
+                            />
+                            <div>
+                              <div className="text-sm font-bold text-slate-900 leading-snug">
+                                {rec.name}
+                              </div>
+                              <div className="text-xs text-slate-400 mt-0.5 font-normal">
+                                {rec.email}
+                              </div>
+                            </div>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Footer actions */}
@@ -155,10 +187,10 @@ export function RequirementsDetail({ vm }: { vm: RequirementsVm }) {
                 <button
                   type="button"
                   onClick={handleConfirmModalAssignment}
-                  disabled={totalSelectedRecruitersCount === 0}
+                  disabled={isRecruiterSelfOnly ? !isAssignMyselfChecked : totalSelectedRecruitersCount === 0}
                   className="px-6 h-11 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-bold rounded-xl transition-all shadow-xs cursor-pointer active:scale-98"
                 >
-                  Assign {totalSelectedRecruitersCount} recruiter(s)
+                  {isRecruiterSelfOnly ? 'Self Assign Requirement' : `Assign ${totalSelectedRecruitersCount} recruiter(s)`}
                 </button>
               </div>
             </div>

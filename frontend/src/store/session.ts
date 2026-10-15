@@ -5,6 +5,51 @@ export interface SessionUser {
   role: string
   title?: string
   permissions?: string[] | Record<string, boolean>
+  capabilities?: Record<string, boolean>
+}
+
+export type CapabilityKey =
+  | 'addCandidates'
+  | 'submitToClients'
+  | 'scheduleInterviews'
+  | 'exportReportsCsv'
+  | 'viewTeamAnalytics'
+  | 'reassignRequirements'
+  | 'deleteRecords'
+
+export function hasCapability(key: CapabilityKey, user?: SessionUser | null): boolean {
+  const current = user !== undefined ? user : getSessionUser()
+  if (!current) return false
+  const roleCode = String(current.role || '').toLowerCase()
+
+  // Super Admin & Dev Team have unrestricted access
+  if (roleCode === 'superadmin' || roleCode === 'devteam') {
+    return true
+  }
+
+  // Check explicit capability override set by Super Admin
+  if (current.capabilities && typeof current.capabilities === 'object' && current.capabilities[key] !== undefined) {
+    return Boolean(current.capabilities[key])
+  }
+
+  // Fallback defaults by role if no override was explicitly saved by Super Admin
+  const isSuperOrAdmin = roleCode === 'superadmin' || roleCode === 'admin'
+  const isLead = roleCode === 'lead' || roleCode === 'team lead'
+
+  switch (key) {
+    case 'addCandidates':
+    case 'submitToClients':
+    case 'scheduleInterviews':
+      return roleCode !== 'client'
+    case 'exportReportsCsv':
+    case 'viewTeamAnalytics':
+    case 'reassignRequirements':
+      return isSuperOrAdmin || isLead
+    case 'deleteRecords':
+      return isSuperOrAdmin
+    default:
+      return false
+  }
 }
 
 const TOKEN_KEY = 'metaforge_access_token'

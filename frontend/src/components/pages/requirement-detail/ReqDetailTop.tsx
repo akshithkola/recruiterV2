@@ -15,6 +15,7 @@ export function ReqDetailTop({ vm }: { vm: RequirementDetailVm }) {
     isUnassigned,
     showToast,
   } = vm
+  const isHold = requirement.status === 'Hold' || requirement.status === 'On Hold'
   return (
     <>
       {/* 1. TOP BAR WITH BACK BUTTON AND ACTION BUTTONS */}
@@ -28,20 +29,42 @@ export function ReqDetailTop({ vm }: { vm: RequirementDetailVm }) {
         </button>
 
         <div className="flex flex-wrap items-center gap-2.5">
-          {!isRecruiter && onOpenAssignModal && !isUnassigned && (
+          {onOpenAssignModal && (
             <button
-              onClick={onOpenAssignModal}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 border border-blue-200 rounded-xl text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 transition-all shadow-2xs cursor-pointer"
+              disabled={isHold}
+              onClick={isHold ? undefined : onOpenAssignModal}
+              title={
+                isHold
+                  ? 'Requirement is On Hold - assignment disabled'
+                  : isRecruiter
+                    ? (isUnassigned ? 'Self Assign' : 'Reassign')
+                    : (isUnassigned ? 'Assign Recruiter' : 'Reassign')
+              }
+              className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 border rounded-xl text-xs font-bold transition-all shadow-2xs ${
+                isHold
+                  ? 'border-gray-200 text-gray-400 bg-gray-50 cursor-not-allowed opacity-50'
+                  : 'border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 cursor-pointer'
+              }`}
             >
               <UserPlus className="w-3.5 h-3.5 text-blue-600" />
-              <span>Reassign</span>
+              <span>
+                {isRecruiter
+                  ? (isUnassigned ? 'Self Assign' : 'Reassign')
+                  : (isUnassigned ? 'Assign Recruiter' : 'Reassign')}
+              </span>
             </button>
           )}
 
           {onRevokeRequirement && !isUnassigned && (
             <button
-              onClick={onRevokeRequirement}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 border border-rose-200 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 transition-all shadow-2xs cursor-pointer"
+              disabled={isHold}
+              onClick={isHold ? undefined : onRevokeRequirement}
+              title={isHold ? 'Requirement is On Hold - revoke disabled' : 'Revoke Requirement'}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 border rounded-xl text-xs font-bold transition-all shadow-2xs ${
+                isHold
+                  ? 'border-gray-200 text-gray-400 bg-gray-50 cursor-not-allowed opacity-50'
+                  : 'border-rose-200 text-rose-700 bg-rose-50 hover:bg-rose-100 cursor-pointer'
+              }`}
             >
               <RotateCcw className="w-3.5 h-3.5 text-rose-600" />
               <span>Revoke Requirement</span>
@@ -50,11 +73,21 @@ export function ReqDetailTop({ vm }: { vm: RequirementDetailVm }) {
 
           {!isUnassigned && (
             <button
+              disabled={isHold}
               onClick={() => {
+                if (isHold) {
+                  showToast('Cannot add candidate: Requirement is On Hold')
+                  return
+                }
                 if (onAddCandidate) onAddCandidate()
                 setIsAddCandidateModalOpen(true)
               }}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 border border-[#6B3BF6]/30 rounded-xl text-xs font-bold text-[#6B3BF6] bg-purple-50 hover:bg-purple-100 transition-all shadow-2xs cursor-pointer"
+              title={isHold ? 'Requirement is On Hold - candidate submissions disabled' : 'Add Candidate'}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 border rounded-xl text-xs font-bold transition-all shadow-2xs ${
+                isHold
+                  ? 'border-gray-200 text-gray-400 bg-gray-50 cursor-not-allowed opacity-50'
+                  : 'border-[#6B3BF6]/30 text-[#6B3BF6] bg-purple-50 hover:bg-purple-100 cursor-pointer'
+              }`}
             >
               <UserPlus className="w-3.5 h-3.5 text-[#6B3BF6]" />
               <span>Add Candidate</span>
@@ -62,8 +95,21 @@ export function ReqDetailTop({ vm }: { vm: RequirementDetailVm }) {
           )}
 
           <button
-            onClick={onEditRequirement || (() => showToast('Editing requirement details...'))}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 border border-gray-200/90 rounded-xl text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 transition-all shadow-2xs cursor-pointer"
+            disabled={isHold}
+            onClick={() => {
+              if (isHold) {
+                showToast('Cannot edit requirement: Requirement is On Hold')
+                return
+              }
+              if (onEditRequirement) onEditRequirement()
+              else vm.setIsInternalEditing(true)
+            }}
+            title={isHold ? 'Requirement is On Hold - editing disabled' : 'Edit Requirement'}
+            className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 border rounded-xl text-xs font-semibold transition-all shadow-2xs ${
+              isHold
+                ? 'border-gray-200 text-gray-400 bg-gray-50 cursor-not-allowed opacity-50'
+                : 'border-gray-200/90 text-gray-700 bg-white hover:bg-gray-50 cursor-pointer'
+            }`}
           >
             <Pencil className="w-3.5 h-3.5 text-gray-500" />
             <span>Edit Requirement</span>

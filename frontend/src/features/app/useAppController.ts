@@ -109,7 +109,12 @@ export function useAppController() {
       .catch(() => setWorkspaceError('Workspace API unavailable'))
   }
 
-  const handleNavSelect = createNavSelectHandler(setSelectedReqIdForSubmit, setActiveNav)
+  const handleNavSelect = (key: string) => {
+    createNavSelectHandler(setSelectedReqIdForSubmit, setActiveNav)(key)
+    if (key === 'Requirements') {
+      applyWorkspace().catch(() => undefined)
+    }
+  }
 
   const handleOpenSubmitCandidateFromDashboard = (reqId?: string) => {
     setSelectedReqIdForSubmit(reqId || null)
@@ -119,8 +124,15 @@ export function useAppController() {
   }
 
   const handleAddRequirement = (newReq: Requirement) => {
-    setRequirements([newReq, ...requirements])
-    void workspaceService.createRequirement(newReq).catch(() => undefined)
+    const nowIso = new Date().toISOString()
+    const enrichedReq: Requirement = {
+      ...newReq,
+      emailArrivedTime: newReq.emailArrivedTime || new Date().toLocaleString(),
+      createdAt: (newReq as any).createdAt || nowIso,
+      updatedAt: (newReq as any).updatedAt || nowIso,
+    }
+    setRequirements([enrichedReq, ...requirements])
+    void workspaceService.createRequirement(enrichedReq).catch(() => undefined)
   }
 
   const handleSubmitCandidate = createSubmitCandidateHandler({

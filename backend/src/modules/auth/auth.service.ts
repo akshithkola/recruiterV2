@@ -2,23 +2,29 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { JwtService } from '@nestjs/jwt';
 import { Model, Types } from 'mongoose';
 import * as bcrypt from 'bcryptjs';
+import * as crypto from 'crypto';
 
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { Organization, OrganizationDocument } from '../organizations/schemas/organization.schema';
 import { RolePermission, RolePermissionDocument } from '../users/schemas/role-permission.schema';
+import { MailService } from '../mail/mail.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterRequestDto } from './dto/register-request.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { RequestLoginOtpDto } from './dto/request-login-otp.dto';
+import { VerifyLoginOtpDto } from './dto/verify-login-otp.dto';
 
 interface OtpEntry {
   otpCode: string;
@@ -50,6 +56,7 @@ export class AuthService {
     @InjectModel(Organization.name) private readonly orgModel: Model<OrganizationDocument>,
     @InjectModel(RolePermission.name) private readonly roleModel: Model<RolePermissionDocument>,
     private readonly jwtService: JwtService,
+    private readonly mailService: MailService,
   ) {}
 
   private async permissionsFor(role: string, orgId?: Types.ObjectId | string | null): Promise<string[]> {
@@ -58,6 +65,28 @@ export class AuthService {
     if (orgId) filter.orgId = new Types.ObjectId(orgId.toString());
     const doc = await this.roleModel.findOne(filter).exec();
     return doc?.permissions?.length ? doc.permissions : [];
+  }
+
+  private normalizeRole(role?: string): string {
+    const r = (role || '').trim().toLowerCase();
+    if (r === 'team lead' || r === 'team_lead' || r === 'lead') return 'lead';
+    if (r === 'recruiter') return 'recruiter';
+    if (r === 'admin') return 'admin';
+    if (r === 'superadmin' || r === 'super_admin') return 'superadmin';
+    if (r === 'devteam' || r === 'dev_team' || r === 'developer') return 'devteam';
+    if (r === 'client') return 'client';
+    return r;
+  }
+
+  private enforceMatchingRole(userRole: string, requestedRole?: string) {
+    if (!requestedRole) return;
+    const req = this.normalizeRole(requestedRole);
+    const assigned = this.normalizeRole(userRole);
+    if (req && req !== assigned) {
+      throw new UnauthorizedException(
+        `You are not authorized to log in as '${requestedRole}'. Assigned account role is '${userRole}'.`,
+      );
+    }
   }
 
   /**
@@ -76,7 +105,29 @@ export class AuthService {
     const normalizedEmail = email.trim().toLowerCase();
     let user = await this.userModel.findOne({ email: normalizedEmail, deletedAt: null }).exec();
 
+    if (!user && DEMO_CREDENTIALS[normalizedEmail]) {
+      const demoInfo = DEMO_CREDENTIALS[normalizedEmail];
+      if (demoInfo.password === pass) {
+        const orgId = await this.getDefaultOrgId();
+        const passwordHash = await bcrypt.hash(pass, 10);
+        user = new this.userModel({
+          orgId,
+          userId: `user-${Date.now()}`,
+          name: demoInfo.name,
+          email: normalizedEmail,
+          passwordHash,
+          role: demoInfo.role,
+          active: true,
+        });
+        await user.save();
+      }
+    }
+
     if (user) {
+      if (user.active === false) {
+        throw new UnauthorizedException('User account has been deactivated or deleted');
+      }
+
       let isMatch = await bcrypt.compare(pass, user.passwordHash);
 
       // Support fallback demo account password check if bcrypt compare fails
@@ -104,6 +155,7 @@ export class AuthService {
    */
   async login(dto: LoginDto) {
     const user = await this.validateUser(dto.email, dto.password);
+    this.enforceMatchingRole(user.role, dto.role);
 
     // Update lastLoginAt timestamp
     user.lastLoginAt = new Date();
@@ -165,7 +217,8 @@ export class AuthService {
     }
 
     const orgId = await this.getDefaultOrgId();
-    const passwordHash = await bcrypt.hash(dto.password, 10);
+    const rawPass = dto.password || crypto.randomBytes(16).toString('hex');
+    const passwordHash = await bcrypt.hash(rawPass, 10);
 
     const newUser = new this.userModel({
       orgId,
@@ -174,7 +227,7 @@ export class AuthService {
       email: normalizedEmail,
       passwordHash,
       role: dto.role || 'recruiter',
-      phone: dto.phone || null,
+      phone: dto.phone ? dto.phone.trim() : null,
       active: true,
     });
 
@@ -353,6 +406,223 @@ export class AuthService {
       permissions,
       capabilities: user.capabilities || {},
       lastLoginAt: user.lastLoginAt,
+    };
+  }
+
+  /**
+   * Request Login OTP Endpoint — POST /auth/request-login-otp
+   */
+  async requestLoginOtp(dto: RequestLoginOtpDto) {
+    const normalizedEmail = dto.email.trim().toLowerCase();
+    let user = await this.userModel.findOne({ email: normalizedEmail, deletedAt: null }).exec();
+
+    if (!user && DEMO_CREDENTIALS[normalizedEmail]) {
+      const demoInfo = DEMO_CREDENTIALS[normalizedEmail];
+      const orgId = await this.getDefaultOrgId();
+      const passwordHash = await bcrypt.hash(demoInfo.password, 10);
+      user = new this.userModel({
+        orgId,
+        userId: `user-${Date.now()}`,
+        name: demoInfo.name,
+        email: normalizedEmail,
+        passwordHash,
+        role: demoInfo.role,
+        active: true,
+      });
+      await user.save();
+    }
+
+    if (!user || user.active === false) {
+      // Do not reveal whether account exists or is active
+      return { message: 'If an account exists for this email, a login OTP has been sent.' };
+    }
+
+    // Role check BEFORE sending OTP (Requirement 3)
+    this.enforceMatchingRole(user.role, dto.role);
+
+    const now = new Date();
+
+    // Check 60-second OTP resend cooldown
+    if (user.loginOtpLastSentAt) {
+      const elapsedMs = now.getTime() - new Date(user.loginOtpLastSentAt).getTime();
+      if (elapsedMs < 60 * 1000) {
+        const remainingSeconds = Math.ceil((60 * 1000 - elapsedMs) / 1000);
+        throw new BadRequestException(
+          `Resend cooldown active. Please wait ${remainingSeconds} second(s) before requesting another OTP.`,
+        );
+      }
+    }
+
+    const otpCode = String(crypto.randomInt(1000, 10000));
+
+    // Hash OTP using bcrypt
+    const salt = await bcrypt.genSalt(10);
+    const hash = await bcrypt.hash(otpCode, salt);
+
+    // Store OTP hash, expiry (5 minutes), attempts (0), and last-sent timestamp
+    user.loginOtpHash = hash;
+    user.loginOtpExpires = new Date(now.getTime() + 5 * 60 * 1000);
+    user.loginOtpAttempts = 0;
+    user.loginOtpLastSentAt = now;
+    await user.save();
+
+    // Send OTP through active mail service provider (Nodemailer / Graph)
+    try {
+      await this.mailService.sendMail({
+        to: [normalizedEmail],
+        subject: 'Your Login Verification Code - MetaForge Recruiter Portal',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+            <div style="text-align: center; margin-bottom: 24px;">
+              <h2 style="color: #0f172a; margin: 0; font-size: 20px;">MetaForge Recruiter Command Centre</h2>
+              <p style="color: #64748b; font-size: 14px; margin-top: 4px;">Single-Use Login Verification Code</p>
+            </div>
+            <p style="color: #334155; font-size: 15px; line-height: 1.5;">Hello,</p>
+            <p style="color: #334155; font-size: 15px; line-height: 1.5;">Use the following 4-digit verification code to complete your login. This code is valid for <strong>5 minutes</strong>.</p>
+            <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 18px; text-align: center; margin: 24px 0;">
+              <span style="font-family: monospace; font-size: 36px; font-weight: 800; letter-spacing: 12px; color: #2563eb;">${otpCode}</span>
+            </div>
+            <p style="color: #64748b; font-size: 13px; line-height: 1.5;">If you did not request this code, no action is needed. Your account remains secure.</p>
+            <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
+            <p style="color: #94a3b8; font-size: 12px; text-align: center; margin: 0;">&copy; MetaForge IT. Automated notification service.</p>
+          </div>
+        `,
+      });
+    } catch {
+      user.loginOtpHash = null;
+      user.loginOtpExpires = null;
+      user.loginOtpAttempts = 0;
+      user.loginOtpLastSentAt = null;
+      await user.save();
+      Logger.error(`Login code email was not accepted for ${normalizedEmail}`, 'AuthService');
+      throw new ServiceUnavailableException('Failed to deliver the login code. Try again in a moment.');
+    }
+
+    // Never return the OTP or OTP hash in API response
+    return { message: 'If an account exists for this email, a login OTP has been sent.' };
+  }
+
+  /**
+   * Verify Login OTP Endpoint — POST /auth/verify-login-otp
+   */
+  async verifyLoginOtp(dto: VerifyLoginOtpDto) {
+    const normalizedEmail = dto.email.trim().toLowerCase();
+    const code = (dto.code || '').trim();
+
+    if (!/^\d{4}$/.test(code)) {
+      throw new BadRequestException('OTP code must be exactly 4 digits');
+    }
+
+    let user = await this.userModel.findOne({ email: normalizedEmail, deletedAt: null }).exec();
+
+    if (!user && DEMO_CREDENTIALS[normalizedEmail]) {
+      const demoInfo = DEMO_CREDENTIALS[normalizedEmail];
+      const orgId = await this.getDefaultOrgId();
+      const passwordHash = await bcrypt.hash(demoInfo.password, 10);
+      user = new this.userModel({
+        orgId,
+        userId: `user-${Date.now()}`,
+        name: demoInfo.name,
+        email: normalizedEmail,
+        passwordHash,
+        role: demoInfo.role,
+        active: true,
+      });
+      await user.save();
+    }
+
+    if (!user) {
+      throw new UnauthorizedException('Invalid email or OTP code');
+    }
+
+    if (user.active === false) {
+      throw new UnauthorizedException('User account has been deactivated or deleted');
+    }
+
+    // Role check during OTP verification (Requirement 3)
+    this.enforceMatchingRole(user.role, dto.role);
+
+    if (!user.loginOtpHash || !user.loginOtpExpires) {
+      throw new BadRequestException('No active OTP found. Please request a new OTP.');
+    }
+
+    // Check attempts before checking expiry
+    if (user.loginOtpAttempts >= 5) {
+      user.loginOtpHash = null;
+      user.loginOtpExpires = null;
+      await user.save();
+      throw new BadRequestException('Maximum OTP verification attempts exceeded. Please request a new OTP.');
+    }
+
+    // Check expiration (5 minutes)
+    if (new Date() > new Date(user.loginOtpExpires)) {
+      user.loginOtpHash = null;
+      user.loginOtpExpires = null;
+      await user.save();
+      throw new BadRequestException('OTP code has expired. Please request a new OTP.');
+    }
+
+    // Compare code with stored bcrypt hash
+    const isMatch = await bcrypt.compare(code, user.loginOtpHash);
+
+    if (!isMatch) {
+      user.loginOtpAttempts = (user.loginOtpAttempts || 0) + 1;
+      await user.save();
+
+      if (user.loginOtpAttempts >= 5) {
+        user.loginOtpHash = null;
+        user.loginOtpExpires = null;
+        await user.save();
+        throw new BadRequestException('Maximum OTP verification attempts exceeded. Please request a new OTP.');
+      }
+
+      const remaining = 5 - user.loginOtpAttempts;
+      throw new UnauthorizedException(`Invalid OTP code. ${remaining} attempt(s) remaining.`);
+    }
+
+    // On successful verification:
+    // 1. Invalidate/remove OTP
+    user.loginOtpHash = null;
+    user.loginOtpExpires = null;
+    user.loginOtpAttempts = 0;
+    user.loginOtpLastSentAt = null;
+
+    // 2. Update lastLoginAt
+    user.lastLoginAt = new Date();
+    await user.save();
+
+    // 3. Issue existing V2 JWT
+    const permissions = await this.permissionsFor(user.role, user.orgId as any);
+
+    const payload = {
+      sub: user._id.toString(),
+      userId: user.userId,
+      email: user.email,
+      role: user.role,
+      orgId: user.orgId ? user.orgId.toString() : null,
+      name: user.name,
+      permissions,
+    };
+
+    const accessToken = this.jwtService.sign(payload);
+    const refreshToken = this.jwtService.sign(payload, { expiresIn: '7d' });
+
+    this.activeRefreshTokens.add(refreshToken);
+
+    return {
+      accessToken,
+      refreshToken,
+      user: {
+        id: user._id.toString(),
+        userId: user.userId,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        orgId: user.orgId,
+        title: user.role,
+        permissions,
+        capabilities: user.capabilities || {},
+      },
     };
   }
 }

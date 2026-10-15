@@ -44,14 +44,18 @@ export function apiErrorMessage(err: unknown): string {
 
 function capabilitiesOf(user: any): RecruiterUserPermissionData['permissions'] {
   const caps = user?.capabilities && typeof user.capabilities === 'object' ? user.capabilities : {}
+  const role = String(user?.role || '').toLowerCase()
+  const isSuperOrAdmin = role === 'superadmin' || role === 'admin'
+  const isLead = role === 'lead' || role === 'team lead'
+
   return {
-    addCandidates: !!caps.addCandidates,
-    submitToClients: !!caps.submitToClients,
-    scheduleInterviews: !!caps.scheduleInterviews,
-    exportReportsCsv: !!caps.exportReportsCsv,
-    viewTeamAnalytics: !!caps.viewTeamAnalytics,
-    deleteRecords: !!caps.deleteRecords,
-    reassignRequirements: !!caps.reassignRequirements,
+    addCandidates: caps.addCandidates !== undefined ? !!caps.addCandidates : role !== 'client',
+    submitToClients: caps.submitToClients !== undefined ? !!caps.submitToClients : role !== 'client',
+    scheduleInterviews: caps.scheduleInterviews !== undefined ? !!caps.scheduleInterviews : role !== 'client',
+    exportReportsCsv: caps.exportReportsCsv !== undefined ? !!caps.exportReportsCsv : (isSuperOrAdmin || isLead),
+    viewTeamAnalytics: caps.viewTeamAnalytics !== undefined ? !!caps.viewTeamAnalytics : (isSuperOrAdmin || isLead),
+    deleteRecords: caps.deleteRecords !== undefined ? !!caps.deleteRecords : isSuperOrAdmin,
+    reassignRequirements: caps.reassignRequirements !== undefined ? !!caps.reassignRequirements : (isSuperOrAdmin || isLead),
   }
 }
 

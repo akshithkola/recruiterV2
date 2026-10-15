@@ -4,6 +4,7 @@ import { RecruiterDashboardVm } from './useRecruiterDashboard'
 
 export function RecruiterDashRepo({ vm }: { vm: RecruiterDashboardVm }) {
   const {
+    candidates,
     requirements,
     inlineReqId,
     setInlineReqId,
@@ -12,6 +13,7 @@ export function RecruiterDashRepo({ vm }: { vm: RecruiterDashboardVm }) {
   return (
     <div className="w-full pb-12 font-sans animate-in fade-in duration-200">
       <CandidateRepositoryPage
+        candidates={candidates}
         selectedReqId={inlineReqId}
         role="recruiter"
         requirements={requirements}

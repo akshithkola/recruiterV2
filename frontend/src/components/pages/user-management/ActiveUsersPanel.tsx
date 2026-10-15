@@ -1,4 +1,6 @@
+import { useMemo, useState, useEffect } from 'react'
 import { Users, UserPlus, KeyRound, ShieldCheck, Search, XCircle, Lock, Building2, Sliders } from 'lucide-react'
+import { PaginationFooter } from '../../ui/PaginationFooter'
 import type { UserManagementVM } from './useUserManagement'
 
 export function ActiveUsersPanel({
@@ -6,6 +8,18 @@ export function ActiveUsersPanel({
     searchQuery, setSearchQuery, filteredUsers, openAdjustClientModal,
     openResetPasswordPage, openAssignRolePage, openManageUserPermissionsModal, promptDeleteUser
 }: UserManagementVM) {
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(5)
+  const totalPages = Math.ceil(filteredUsers.length / pageSize) || 1
+  const paginatedUsers = useMemo(() => {
+    const start = (currentPage - 1) * pageSize
+    return filteredUsers.slice(start, start + pageSize)
+  }, [filteredUsers, currentPage, pageSize])
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, pageSize, filteredUsers.length])
+
   return (
             <>
               {/* KPI CARDS */}
@@ -90,7 +104,7 @@ export function ActiveUsersPanel({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-xs text-slate-700 font-medium">
-                      {filteredUsers.map(user => (
+                      {paginatedUsers.map(user => (
                         <tr key={user.id} className="hover:bg-purple-50/30 transition-colors">
                           <td className="py-4 px-4 font-bold text-slate-900">
                             <div className="flex items-center gap-3">
@@ -185,6 +199,15 @@ export function ActiveUsersPanel({
                     </tbody>
                   </table>
                 </div>
+                <PaginationFooter
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  totalItems={filteredUsers.length}
+                  pageSize={pageSize}
+                  onPageChange={setCurrentPage}
+                  onPageSizeChange={setPageSize}
+                  itemLabel="users"
+                />
               </div>
             </>
   )

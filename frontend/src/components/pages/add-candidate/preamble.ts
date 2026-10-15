@@ -29,6 +29,8 @@ import { checkDuplicateSubmission } from '../../../data/submissionsStore'
 export interface AddCandidatePageProps {
   requirements?: Requirement[]
   selectedReqId?: string | null
+  /** Show Back only when opened as a nested view (e.g. from Repository) */
+  showBack?: boolean
   onOpenRepository: () => void
   onAddCandidate?: (candidate: Candidate) => void
 }

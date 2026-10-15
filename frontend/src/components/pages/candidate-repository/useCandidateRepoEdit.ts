@@ -80,6 +80,9 @@ export function useCandidateRepoEdit(
         currentLocation: editCurrentLoc,
         preferredLocation: editPreferredLoc,
         offerInHand: editOfferInHand,
+        interviewAvailability: editAvailability,
+        reasonForChange: editReasonForChange,
+        notes: editNotes,
       })
       const refreshed = uiCandidateToRepo({
         ...saved,

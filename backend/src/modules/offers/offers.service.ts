@@ -329,6 +329,26 @@ export class OffersService {
     }
 
     const updated = await doc.save();
+
+    if (this.notificationsService) {
+      try {
+        const subDoc = await this.submissionModel.findById(doc.submissionId).exec();
+        const recruiterId = subDoc?.recruiterId || currentUser?.id;
+        if (recruiterId) {
+          const type = dto.status === 'Placed' || dto.status === 'Joined' ? 'candidate_placed' : 'offer_released';
+          await this.notificationsService.createNotification({
+            orgId,
+            userId: new Types.ObjectId(recruiterId.toString()),
+            type,
+            title: `Offer Status: ${dto.status}`,
+            message: `Offer ${updated.offerId} status was updated to ${dto.status}`,
+            entityId: new Types.ObjectId(updated._id.toString()),
+            entityType: 'offer',
+          });
+        }
+      } catch (e) {}
+    }
+
     return this.findById(updated._id.toString(), currentUser);
   }
 

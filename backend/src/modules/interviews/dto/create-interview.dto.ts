@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsOptional, IsString, IsNumber, IsDateString } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, IsNumber, IsDateString, IsBoolean } from 'class-validator';
 
 export class CreateInterviewDto {
   @IsNotEmpty()
@@ -40,4 +40,29 @@ export class CreateInterviewDto {
   @IsOptional()
   @IsString()
   interviewerEmail?: string;
+
+  @IsOptional()
+  @IsString()
+  status?: string;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
+  @IsOptional()
+  @IsString()
+  candidateEmail?: string;
+
+  @IsOptional()
+  @IsString()
+  candidatePhone?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  sendEmail?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  sendWhatsApp?: boolean;
 }
+

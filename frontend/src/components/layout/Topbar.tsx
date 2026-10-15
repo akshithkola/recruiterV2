@@ -1,19 +1,18 @@
 import React, { useState } from 'react'
-import { Search, Bell, ChevronDown } from 'lucide-react'
+import { Bell } from 'lucide-react'
 import { Role } from '../../types'
-import { brand, appTheme, roleTheme } from '../../theme'
-import { getSessionUser } from '../../store/session'
-import { SEED_ACCOUNTS } from '../../data/seedCredentials'
+import { brand } from '../../theme'
 import { NotificationPopover } from '../ui/NotificationPopover'
-import { ScreenTimeWidget } from '../ui/ScreenTimeWidget'
+import { NotificationToast } from '../ui/NotificationToast'
+import { useNotificationSystem } from '../../hooks/useNotificationSystem'
 
 interface TopbarProps {
   title: string
   subtitle?: string
   role: Role
   onNewReqClick?: () => void
-  onSearchChange: (query: string) => void
-  searchValue: string
+  onSearchChange?: (query: string) => void
+  searchValue?: string
   onSignOut?: () => void
   showNewReq?: boolean
   isSidebarCollapsed?: boolean
@@ -23,83 +22,84 @@ interface TopbarProps {
 export function Topbar({
   title,
   subtitle,
-  role,
-  onSearchChange,
-  searchValue,
 }: TopbarProps) {
   const [isNotifOpen, setIsNotifOpen] = useState(false)
-  const [isProfileOpen, setIsProfileOpen] = useState(false)
-  const accent = appTheme.accent
-  const roleLabel = roleTheme[role].label
-  const session = getSessionUser()
-  const user = session
-    ? { name: session.name, email: session.email }
-    : SEED_ACCOUNTS[role]
-  const initials = user.name.split(' ').map(n => n[0]).join('')
+
+  const {
+    notifications,
+    unreadCount,
+    newNotificationCount,
+    loading,
+    errorMsg,
+    toasts,
+    dismissToast,
+    fetchNotifications,
+    markFeedAsViewed,
+    markAllAsRead,
+    markRead,
+    removeNotification,
+  } = useNotificationSystem()
+
+  const handleToggleNotif = () => {
+    const nextState = !isNotifOpen
+    setIsNotifOpen(nextState)
+    if (nextState) {
+      // User opened notifications: automatically mark all notifications as read in MongoDB and clear badge
+      markFeedAsViewed()
+      void markAllAsRead()
+    }
+  }
 
   return (
-    <header
-      className="h-14 px-6 flex items-center justify-between flex-shrink-0 border-b"
-      style={{ background: brand.surface, borderColor: brand.border }}
-    >
-      <div className="flex items-center gap-3">
-        <div>
-          <h1 className="text-base font-semibold" style={{ color: brand.text }}>{title}</h1>
-          {subtitle && (
-            <p className="text-xs mt-0.5" style={{ color: brand.textMuted }}>{subtitle}</p>
-          )}
-        </div>
-      </div>
+    <>
+      {/* Temporary 5-Second Right-Side Toast Popups */}
+      <NotificationToast toasts={toasts} onDismiss={dismissToast} />
 
-      <div className="flex items-center gap-3">
-        <div className="relative hidden sm:block">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: brand.textMuted }} />
-          <input
-            type="text"
-            placeholder="Global search…"
-            value={searchValue}
-            onChange={e => onSearchChange(e.target.value)}
-            className="w-48 lg:w-56 pl-9 pr-3 py-1.5 rounded-lg border text-sm focus:outline-none"
-            style={{ borderColor: brand.border, color: brand.text }}
-          />
+      <header
+        className="h-14 px-6 flex items-center justify-between flex-shrink-0 border-b"
+        style={{ background: brand.surface, borderColor: brand.border }}
+      >
+        <div className="flex items-center gap-3">
+          <div>
+            <h1 className="text-base font-semibold" style={{ color: brand.text }}>{title}</h1>
+            {subtitle && (
+              <p className="text-xs mt-0.5" style={{ color: brand.textMuted }}>{subtitle}</p>
+            )}
+          </div>
         </div>
 
-        {/* Live Screen Time & Performance Tracker Badge */}
-        <ScreenTimeWidget currentUserName={user.name} currentUserRole={role} />
-
-        <div className="relative">
-          <button
-            onClick={() => setIsNotifOpen(!isNotifOpen)}
-            className="p-2 rounded-lg"
-            style={{ color: brand.textSecondary }}
-          >
-            <Bell className="w-4 h-4" />
-          </button>
-          <NotificationPopover isOpen={isNotifOpen} onClose={() => setIsNotifOpen(false)} />
-        </div>
-
-        <div className="relative">
-          <button onClick={() => setIsProfileOpen(!isProfileOpen)} className="flex items-center gap-1.5 p-1 rounded-lg">
-            <div
-              className="w-7 h-7 rounded-md flex items-center justify-center text-[10px] font-semibold text-white"
-              style={{ background: accent }}
+        <div className="flex items-center gap-3">
+          {/* Notifications UI Option Button */}
+          <div className="relative">
+            <button
+              onClick={handleToggleNotif}
+              className="px-3.5 py-1.5 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs flex items-center gap-2 shadow-md hover:shadow-lg transition-all cursor-pointer border border-indigo-500/40"
+              title="Notifications"
             >
-              {initials}
-            </div>
-            <ChevronDown className="w-3.5 h-3.5 hidden sm:block" style={{ color: brand.textMuted }} />
-          </button>
+              <Bell className="w-3.5 h-3.5" />
+              <span>Notifications</span>
+              {newNotificationCount > 0 && (
+                <span className="bg-red-500 text-white font-bold text-[10px] px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-none shadow-sm animate-pulse">
+                  {newNotificationCount > 99 ? '99+' : newNotificationCount}
+                </span>
+              )}
+            </button>
 
-          {isProfileOpen && (
-            <div
-              className="absolute right-0 top-10 w-44 rounded-lg border py-2 px-3 shadow-lg z-50"
-              style={{ background: brand.surface, borderColor: brand.border }}
-            >
-              <p className="text-xs font-semibold" style={{ color: brand.text }}>{user.name}</p>
-              <p className="text-[10px]" style={{ color: brand.textMuted }}>{roleLabel}</p>
-            </div>
-          )}
+            <NotificationPopover
+              isOpen={isNotifOpen}
+              onClose={() => setIsNotifOpen(false)}
+              notifications={notifications}
+              unreadCount={unreadCount}
+              loading={loading}
+              errorMsg={errorMsg}
+              onRefresh={fetchNotifications}
+              onMarkAllAsRead={markAllAsRead}
+              onMarkRead={markRead}
+              onDelete={removeNotification}
+            />
+          </div>
         </div>
-      </div>
-    </header>
+      </header>
+    </>
   )
 }

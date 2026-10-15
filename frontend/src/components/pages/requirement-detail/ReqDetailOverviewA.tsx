@@ -82,27 +82,27 @@ export function ReqDetailOverviewA({ vm }: { vm: RequirementDetailVm }) {
 
               <div>
                 <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">RELEVANT EXPERIENCE</div>
-                <div className="font-bold text-gray-900 mt-1">Entry Level</div>
+                <div className="font-bold text-gray-900 mt-1">{requirement.experienceLevel || 'Mid Level'}</div>
               </div>
 
               <div>
                 <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">EMPLOYMENT TYPE</div>
-                <div className="font-bold text-gray-900 mt-1">Full-time</div>
+                <div className="font-bold text-gray-900 mt-1">{requirement.employmentType || 'Full-time'}</div>
               </div>
 
               <div>
                 <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">BUDGET CURRENCY</div>
-                <div className="font-bold text-gray-900 mt-1">INR</div>
+                <div className="font-bold text-gray-900 mt-1">{requirement.budget ? requirement.budget.split(' ')[0] : 'INR'}</div>
               </div>
 
               <div>
                 <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">YEARLY BUDGET</div>
-                <div className="font-bold text-gray-900 mt-1">{requirement.budget || '₹5,000,000'}</div>
+                <div className="font-bold text-gray-900 mt-1">{requirement.budget || 'Not specified'}</div>
               </div>
 
               <div>
                 <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">WORK MODE</div>
-                <div className="font-bold text-gray-900 mt-1">On-site</div>
+                <div className="font-bold text-gray-900 mt-1">{requirement.workMode || 'Hybrid'}</div>
               </div>
 
               <div>
@@ -112,22 +112,22 @@ export function ReqDetailOverviewA({ vm }: { vm: RequirementDetailVm }) {
 
               <div>
                 <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">OVERALL EXPERIENCE</div>
-                <div className="font-bold text-gray-900 mt-1">2-3 Years</div>
+                <div className="font-bold text-gray-900 mt-1">{requirement.experience || (requirement.experienceRange?.min ? `${requirement.experienceRange.min}-${requirement.experienceRange.max} Years` : 'Not specified')}</div>
               </div>
 
               <div>
                 <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">NOTICE PERIOD</div>
-                <div className="font-bold text-gray-900 mt-1">Not specified</div>
+                <div className="font-bold text-gray-900 mt-1">{requirement.noticePeriod || 'Not specified'}</div>
               </div>
 
               <div>
                 <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">OPEN SINCE</div>
-                <div className="font-bold text-gray-900 mt-1">{requirement.emailArrivedTime || 'Jun 19, 2026 (52 days)'}</div>
+                <div className="font-bold text-gray-900 mt-1">{requirement.emailArrivedTime || 'Recently'}</div>
               </div>
 
               <div>
                 <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">SLA</div>
-                <div className="font-bold text-gray-900 mt-1">10 days</div>
+                <div className="font-bold text-gray-900 mt-1">{requirement.sla || '5 days'}</div>
               </div>
             </div>
           </div>
@@ -141,14 +141,18 @@ export function ReqDetailOverviewA({ vm }: { vm: RequirementDetailVm }) {
                 MANDATORY SKILLS
               </div>
               <div className="flex flex-wrap gap-2">
-                {mandatorySkills.map((skill, idx) => (
-                  <span
-                    key={idx}
-                    className="px-3 py-1 bg-slate-100 text-slate-700 rounded-full text-xs font-medium border border-slate-200/70"
-                  >
-                    {skill}
-                  </span>
-                ))}
+                {mandatorySkills.length > 0 ? (
+                  mandatorySkills.map((skill, idx) => (
+                    <span
+                      key={idx}
+                      className="px-3 py-1 bg-slate-100 text-slate-700 rounded-full text-xs font-medium border border-slate-200/70"
+                    >
+                      {skill}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-xs text-gray-400 italic">None specified</span>
+                )}
               </div>
             </div>
 
@@ -157,17 +161,31 @@ export function ReqDetailOverviewA({ vm }: { vm: RequirementDetailVm }) {
                 SKILLS
               </div>
               <div className="flex flex-wrap gap-2">
-                {generalSkills.map((skill, idx) => (
-                  <span
-                    key={idx}
-                    className="px-3 py-1 bg-slate-100 text-slate-700 rounded-full text-xs font-medium border border-slate-200/70"
-                  >
-                    {skill}
-                  </span>
-                ))}
+                {generalSkills.length > 0 ? (
+                  generalSkills.map((skill, idx) => (
+                    <span
+                      key={idx}
+                      className="px-3 py-1 bg-slate-100 text-slate-700 rounded-full text-xs font-medium border border-slate-200/70"
+                    >
+                      {skill}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-xs text-gray-400 italic">None specified</span>
+                )}
               </div>
             </div>
           </div>
+
+          {/* JOB DESCRIPTION CARD */}
+          {requirement.description && (
+            <div className="bg-white rounded-2xl border border-gray-200/80 p-6 shadow-xs space-y-3">
+              <h3 className="text-sm font-bold text-gray-900">Job Description</h3>
+              <div className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed">
+                {requirement.description}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </>

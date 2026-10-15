@@ -19,7 +19,7 @@ export function LandingNav({ vm }: { vm: LandingVm }) {
       {/* Navigation Bar                                                    */}
       {/* ---------------------------------------------------------------- */}
       <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-xl border-b border-slate-200/90 shadow-2xs">
-        <div className="mx-auto max-w-7xl px-5 sm:px-8 h-16 sm:h-18 flex items-center justify-between gap-4">
+        <div className="mx-auto max-w-7xl px-5 sm:px-8 h-14 sm:h-15 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
             <MetaforgeLogo variant="dark" size="md" />
             <span className="hidden sm:block h-6 w-px bg-slate-200" />

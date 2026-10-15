@@ -1,5 +1,5 @@
 import React from 'react'
-import { Interview, Recruiter, Role, Submission, Requirement, ActivityLogItem, Admin, Lead } from '../../types'
+import { Interview, Recruiter, Role, Submission, Requirement, ActivityLogItem, Admin, Lead, Candidate } from '../../types'
 import { RecruiterDashboard } from '../../components/dashboards/RecruiterDashboard'
 import { DevTeamDashboard } from '../../components/dashboards/DevTeamDashboard'
 import { ModulePage } from '../../components/pages/ModulePage'
@@ -14,6 +14,7 @@ interface AppShellContentProps {
   leads: Lead[]
   admins: Admin[]
   activityLogs: ActivityLogItem[]
+  candidates?: Candidate[]
   currentUser: { name: string; email: string }
   selectedReqIdForSubmit: string | null
   persistRequirements: (next: Requirement[]) => void
@@ -37,6 +38,7 @@ export function AppShellContent(props: AppShellContentProps) {
     leads,
     admins,
     activityLogs,
+    candidates,
     currentUser,
     selectedReqIdForSubmit,
     persistRequirements,
@@ -70,6 +72,7 @@ export function AppShellContent(props: AppShellContentProps) {
       default:
         return (
           <RecruiterDashboard
+            candidates={candidates}
             submissions={submissions}
             interviews={interviews}
             requirements={requirements}
@@ -81,6 +84,7 @@ export function AppShellContent(props: AppShellContentProps) {
             onOpenFeedbackModal={handleOpenFeedbackForInterview}
             onOpenCandidateDetail={handleOpenCandidateDetail}
             onAddActivityLog={handleAddActivityLog}
+            onUpdateRequirements={persistRequirements}
           />
         )
     }

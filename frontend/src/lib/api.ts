@@ -1,6 +1,18 @@
 import { clearSession, getAccessToken } from '../store/session'
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1').replace(/\/$/, '')
+function getApiBase(): string {
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, '')
+  }
+  if (typeof window !== 'undefined' && window.location?.hostname) {
+    const protocol = window.location.protocol || 'http:'
+    const hostname = window.location.hostname
+    return `${protocol}//${hostname}:3001/api/v1`
+  }
+  return 'http://localhost:3001/api/v1'
+}
+
+const API_BASE = getApiBase()
 
 export class ApiError extends Error {
   status: number
@@ -21,7 +33,17 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = getAccessToken()
   if (token) headers.set('Authorization', `Bearer ${token}`)
 
-  const res = await fetch(`${API_BASE}${path}`, { ...init, headers, credentials: 'include' })
+  let res: Response
+  try {
+    res = await fetch(`${API_BASE}${path}`, { ...init, headers, credentials: 'include' })
+  } catch (err: any) {
+    const rawMsg = err instanceof Error ? err.message : String(err)
+    if (rawMsg.includes('Failed to fetch') || err?.name === 'TypeError') {
+      throw new ApiError('Unable to connect to backend server. Please ensure backend is running on port 3001.', 0)
+    }
+    throw err
+  }
+
   if (res.status === 401) {
     clearSession()
   }

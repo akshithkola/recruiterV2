@@ -2,9 +2,10 @@ import React, { useState } from 'react'
 import { Mail, Lock, Eye, EyeOff, ArrowLeft, ArrowRight, ShieldCheck, Sparkles, CheckCircle2, KeyRound } from 'lucide-react'
 import { Role } from '../../types'
 import { SEED_ACCOUNTS } from '../../data/seedCredentials'
-import { authenticate } from '../../data/authService'
-import { brand, roleTheme, authTheme } from '../../theme'
+import { authenticate, requestLoginOtp, verifyLoginOtp } from '../../data/authService'
+import { roleTheme } from '../../theme'
 import { MetaforgeLogo } from '../common/MetaforgeLogo'
+import { VerifyCodePage } from './VerifyCodePage'
 
 interface RoleLoginPageProps {
   role: Role
@@ -13,17 +14,51 @@ interface RoleLoginPageProps {
   onForgot: () => void
 }
 
+type AuthMode = 'otp-email' | 'otp-verify' | 'password'
+
 export function RoleLoginPage({ role, onLogin, onBack, onForgot }: RoleLoginPageProps) {
   const theme = roleTheme[role]
   const account = SEED_ACCOUNTS[role]
 
+  const [mode, setMode] = useState<AuthMode>('otp-email')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [otpInfoMessage, setOtpInfoMessage] = useState('')
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleRequestOtp = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    setLoading(true)
+
+    try {
+      const res = await requestLoginOtp(email, role)
+      setOtpInfoMessage(res.message || 'OTP sent to registered email')
+      setMode('otp-verify')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to request OTP code.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleVerifyOtp = async (code: string) => {
+    setError('')
+    const result = await verifyLoginOtp(email, code, role)
+    if (!result.ok) {
+      throw new Error(result.message)
+    }
+    onLogin(role)
+  }
+
+  const handleResendOtp = async () => {
+    const res = await requestLoginOtp(email, role)
+    setOtpInfoMessage(res.message || 'OTP code resent to registered email.')
+  }
+
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     setLoading(true)
@@ -44,6 +79,17 @@ export function RoleLoginPage({ role, onLogin, onBack, onForgot }: RoleLoginPage
     setEmail(account.email)
     setPassword(account.password)
     setError('')
+  }
+
+  if (mode === 'otp-verify') {
+    return (
+      <VerifyCodePage
+        email={email}
+        onVerified={handleVerifyOtp}
+        onResend={handleResendOtp}
+        onBack={() => setMode('otp-email')}
+      />
+    )
   }
 
   return (
@@ -166,99 +212,172 @@ export function RoleLoginPage({ role, onLogin, onBack, onForgot }: RoleLoginPage
                 <span className="w-2 h-2 rounded-full" style={{ background: theme.accent }} />
                 {theme.label} Portal
               </div>
-              <span className="text-xs font-mono text-slate-400">Step 2 of 2</span>
+              <span className="text-xs font-mono text-slate-400">
+                {mode === 'password' ? 'Password Auth' : 'Email OTP Auth'}
+              </span>
             </div>
 
             <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mb-2 font-sans">
               Sign in to {theme.label}
             </h2>
             <p className="text-sm text-slate-500 mb-8 font-normal leading-relaxed">
-              Enter your credentials to access your scoped workspace and live dashboard tools.
+              {mode === 'password'
+                ? 'Enter your work email and password to sign in.'
+                : 'Enter your registered corporate email to receive a 4-digit login OTP.'}
             </p>
 
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Email Input Field */}
-              <div className="space-y-2">
-                <label className="block text-xs font-mono font-bold uppercase tracking-wider text-slate-700">
-                  Work Email Address
-                </label>
-                <div className="relative">
-                  <Mail className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={e => setEmail(e.target.value)}
-                    placeholder={account.email}
-                    className="w-full h-12 sm:h-13 pl-12 pr-4 text-sm font-medium text-slate-900 bg-slate-50/70 border border-slate-300 rounded-xl focus:outline-none focus:bg-white focus:border-blue-600 focus:ring-4 focus:ring-blue-600/10 transition-all placeholder:text-slate-400"
-                    required
-                  />
-                </div>
-              </div>
-
-              {/* Password Input Field */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
+            {mode === 'otp-email' ? (
+              <form onSubmit={handleRequestOtp} className="space-y-6">
+                {/* Email Input Field */}
+                <div className="space-y-2">
                   <label className="block text-xs font-mono font-bold uppercase tracking-wider text-slate-700">
-                    Account Password
+                    Work Email Address
                   </label>
-                  <button
-                    type="button"
-                    onClick={onForgot}
-                    className="text-xs text-blue-600 font-semibold hover:underline"
-                  >
-                    Forgot password?
-                  </button>
+                  <div className="relative">
+                    <Mail className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={e => {
+                        setEmail(e.target.value)
+                        setError('')
+                      }}
+                      placeholder={account.email}
+                      className="w-full h-12 sm:h-13 pl-12 pr-4 text-sm font-medium text-slate-900 bg-slate-50/70 border border-slate-300 rounded-xl focus:outline-none focus:bg-white focus:border-blue-600 focus:ring-4 focus:ring-blue-600/10 transition-all placeholder:text-slate-400"
+                      required
+                    />
+                  </div>
                 </div>
-                <div className="relative">
-                  <Lock className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={e => setPassword(e.target.value)}
-                    placeholder="Enter your password"
-                    className="w-full h-12 sm:h-13 pl-12 pr-12 text-sm font-medium text-slate-900 bg-slate-50/70 border border-slate-300 rounded-xl focus:outline-none focus:bg-white focus:border-blue-600 focus:ring-4 focus:ring-blue-600/10 transition-all placeholder:text-slate-400"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
-                  >
-                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                  </button>
-                </div>
-              </div>
 
-              {/* Error Message Alert */}
-              {error && (
-                <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium flex items-start gap-2.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500 mt-1.5 flex-shrink-0" />
-                  <span>{error}</span>
-                </div>
-              )}
+                {/* Error Message Alert */}
+                {error && (
+                  <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium flex items-start gap-2.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500 mt-1.5 flex-shrink-0" />
+                    <span>{error}</span>
+                  </div>
+                )}
 
-              {/* Quick Fill Demo Action Bar */}
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
-                <span className="text-xs text-slate-500 font-medium">Demo login pre-fill:</span>
+                {/* Submit Button */}
                 <button
-                  type="button"
-                  onClick={fillDemo}
-                  className="text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
+                  type="submit"
+                  disabled={loading}
+                  className="w-full h-12 sm:h-13 bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white text-sm font-semibold rounded-xl transition-all shadow-lg shadow-blue-600/25 hover:shadow-blue-600/35 flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer"
                 >
-                  Fill Demo Password →
+                  {loading ? 'Sending 4-digit OTP via Email…' : 'Request Login OTP'}
+                  {!loading && <ArrowRight className="w-4 h-4" />}
                 </button>
-              </div>
 
-              {/* Submit Button */}
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full h-12 sm:h-13 bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white text-sm font-semibold rounded-xl transition-all shadow-lg shadow-blue-600/25 hover:shadow-blue-600/35 flex items-center justify-center gap-2 disabled:opacity-60"
-              >
-                {loading ? 'Authenticating & Loading Workspace…' : `Sign In to ${theme.label} Console`}
-                {!loading && <ArrowRight className="w-4 h-4" />}
-              </button>
-            </form>
+                <div className="pt-2 text-center">
+                  <button
+                    type="button"
+                    onClick={() => { setError(''); setMode('password') }}
+                    className="text-xs text-blue-600 font-semibold hover:underline cursor-pointer"
+                  >
+                    Sign in with password instead →
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <form onSubmit={handlePasswordSubmit} className="space-y-6">
+                {/* Email Input Field */}
+                <div className="space-y-2">
+                  <label className="block text-xs font-mono font-bold uppercase tracking-wider text-slate-700">
+                    Work Email Address
+                  </label>
+                  <div className="relative">
+                    <Mail className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={e => {
+                        setEmail(e.target.value)
+                        setError('')
+                      }}
+                      placeholder={account.email}
+                      className="w-full h-12 sm:h-13 pl-12 pr-4 text-sm font-medium text-slate-900 bg-slate-50/70 border border-slate-300 rounded-xl focus:outline-none focus:bg-white focus:border-blue-600 focus:ring-4 focus:ring-blue-600/10 transition-all placeholder:text-slate-400"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Password Input Field */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-mono font-bold uppercase tracking-wider text-slate-700">
+                      Account Password
+                    </label>
+                    <button
+                      type="button"
+                      onClick={onForgot}
+                      className="text-xs text-blue-600 font-semibold hover:underline cursor-pointer"
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <Lock className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={e => {
+                        setPassword(e.target.value)
+                        setError('')
+                      }}
+                      placeholder="Enter your password"
+                      className="w-full h-12 sm:h-13 pl-12 pr-12 text-sm font-medium text-slate-900 bg-slate-50/70 border border-slate-300 rounded-xl focus:outline-none focus:bg-white focus:border-blue-600 focus:ring-4 focus:ring-blue-600/10 transition-all placeholder:text-slate-400"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                    >
+                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Error Message Alert */}
+                {error && (
+                  <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium flex items-start gap-2.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500 mt-1.5 flex-shrink-0" />
+                    <span>{error}</span>
+                  </div>
+                )}
+
+                {/* Quick Fill Demo Action Bar */}
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+                  <span className="text-xs text-slate-500 font-medium">Demo login pre-fill:</span>
+                  <button
+                    type="button"
+                    onClick={fillDemo}
+                    className="text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    Fill Demo Password →
+                  </button>
+                </div>
+
+                {/* Submit Button */}
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full h-12 sm:h-13 bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white text-sm font-semibold rounded-xl transition-all shadow-lg shadow-blue-600/25 hover:shadow-blue-600/35 flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer"
+                >
+                  {loading ? 'Authenticating & Loading Workspace…' : `Sign In to ${theme.label} Console`}
+                  {!loading && <ArrowRight className="w-4 h-4" />}
+                </button>
+
+                <div className="pt-2 text-center">
+                  <button
+                    type="button"
+                    onClick={() => { setError(''); setMode('otp-email') }}
+                    className="text-xs text-blue-600 font-semibold hover:underline cursor-pointer"
+                  >
+                    ← Request Email OTP instead
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       </div>

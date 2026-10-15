@@ -1,26 +1,40 @@
 import type { Props } from './preamble'
 import { ActivityLogItem, Requirement } from '../../../types'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import React from 'react'
+import { getSessionUser } from '../../../store/session'
+import { usersService } from '../../../services/workspace.service'
 
 export function useRecruiterDashboardState(props: Props) {
+  const session = getSessionUser()
   const {
-  submissions,
-  interviews,
-  requirements,
-  activityLogs,
-  currentUserName = 'Harish Gadipally',
-  currentUserEmail,
-  onOpenSubmitCandidate,
-  onOpenCandidateRepo,
-  onOpenFeedbackModal,
-  onOpenCandidateDetail,
-  onAddActivityLog,
-}: Props = props as Props & Record<string, never>
+    candidates = [],
+    submissions,
+    interviews,
+    requirements,
+    activityLogs,
+    currentUserName = session?.name || 'Recruiter',
+    currentUserEmail = session?.email || '',
+    onOpenSubmitCandidate,
+    onOpenCandidateRepo,
+    onOpenFeedbackModal,
+    onOpenCandidateDetail,
+    onAddActivityLog,
+    onUpdateRequirements,
+  }: Props = props as Props & Record<string, never>
+  const [dbUsers, setDbUsers] = useState<any[]>([])
+  const [isRevokeModalOpen, setIsRevokeModalOpen] = useState(false)
+
+  useEffect(() => {
+    usersService.list().then((data: any) => {
+      const list = Array.isArray(data) ? data : data?.items || data?.data || []
+      setDbUsers(list)
+    }).catch(() => {})
+  }, [])
   // Filter activity logs specifically performed by or relevant to the logged-in user/recruiter
   const userActivityLogs = React.useMemo(() => {
-    const targetName = (currentUserName || 'Harish Gadipally').toLowerCase()
-    const targetEmail = (currentUserEmail || '').toLowerCase()
+    const targetName = (currentUserName || session?.name || 'Recruiter').toLowerCase()
+    const targetEmail = (currentUserEmail || session?.email || '').toLowerCase()
 
     // 1. Explicit activity logs matching user name or email
     const explicitLogs = (activityLogs || []).filter(log => {
@@ -31,7 +45,7 @@ export function useRecruiterDashboardState(props: Props) {
 
     // 2. Synthesize log items from candidate submissions performed by this recruiter
     const submissionLogs: ActivityLogItem[] = submissions
-      .filter(s => !targetName || s.recruiter.toLowerCase().includes(targetName) || targetName.includes('harish'))
+      .filter(s => !targetName || s.recruiter.toLowerCase().includes(targetName))
       .map(s => ({
         id: `sub-activity-${s.id}`,
         timestamp: s.date || 'Recently',
@@ -51,14 +65,14 @@ export function useRecruiterDashboardState(props: Props) {
 
     // 3. Synthesize log items from interview tracking
     const interviewLogs: ActivityLogItem[] = interviews
-      .filter(i => !targetName || (i.recruiter && i.recruiter.toLowerCase().includes(targetName)) || targetName.includes('harish'))
+      .filter(i => !targetName || (i.recruiter && i.recruiter.toLowerCase().includes(targetName)))
       .map(i => ({
         id: `iv-activity-${i.id}`,
         timestamp: i.date || 'Recently',
-        userName: i.recruiter || currentUserName || 'Harish Gadipally',
+        userName: i.recruiter || currentUserName || 'Recruiter',
         userEmail: currentUserEmail || '',
         userRole: 'recruiter',
-        userAvatar: (i.recruiter || 'H').charAt(0).toUpperCase(),
+        userAvatar: (i.recruiter || currentUserName || 'R').charAt(0).toUpperCase(),
         action: `Scheduled interview (${i.stage || 'Round'}) for ${i.candidate}`,
         category: 'Interviews',
         targetEntity: `Interview with ${i.candidate}`,
@@ -87,12 +101,15 @@ export function useRecruiterDashboardState(props: Props) {
 
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('Assigned')
+  const [reqDateFilter, setReqDateFilter] = useState('All')
+  const [reqCustomStartDate, setReqCustomStartDate] = useState('')
+  const [reqCustomEndDate, setReqCustomEndDate] = useState('')
   const [selectedReqIds, setSelectedReqIds] = useState<Set<string>>(new Set())
   const [recentSubmissionsFilter, setRecentSubmissionsFilter] = useState('All Status')
 
   // Pagination state for active requirements table
   const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize, setPageSize] = useState(10)
+  const [pageSize, setPageSize] = useState(5)
 
   // Inline View state for KPI cards (Assigned Requirements, Total Submissions, Interviews Handled, Onboarding)
   const [inlineView, setInlineView] = useState<'requirements' | 'submissions' | 'interviews' | 'onboarding' | null>(null)
@@ -107,6 +124,7 @@ export function useRecruiterDashboardState(props: Props) {
   }
 
   return {
+    candidates,
     submissions,
     interviews,
     requirements,
@@ -132,6 +150,12 @@ export function useRecruiterDashboardState(props: Props) {
     setSearchQuery,
     statusFilter,
     setStatusFilter,
+    reqDateFilter,
+    setReqDateFilter,
+    reqCustomStartDate,
+    setReqCustomStartDate,
+    reqCustomEndDate,
+    setReqCustomEndDate,
     selectedReqIds,
     setSelectedReqIds,
     recentSubmissionsFilter,
@@ -148,6 +172,10 @@ export function useRecruiterDashboardState(props: Props) {
     setToastMsg,
     userActivityLogs,
     showToast,
+    dbUsers,
+    isRevokeModalOpen,
+    setIsRevokeModalOpen,
+    onUpdateRequirements,
   }
 }
 export type RecruiterDashboardVmState = ReturnType<typeof useRecruiterDashboardState>

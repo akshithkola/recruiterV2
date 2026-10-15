@@ -114,11 +114,11 @@ export const ICONS: Record<string, React.ElementType> = {
 }
 
 export const NAV_LABELS: Record<string, string> = {
-  Dashboard: 'My Workspace',
+  Dashboard: 'My Work',
   Requirements: 'Requirements',
   Candidates: 'Add Candidate',
-  Submissions: 'Total Submissions',
-  'Submission to Client': 'Total Submissions',
+  Submissions: 'Submissions',
+  'Submission to Client': 'Submissions',
   Interviews: 'Interview Tracking',
   Reports: 'Reports',
 }

@@ -5,10 +5,12 @@ import { Requirement } from '../../../types'
 import { useState, useEffect, useCallback } from 'react'
 import React from 'react'
 import { submissionsService } from '../../../services/workspace.service'
+import { saveSubmissionsStore } from '../../../data/submissionsStore'
 
 export function useSubmissionsPageState(props: SubmissionsPageProps) {
   const {
     role,
+    currentUserName,
     submissions = [],
     requirements = [],
     onOpenSubmitCandidate,
@@ -42,6 +44,13 @@ export function useSubmissionsPageState(props: SubmissionsPageProps) {
     return DEFAULT_SCREENSHOT_SUBMISSIONS
   })
 
+  useEffect(() => {
+    if (submissions && submissions.length > 0) {
+      const mapped = submissions.map(s => mapBackendSubmission(s))
+      setSubmissionsList(mapped)
+    }
+  }, [submissions])
+
   const showToast = (msg: string) => {
     setToastMsg(msg)
     setTimeout(() => setToastMsg(null), 3500)
@@ -52,9 +61,13 @@ export function useSubmissionsPageState(props: SubmissionsPageProps) {
     setIsLoading(true)
     try {
       const data = await submissionsService.list()
-      if (Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data)) {
         const mapped = data.map(s => mapBackendSubmission(s))
-        setSubmissionsList(mapped)
+        const finalList = mapped.length > 0 ? mapped : DEFAULT_SCREENSHOT_SUBMISSIONS
+        setSubmissionsList(finalList)
+        if (mapped.length > 0) {
+          saveSubmissionsStore(mapped as any)
+        }
         if (selectedSub) {
           const updatedSelected = mapped.find(m => m.id === selectedSub.id || m.submissionId === selectedSub.id)
           if (updatedSelected) {
@@ -74,8 +87,12 @@ export function useSubmissionsPageState(props: SubmissionsPageProps) {
     const fetchInit = async () => {
       try {
         const data = await submissionsService.list()
-        if (active && Array.isArray(data) && data.length > 0) {
-          setSubmissionsList(data.map(s => mapBackendSubmission(s)))
+        if (active && Array.isArray(data)) {
+          const mapped = data.map(s => mapBackendSubmission(s))
+          if (mapped.length > 0) {
+            setSubmissionsList(mapped)
+            saveSubmissionsStore(mapped as any)
+          }
         }
       } catch (err) {
         if (active) {
@@ -84,10 +101,17 @@ export function useSubmissionsPageState(props: SubmissionsPageProps) {
       }
     }
     fetchInit()
+
+    const handleSubmissionsUpdated = () => {
+      reloadSubmissions()
+    }
+    window.addEventListener('submissions_updated', handleSubmissionsUpdated)
+
     return () => {
       active = false
+      window.removeEventListener('submissions_updated', handleSubmissionsUpdated)
     }
-  }, [])
+  }, [reloadSubmissions])
 
   // Action: Update Stage
   const handleUpdateStage = async (id: string, stage: string, notes?: string) => {
@@ -125,6 +149,7 @@ export function useSubmissionsPageState(props: SubmissionsPageProps) {
 
   return {
     role,
+    currentUserName,
     submissions,
     requirements,
     onOpenSubmitCandidate,

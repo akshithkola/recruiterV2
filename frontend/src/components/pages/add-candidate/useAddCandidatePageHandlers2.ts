@@ -82,6 +82,9 @@ export function useAddCandidatePageHandlers2(s: AddCandidateVmState) {
         currentLocation: d.currentLocation || '',
         preferredLocation: d.preferredLocation || '',
         offerInHand: d.offerInHand || '',
+        interviewAvailability: d.interviewAvailability || '',
+        reasonForChange: d.reasonForChange || '',
+        notes: d.notes || '',
         status: 'Parsed',
       })
       onAddCandidate?.({

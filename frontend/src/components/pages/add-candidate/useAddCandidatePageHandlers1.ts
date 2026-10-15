@@ -1,14 +1,14 @@
 import React from 'react'
 import { getSavedDrafts, saveDraftItem } from '../../../data/savedDraftsStore'
 import { apiErrorMessage, createCandidateFromForm } from '../../../services/candidatePayload'
-import { aiService } from '../../../services/workspace.service'
+import { filesService, resumeParserService, type ParsedResume } from '../../../services/workspace.service'
 import type { AddCandidateVmState } from './useAddCandidatePageState'
 
 export function useAddCandidatePageHandlers1(s: AddCandidateVmState) {
   const {
     onAddCandidate, setIsParsing, parsedFileName, setParsedFileName,
     setShowSuccessToast, setShowSaveDraftToast, setToastMsg, setDraftsList,
-    isSaving, setIsSaving,
+    isSaving, setIsSaving, selectedFile, setSelectedFile,
     candidateId, setCandidateId, submissionDate, candidateName,
     setCandidateName, currentCompany, setCurrentCompany, contactNumber,
     setContactNumber, email, setEmail, linkedInUrl,
@@ -19,38 +19,80 @@ export function useAddCandidatePageHandlers1(s: AddCandidateVmState) {
     setNoticePeriod, currentLocation, setCurrentLocation, preferredLocation,
     setPreferredLocation, interviewAvailability, setInterviewAvailability, offerInHand,
     setOfferInHand, reasonForChange, setReasonForChange, notes,
-    setNotes, dupCheckResult
+    setNotes, dupCheckResult,
+    importMode, bulkQueue, setBulkQueue, activeQueueId, setActiveQueueId
   } = s
 
-  // Metaforge AI Resume Parsing via live /api/v1/ai/parse-resume API
-  const handleParseResume = async () => {
-    setIsParsing(true)
-    try {
-      const sampleText = 'Name: Priya Nair Email: priya.nair@contoso.com Contact: +91 98765 43210 Skills: React, TypeScript, Node.js, SQL Total Experience: 4.5 years'
-      const res = await aiService.parseResume({ resumeText: sampleText })
-      const data = res?.extractedData || {}
+  // Clear all parsed candidate form fields
+  const resetCandidateFields = () => {
+    setCandidateName('')
+    setCurrentCompany('')
+    setContactNumber('')
+    setEmail('')
+    setLinkedInUrl('')
+    setQualification('')
+    setSkills('')
+    setTechnologies('')
+    setTotalExperience('')
+    setRelevantExperience('')
+    setCurrentCtc('')
+    setExpectedCtc('')
+    setNoticePeriod('')
+    setCurrentLocation('')
+    setPreferredLocation('')
+    setInterviewAvailability('')
+    setOfferInHand('Select')
+    setReasonForChange('')
+    setNotes('')
+  }
 
-      setParsedFileName('Priya_Nair_Resume.pdf')
-      setCandidateName(data.candidateName || 'Priya Nair')
-      setCurrentCompany('Contoso')
-      setContactNumber(data.contactNumber || '+91 98765 43210')
-      setEmail(data.email || 'priya.nair@contoso.com')
-      setLinkedInUrl('https://www.linkedin.com/in/priyanair-tech')
-      setQualification('B.Tech CS')
-      setSkills('Communication, Problem solving, Stakeholder management')
-      setTechnologies(data.primarySkill || 'React, TypeScript, Node.js, SQL, Tailwind CSS')
-      setTotalExperience(data.totalExperienceYears ? `${data.totalExperienceYears} Years` : '4.5 Years')
-      setRelevantExperience('3.8 Years')
-      setCurrentCtc('12 LPA')
-      setExpectedCtc('16 LPA')
-      setNoticePeriod('30 days')
-      setCurrentLocation('Bengaluru')
-      setPreferredLocation('Bengaluru / Remote')
-      setInterviewAvailability('Available after 5 PM weekdays')
-      setOfferInHand('No')
-      setReasonForChange('Better role / Growth')
-      setNotes(`Parsed via ${res?.provider || 'Metaforge AI'}. JobId: ${res?.jobId || 'AI-1'}. Confidence: ${Math.round((res?.confidenceScore || 0.8) * 100)}%`)
+  // Handle selecting a resume file (drag/drop or browse)
+  const handleSelectResumeFile = (file: File) => {
+    setSelectedFile(file)
+    setParsedFileName(null)
+    resetCandidateFields()
+  }
+
+  // Fill the form from a parsed resume (fields the resume does not state stay empty for the recruiter).
+  const applyParsedToForm = (data: ParsedResume) => {
+    resetCandidateFields()
+    setCandidateName(data.candidateName || '')
+    setCurrentCompany(data.currentCompany || '')
+    setContactNumber(data.contactNumber || '')
+    setEmail(data.email || '')
+    setLinkedInUrl(data.linkedInUrl || '')
+    setQualification(data.qualification || '')
+    setSkills(data.skills || '')
+    setTechnologies(data.technologies || '')
+    setTotalExperience(data.totalExperience || '')
+    setRelevantExperience(data.relevantExperience || '')
+    setCurrentLocation(data.currentLocation || '')
+    setParsedFileName(data.sourceFile)
+    setNotes(`Parsed from ${data.sourceFile} with ${data.parser === 'metaforge' ? 'Metaforge AI' : 'the local resume parser'}. Review all fields before submitting.`)
+  }
+
+  // Single resume: the file itself goes to the backend resume parser (PDF, DOCX, DOC, TXT, images).
+  const handleParseResume = async (filePayload?: File) => {
+    const fileToParse = filePayload || selectedFile
+    if (!fileToParse) {
+      showError('Please drag & drop or select a resume file first.')
+      return
+    }
+
+    if (filePayload) {
+      setSelectedFile(filePayload)
+    }
+
+    setIsParsing(true)
+    resetCandidateFields()
+
+    try {
+      const res = await resumeParserService.parse(fileToParse)
+      applyParsedToForm(res.data)
+      // Keep a copy of the resume in file storage (best effort; parsing does not depend on it).
+      filesService.upload(fileToParse).catch(() => undefined)
     } catch (err: any) {
+      setParsedFileName(null)
       showError(apiErrorMessage(err))
     } finally {
       setIsParsing(false)
@@ -91,6 +133,9 @@ export function useAddCandidatePageHandlers1(s: AddCandidateVmState) {
         currentLocation,
         preferredLocation,
         offerInHand,
+        interviewAvailability,
+        reasonForChange,
+        notes,
         status: 'Parsed',
       })
       onAddCandidate?.({
@@ -130,6 +175,15 @@ export function useAddCandidatePageHandlers1(s: AddCandidateVmState) {
       setReasonForChange('')
       setNotes('')
       setParsedFileName(null)
+
+      // Bulk import: mark this resume submitted and open the next parsed one for review.
+      if (importMode === 'bulk' && activeQueueId) {
+        const remaining = bulkQueue.map((q) => (q.id === activeQueueId ? { ...q, status: 'submitted' as const } : q))
+        setBulkQueue(remaining)
+        const next = remaining.find((q) => q.status === 'parsed')
+        setActiveQueueId(next ? next.id : null)
+        if (next?.data) applyParsedToForm(next.data)
+      }
     } catch (err) {
       showError(apiErrorMessage(err))
     } finally {
@@ -176,6 +230,6 @@ export function useAddCandidatePageHandlers1(s: AddCandidateVmState) {
     setTimeout(() => setShowSaveDraftToast(false), 3500)
   }
   return {
-    handleParseResume, handleSubmit, handleSaveDraftForLater
+    handleParseResume, handleSelectResumeFile, handleSubmit, handleSaveDraftForLater, applyParsedToForm, showError
   }
 }

@@ -42,7 +42,6 @@ export class Requirement {
 
   @Prop({
     default: 'Open',
-    enum: ['Open', 'Assigned', 'In Progress', 'On Hold', 'Reopen', 'Closed'],
   })
   status: string;
 
@@ -67,6 +66,9 @@ export class Requirement {
     max: number;
     currency: string;
   };
+
+  @Prop({ type: String, default: null, trim: true })
+  budgetText: string;
 
   @Prop({
     type: MongooseSchema.Types.ObjectId,
@@ -99,11 +101,71 @@ export class Requirement {
   @Prop({ default: Date.now })
   emailArrivedTime: Date;
 
+  @Prop({ type: String, default: null, trim: true })
+  clientEmail: string;
+
+  @Prop({ type: [String], default: [] })
+  toEmails: string[];
+
+  @Prop({ type: [String], default: [] })
+  ccEmails: string[];
+
   @Prop({ default: false })
   revokeRequested: boolean;
 
   @Prop({ default: null })
   revokeReason: string;
+
+  @Prop({ type: String, default: null, trim: true })
+  sourceMessageId: string;
+
+  @Prop({ type: String, default: null, trim: true })
+  sourceClientJdId: string;
+
+  @Prop({ type: String, default: null, trim: true })
+  sourceSubject: string;
+
+  @Prop({ type: String, default: null, trim: true })
+  description: string;
+
+  @Prop({ type: String, default: null, trim: true })
+  employmentType: string;
+
+  @Prop({ type: String, default: null, trim: true })
+  workMode: string;
+
+  @Prop({ type: String, default: null, trim: true })
+  noticePeriod: string;
+
+  @Prop({ type: String, default: null, trim: true })
+  experienceLevel: string;
+
+  @Prop({ type: [String], default: [] })
+  mandatorySkills: string[];
+
+  @Prop({ type: String, default: null, trim: true })
+  conversationId: string;
+
+  @Prop({ type: String, default: null, trim: true })
+  inReplyTo: string;
+
+  @Prop({ type: [String], default: [] })
+  references: string[];
+
+  @Prop({ type: Date, default: Date.now, index: true })
+  firstDetectedAt: Date;
+
+  @Prop({ type: Date, default: null })
+  lastUpdatedAt: Date;
+
+  @Prop({ type: Date, default: null, index: true })
+  sourceEmailReceivedAt: Date;
+
+  @Prop({ type: Date, default: null })
+  lastSeenAt: Date;
+
+  @Prop({ type: String, default: null, trim: true })
+  idempotencyKey: string;
 
   @Prop({ type: Date, default: null })
   deletedAt: Date;
@@ -148,5 +210,26 @@ RequirementSchema.index({
   status: 1,
   deletedAt: 1,
 });
+
+// Fast lookup for incoming email message ID (non-unique to support multi-role emails)
+RequirementSchema.index({ orgId: 1, sourceMessageId: 1 });
+
+// Thread conversation lookup
+RequirementSchema.index({ orgId: 1, conversationId: 1 });
+
+// Database-level unique constraint on client requirement ID per client within organization
+RequirementSchema.index(
+  { orgId: 1, clientId: 1, sourceClientJdId: 1, deletedAt: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      sourceClientJdId: { $type: 'string', $gt: '' },
+      deletedAt: null,
+    },
+  },
+);
+
+RequirementSchema.index({ orgId: 1, idempotencyKey: 1 }, { sparse: true });
+RequirementSchema.index({ orgId: 1, firstDetectedAt: -1, sourceEmailReceivedAt: -1, deletedAt: 1 });
 
 RequirementSchema.plugin(DataScopePlugin);

@@ -580,6 +580,7 @@ interface InterviewTrackingPageProps {
   interviews?: Interview[]
   onOpenFeedbackModal?: (iv: Interview) => void
   initialStatusToggle?: 'upcoming' | 'completed' | 'rejections' | 'all' | 'onboarding'
+  onUpdateRequirements?: (requirements: Requirement[]) => void
 }
 
 export function InterviewTrackingPage({
@@ -587,6 +588,7 @@ export function InterviewTrackingPage({
   interviews,
   onOpenFeedbackModal,
   initialStatusToggle,
+  onUpdateRequirements,
 }: InterviewTrackingPageProps) {
   const normalizedRole = (role || '').toLowerCase()
   const isLead = normalizedRole === 'lead'
@@ -600,7 +602,9 @@ export function InterviewTrackingPage({
 
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState('')
-  const [dateFilter, setDateFilter] = useState<'today' | 'this_week' | 'this_month' | 'custom_range'>('this_month')
+  const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'yesterday' | 'this_week' | 'this_month' | 'custom_range'>('all')
+  const [customStartDate, setCustomStartDate] = useState('')
+  const [customEndDate, setCustomEndDate] = useState('')
   const [clientFilter, setClientFilter] = useState('All Clients')
   const [roundFilter, setRoundFilter] = useState('All Rounds')
   const [rejectionStageFilter, setRejectionStageFilter] = useState<string>('All Stages')
@@ -874,9 +878,59 @@ export function InterviewTrackingPage({
     return offerLetters
   }, [offerLetters, isLead, isRecruiter, scopeTab])
 
-  // Filter offer letters by outcome filter & search query
+  const checkDateMatch = (
+    rawDateStr: string | undefined,
+    filter: 'all' | 'today' | 'yesterday' | 'this_week' | 'this_month' | 'custom_range',
+    customStart?: string,
+    customEnd?: string
+  ): boolean => {
+    if (filter === 'all') return true
+    if (!rawDateStr) return false
+    const d = new Date(rawDateStr)
+    if (isNaN(d.getTime())) return false
+
+    const now = new Date()
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
+
+    if (filter === 'today') {
+      return d >= startOfToday && d <= endOfToday
+    }
+    if (filter === 'yesterday') {
+      const startOfYesterday = new Date(startOfToday.getTime() - 86400000)
+      const endOfYesterday = new Date(endOfToday.getTime() - 86400000)
+      return d >= startOfYesterday && d <= endOfYesterday
+    }
+    if (filter === 'this_week') {
+      const day = (now.getDay() + 6) % 7 // Monday = 0
+      const startOfWeek = new Date(startOfToday.getTime() - day * 86400000)
+      return d >= startOfWeek && d <= endOfToday
+    }
+    if (filter === 'this_month') {
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+      return d >= startOfMonth && d <= endOfToday
+    }
+    if (filter === 'custom_range') {
+      if (customStart) {
+        const start = new Date(`${customStart}T00:00:00`)
+        if (d < start) return false
+      }
+      if (customEnd) {
+        const end = new Date(`${customEnd}T23:59:59.999`)
+        if (d > end) return false
+      }
+      return true
+    }
+    return true
+  }
+
+  // Filter offer letters by outcome filter, search query & date filter
   const filteredOfferLetters = useMemo(() => {
     return scopeOfferLetters.filter(item => {
+      if (!checkDateMatch(item.offerDate || item.joiningDate, dateFilter, customStartDate, customEndDate)) {
+        return false
+      }
+
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim()
         const matchName = item.candidateName.toLowerCase().includes(q)
@@ -903,7 +957,7 @@ export function InterviewTrackingPage({
 
       return true
     })
-  }, [scopeOfferLetters, searchQuery, clientFilter, offerOutcomeFilter])
+  }, [scopeOfferLetters, searchQuery, clientFilter, offerOutcomeFilter, dateFilter, customStartDate, customEndDate])
 
   // Scope final decisions by role
   const scopeFinalDecisions = useMemo(() => {
@@ -998,9 +1052,13 @@ export function InterviewTrackingPage({
     })
   }, [scopeScheduleList])
 
-  // Filter Schedule Rows according to selected statusToggle, searchQuery, clientFilter, and roundFilter
+  // Filter Schedule Rows according to selected statusToggle, searchQuery, clientFilter, roundFilter, and dateFilter
   const filteredScheduleList = useMemo(() => {
     return evaluatedScheduleList.filter(row => {
+      if (!checkDateMatch(row.dateTime, dateFilter, customStartDate, customEndDate)) {
+        return false
+      }
+
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim()
         const matchName = row.candidateName.toLowerCase().includes(q)
@@ -1026,7 +1084,7 @@ export function InterviewTrackingPage({
       }
       return true
     })
-  }, [evaluatedScheduleList, searchQuery, statusToggle, clientFilter, roundFilter])
+  }, [evaluatedScheduleList, searchQuery, statusToggle, clientFilter, roundFilter, dateFilter, customStartDate, customEndDate])
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1)
@@ -1069,6 +1127,10 @@ export function InterviewTrackingPage({
 
   const filteredRejectedList = useMemo(() => {
     return scopeRejectedList.filter(item => {
+      if (!checkDateMatch(item.rejectionDate, dateFilter, customStartDate, customEndDate)) {
+        return false
+      }
+
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim()
         const matchName = item.candidateName.toLowerCase().includes(q)
@@ -1089,7 +1151,7 @@ export function InterviewTrackingPage({
 
       return true
     })
-  }, [scopeRejectedList, searchQuery, clientFilter, rejectionStageFilter])
+  }, [scopeRejectedList, searchQuery, clientFilter, rejectionStageFilter, dateFilter, customStartDate, customEndDate])
 
   const rejectedTotalPages = Math.ceil(filteredRejectedList.length / pageSize) || 1
 
@@ -1319,6 +1381,10 @@ export function InterviewTrackingPage({
         requirement={selectedReqDetail}
         role={role}
         onBack={() => setSelectedReqDetail(null)}
+        onRequirementUpdated={updated => {
+          setSelectedReqDetail(updated)
+          onUpdateRequirements?.([updated])
+        }}
       />
     )
   }
@@ -1481,7 +1547,7 @@ export function InterviewTrackingPage({
         </div>
 
         {/* ROW 2: SEARCH & UPFRONT FILTER DROPDOWNS */}
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
           <div className="relative">
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
@@ -1535,7 +1601,56 @@ export function InterviewTrackingPage({
               <option value="Final HR Round">Stage: Final HR Round Rejections</option>
             </select>
           </div>
+
+          <div className="relative">
+            <CalendarIcon className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <select
+              value={dateFilter}
+              onChange={e => setDateFilter(e.target.value as any)}
+              className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 focus:outline-none focus:border-[#6B3BF6] cursor-pointer"
+            >
+              <option value="all">All Dates</option>
+              <option value="today">Today</option>
+              <option value="yesterday">Yesterday</option>
+              <option value="this_week">This week</option>
+              <option value="this_month">This month</option>
+              <option value="custom_range">Custom range...</option>
+            </select>
+          </div>
         </div>
+
+        {dateFilter === 'custom_range' && (
+          <div className="flex flex-wrap items-center gap-2.5 pt-2.5 border-t border-slate-100 animate-in fade-in duration-150 text-xs">
+            <span className="font-bold text-slate-500 flex items-center gap-1">
+              <CalendarIcon className="w-3.5 h-3.5 text-blue-600" />
+              <span>Select Date Range:</span>
+            </span>
+            <input
+              type="date"
+              value={customStartDate}
+              onChange={e => setCustomStartDate(e.target.value)}
+              className="px-2.5 py-1.5 border border-slate-200 rounded-lg text-slate-800 focus:outline-none focus:border-blue-500 bg-white font-medium"
+            />
+            <span className="text-slate-400 font-bold">to</span>
+            <input
+              type="date"
+              value={customEndDate}
+              onChange={e => setCustomEndDate(e.target.value)}
+              className="px-2.5 py-1.5 border border-slate-200 rounded-lg text-slate-800 focus:outline-none focus:border-blue-500 bg-white font-medium"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                setCustomStartDate('')
+                setCustomEndDate('')
+                setDateFilter('all')
+              }}
+              className="px-3 py-1.5 font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors cursor-pointer shrink-0"
+            >
+              Clear Date Filter
+            </button>
+          </div>
+        )}
       </div>
 
       {/* HELPER BANNERS FOR CURRENT STAGE */}

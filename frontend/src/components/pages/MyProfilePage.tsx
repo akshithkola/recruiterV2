@@ -3,7 +3,7 @@ import { Pencil, ShieldCheck } from 'lucide-react'
 import { Role } from '../../types'
 import { getSessionUser, setSessionUser } from '../../store/session'
 import { SEED_ACCOUNTS } from '../../data/seedCredentials'
-import { MyProfileDetailsCard } from './MyProfilePage.details'
+import { MyProfileDetailsCard, ChangePasswordCard } from './MyProfilePage.details'
 import { usersService } from '../../services/workspace.service'
 
 interface MyProfilePageProps {
@@ -29,6 +29,12 @@ export function MyProfilePage({ role }: MyProfilePageProps) {
   const [editName, setEditName] = useState(name)
   const [editEmail, setEditEmail] = useState(email)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
+
+  // Password edit state
+  const [newPass, setNewPass] = useState('')
+  const [confirmPass, setConfirmPass] = useState('')
+  const [isChangingPass, setIsChangingPass] = useState(false)
+  const [passError, setPassError] = useState<string | null>(null)
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -61,6 +67,37 @@ export function MyProfilePage({ role }: MyProfilePageProps) {
     setIsEditing(false)
   }
 
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setPassError(null)
+
+    if (!newPass) {
+      setPassError('New password is required.')
+      return
+    }
+    if (newPass.length < 8) {
+      setPassError('Password must be at least 8 characters long.')
+      return
+    }
+    if (newPass !== confirmPass) {
+      setPassError('New password and confirmation do not match.')
+      return
+    }
+
+    setIsChangingPass(true)
+    try {
+      await usersService.updateMe({ password: newPass })
+      setNewPass('')
+      setConfirmPass('')
+      setToastMessage('Account password updated successfully! You can log in using Email OTP or your new password.')
+    } catch (err: any) {
+      setPassError(err?.message || 'Failed to update password. Please try again.')
+    } finally {
+      setIsChangingPass(false)
+      setTimeout(() => setToastMessage(null), 4500)
+    }
+  }
+
   const roleLabel =
     role === 'superadmin'
       ? 'Super Admin'
@@ -77,7 +114,7 @@ export function MyProfilePage({ role }: MyProfilePageProps) {
           My Profile
         </h1>
         <p className="text-xs text-slate-500 font-medium mt-1">
-          Manage your profile and login details
+          Manage your profile, security credentials, and password
         </p>
       </div>
 
@@ -97,6 +134,16 @@ export function MyProfilePage({ role }: MyProfilePageProps) {
         }}
         onSave={handleSave}
         onCancel={handleCancel}
+      />
+
+      <ChangePasswordCard
+        newPass={newPass}
+        setNewPass={setNewPass}
+        confirmPass={confirmPass}
+        setConfirmPass={setConfirmPass}
+        isChangingPass={isChangingPass}
+        passError={passError}
+        onPasswordSubmit={handlePasswordSubmit}
       />
 
       {toastMessage && (

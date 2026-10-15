@@ -1,14 +1,20 @@
-import React from 'react'
-import { ActiveReqRow, DEFAULT_ACTIVE_REQS } from './preamble'
+import React, { useMemo } from 'react'
+import { ActiveReqRow } from './preamble'
 import type { RecruiterDashboardVmState } from './useRecruiterDashboardState'
+import { workspaceService } from '../../../services/workspace.service'
+import { getSessionUser } from '../../../store/session'
+import { Requirement } from '../../../types'
 
 export function useRecruiterDashboardHandlers(s: RecruiterDashboardVmState) {
   const {
     submissions, interviews, requirements, selectedReqForDetail,
     setSelectedReqForDetail, setIsAssignModalOpen, isAssignMyselfChecked, setIsAssignMyselfChecked,
     selectedRecruiterNames, setSelectedRecruiterNames, recruiterSearchQuery, setRecruiterSearchQuery,
-    setInlineReqId, searchQuery, statusFilter, currentPage, pageSize, recentSubmissionsFilter
+    setInlineReqId, searchQuery, statusFilter, reqDateFilter, reqCustomStartDate, reqCustomEndDate, currentPage, pageSize, recentSubmissionsFilter,
+    currentUserName, currentUserEmail, dbUsers, showToast, onUpdateRequirements, onAddActivityLog,
+    setIsRevokeModalOpen,
   } = s
+
   const handleOpenInlineCandidateRepo = (reqId: string) => {
     setInlineReqId(reqId)
     setTimeout(() => {
@@ -43,15 +49,19 @@ export function useRecruiterDashboardHandlers(s: RecruiterDashboardVmState) {
     setSelectedReqForDetail(found)
   }
 
-  const recruiterList = [
-    { id: '1', name: 'Adirala sathvika', email: 'No email' },
-    { id: '2', name: 'Arvind GR', email: 'arvind.gr@metaforgeit.com' },
-    { id: '3', name: 'Charlie Darwin', email: 'charlie@metaforgeit.com' },
-    { id: '4', name: 'Harini Sindey', email: 'harini.s@metaforgeit.com' },
-    { id: '5', name: 'Harish Gadipally', email: 'harish.g@metaforgeit.com' },
-    { id: '6', name: 'Puttapaka Saiteja', email: 'saiteja.p@metaforgeit.com' },
-    { id: '7', name: 'Kallol Chakraborty', email: 'kallol.c@ltts.com' },
-  ]
+  const recruiterList = useMemo(() => {
+    return (dbUsers || [])
+      .filter(u => u && !u.deletedAt && u.active !== false)
+      .filter(u => String(u.role || '').toLowerCase() === 'recruiter')
+      .filter(u => u.name && (u.id || u._id))
+      .map(u => ({
+        id: String(u.id || u._id),
+        name: String(u.name),
+        email: u.email || '',
+      }))
+      .filter(r => r.name.toLowerCase() !== (currentUserName || '').toLowerCase())
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [dbUsers, currentUserName])
 
   const filteredRecruiterList = recruiterList.filter(
     r =>
@@ -69,23 +79,60 @@ export function useRecruiterDashboardHandlers(s: RecruiterDashboardVmState) {
     setSelectedRecruiterNames(next)
   }
 
-  const handleConfirmReassign = () => {
-    const assignees: string[] = []
-    if (isAssignMyselfChecked) assignees.push('Harish Gadipally')
-    selectedRecruiterNames.forEach(n => assignees.push(n))
+  const handleConfirmReassign = async () => {
+    const session = getSessionUser()
+    const activeName = currentUserName || session?.name || 'Recruiter'
+    if (totalSelectedRecruitersCount === 0 || !selectedReqForDetail) return
 
-    if (assignees.length === 0) return
+    const selectedOthers = recruiterList.filter(r => selectedRecruiterNames.has(r.name))
+    const recruiterIds: string[] = []
+    const ownerNames: string[] = []
 
-    const assigneesText = assignees.join(', ')
-
-    if (selectedReqForDetail) {
-      setSelectedReqForDetail({
-        ...selectedReqForDetail,
-        owner: assigneesText,
-        assignmentStatus: 'Assigned',
-        submissions: selectedReqForDetail.submissions || 7,
-      })
+    if (isAssignMyselfChecked) {
+      recruiterIds.push(session?.id || activeName)
+      ownerNames.push(activeName)
     }
+    for (const rec of selectedOthers) {
+      recruiterIds.push(rec.id)
+      ownerNames.push(rec.name)
+    }
+
+    const reqKey = selectedReqForDetail._id || selectedReqForDetail.id
+    try {
+      await workspaceService.assignRequirement(reqKey, { recruiterIds })
+    } catch (err: any) {
+      console.error('Failed to reassign requirement:', err)
+      showToast(err?.message || 'Failed to reassign requirement')
+      return
+    }
+
+    const nowIso = new Date().toISOString()
+    const ownersText = ownerNames.join(', ')
+    const updatedReq: Requirement = {
+      ...selectedReqForDetail,
+      owner: ownersText,
+      assignmentStatus: 'Assigned',
+      status: 'Assigned',
+      submissions: selectedReqForDetail.submissions || 0,
+      updatedAt: nowIso,
+    }
+
+    const nextRequirements = requirements.map(r =>
+      r.id === selectedReqForDetail.id || r._id === selectedReqForDetail._id ? updatedReq : r
+    )
+    onUpdateRequirements?.(nextRequirements)
+
+    if (isAssignMyselfChecked) {
+      setSelectedReqForDetail(updatedReq)
+    } else {
+      setSelectedReqForDetail(null)
+    }
+
+    showToast(
+      isAssignMyselfChecked
+        ? `Requirement reassigned to ${ownersText}.`
+        : `Requirement reassigned to ${ownersText}. It left your My Work list.`
+    )
 
     setIsAssignModalOpen(false)
     setSelectedRecruiterNames(new Set())
@@ -93,33 +140,100 @@ export function useRecruiterDashboardHandlers(s: RecruiterDashboardVmState) {
     setRecruiterSearchQuery('')
   }
 
-  const assignedRequirements = requirements.filter(
-    r => r.owner && r.owner !== 'Unassigned' && r.assignmentStatus !== 'Unassigned'
-  )
+  const handleConfirmRevoke = async (reqId: string, reason: string) => {
+    const target = selectedReqForDetail?.id === reqId || selectedReqForDetail?._id === reqId
+      ? selectedReqForDetail
+      : requirements.find(r => r.id === reqId || r._id === reqId)
+    if (!target) return
 
-  const activeReqRows: ActiveReqRow[] = assignedRequirements.length > 0
-    ? assignedRequirements.map(r => ({
-        type: 'Requirement',
-        id: r.id,
-        name: r.title,
-        client: r.client,
-        status: r.assignmentStatus || 'Assigned',
-        timestamp: r.dueDate ? `${r.dueDate}, 07:29 PM` : 'Jun 19, 2026, 07:29 PM',
-      }))
-    : DEFAULT_ACTIVE_REQS.filter(r => r.status !== 'Unassigned')
+    const reqKey = target._id || target.id
+    try {
+      await workspaceService.revokeRequirement(reqKey, { reason })
+    } catch (err: any) {
+      console.error('Failed to revoke requirement:', err)
+      showToast(err?.message || 'Failed to submit revoke request')
+      return
+    }
 
-  const filteredReqs = activeReqRows.filter(req => {
-    if (req.status.toLowerCase() === 'unassigned') return false
+    const updatedReq: Requirement = {
+      ...target,
+      status: 'On Hold',
+      revokeRequested: true,
+      revokeReason: reason,
+      revokeRequestedBy: currentUserName,
+      revokeRequestedAt: 'Just now',
+    }
+    const nextRequirements = requirements.map(r =>
+      r.id === target.id || r._id === target._id ? updatedReq : r
+    )
+    onUpdateRequirements?.(nextRequirements)
+    setSelectedReqForDetail(updatedReq)
+    setIsRevokeModalOpen(false)
+    showToast('Revoke request submitted. Requirement is On Hold pending approval.')
+
+    onAddActivityLog?.({
+      id: `LOG-${Date.now()}`,
+      timestamp: 'Just now',
+      userName: currentUserName,
+      userEmail: currentUserEmail || '',
+      userRole: 'recruiter',
+      userAvatar: currentUserName.charAt(0),
+      action: `Requested Revoke Permission for Requirement ${target.id}`,
+      category: 'Requirements',
+      targetEntity: `Requirement ${target.id}`,
+      targetId: target.id,
+      clientName: target.client,
+      ipAddress: '192.168.1.45',
+      status: 'Warning',
+      details: `Reason for revoke request: ${reason}. Pending approval from Team Lead / Admin.`,
+    })
+  }
+
+  const assignedToMe = (owner?: string) => {
+    const me = (currentUserName || '').trim().toLowerCase()
+    if (!me) return false
+    return (owner || '')
+      .split(',')
+      .map(name => name.trim().toLowerCase())
+      .includes(me)
+  }
+
+  const assignedRequirements = [...requirements]
+    .filter(r => r.assignmentStatus !== 'Unassigned' && assignedToMe(r.owner))
+    .sort((a, b) => {
+      const rawDateA = (a as any).updatedAt || a.emailArrivedTime || (a as any).createdAt || a.dueDate
+      const rawDateB = (b as any).updatedAt || b.emailArrivedTime || (b as any).createdAt || b.dueDate
+      const timeA = rawDateA ? new Date(rawDateA).getTime() || 0 : 0
+      const timeB = rawDateB ? new Date(rawDateB).getTime() || 0 : 0
+      if (timeB !== timeA) return timeB - timeA
+      return (b.id || '').localeCompare(a.id || '')
+    })
+
+  const activeReqRows: ActiveReqRow[] = assignedRequirements
+    .map(r => ({
+      type: 'Requirement',
+      id: r.id,
+      name: r.title,
+      client: r.client,
+      status: r.status,
+      timestamp: r.emailArrivedTime || r.dueDate || '',
+    }))
+
+  const filteredReqs = assignedRequirements.filter(req => {
     const q = searchQuery.trim().toLowerCase()
-    const matchesQuery = !q || req.client.toLowerCase().includes(q) || req.id.toLowerCase().includes(q) || req.name.toLowerCase().includes(q)
-    const filterLower = statusFilter.toLowerCase().trim()
+    const matchesQuery =
+      !q ||
+      req.title.toLowerCase().includes(q) ||
+      req.client.toLowerCase().includes(q) ||
+      (req.id || '').toLowerCase().includes(q)
+    const filterLower = statusFilter.toLowerCase()
     let matchesStatus = true
     if (filterLower === 'assigned') {
       matchesStatus = req.status.toLowerCase().includes('assign') || req.status.toLowerCase() === 'active' || req.status.toLowerCase() === 'open'
     } else if (filterLower === 'submitted') {
       matchesStatus = req.status.toLowerCase().includes('submit')
     } else if (filterLower === 'selected for interview') {
-      matchesStatus = req.status.toLowerCase().includes('interview') || req.status.toLowerCase().includes('select')
+      matchesStatus = req.status.toLowerCase().includes('interview') || req.status.toLowerCase() === 'select'
     }
     return matchesQuery && matchesStatus
   })
@@ -133,7 +247,7 @@ export function useRecruiterDashboardHandlers(s: RecruiterDashboardVmState) {
 
   return {
     handleOpenInlineCandidateRepo, handleOpenReqOverview, recruiterList, filteredRecruiterList,
-    totalSelectedRecruitersCount, toggleRecruiterSelection, handleConfirmReassign,
+    totalSelectedRecruitersCount, toggleRecruiterSelection, handleConfirmReassign, handleConfirmRevoke,
     assignedRequirements, activeReqRows, filteredReqs, paginatedReqs, filteredSubmissions
   }
 }

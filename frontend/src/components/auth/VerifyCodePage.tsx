@@ -7,17 +7,17 @@ import { VerifyCodeInputs } from './VerifyCodePage.inputs'
 
 interface VerifyCodePageProps {
   email: string
-  /** The code that was issued for this recovery attempt */
-  expectedCode: string
+  /** Optional legacy parameter, not displayed on screen */
+  expectedCode?: string
   onVerified: (code: string) => void | Promise<void>
   onResend: () => void | Promise<void>
   /** Back to the email entry step */
   onBack: () => void
 }
 
-const RESEND_SECONDS = 30
+const RESEND_SECONDS = 60
 
-export function VerifyCodePage({ email, expectedCode, onVerified, onResend, onBack }: VerifyCodePageProps) {
+export function VerifyCodePage({ email, onVerified, onResend, onBack }: VerifyCodePageProps) {
   const [digits, setDigits] = useState<string[]>(Array(VERIFICATION_CODE_LENGTH).fill(''))
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -88,12 +88,16 @@ export function VerifyCodePage({ email, expectedCode, onVerified, onResend, onBa
     }
   }
 
-  const handleResend = () => {
+  const handleResend = async () => {
     setDigits(Array(VERIFICATION_CODE_LENGTH).fill(''))
     setError('')
-    setSecondsLeft(RESEND_SECONDS)
     inputs.current[0]?.focus()
-    onResend()
+    try {
+      await onResend()
+      setSecondsLeft(RESEND_SECONDS)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to resend verification code.')
+    }
   }
 
   return (
@@ -103,30 +107,19 @@ export function VerifyCodePage({ email, expectedCode, onVerified, onResend, onBa
       eyebrow="Two-Step Verification"
       headline={
         <>
-          Verify it&apos;s really
+          Verify your corporate
           <br />
           <span className="bg-gradient-to-r from-blue-400 via-indigo-300 to-purple-400 bg-clip-text text-transparent">
-            you requesting this reset.
+            email login code.
           </span>
         </>
       }
-      description="A single-use verification code protects your workspace from unauthorised password resets."
+      description="A single-use 4-digit verification code was sent to your registered corporate email."
       bullets={[
-        'Codes are valid for 10 minutes and single-use only',
-        'Failed attempts are recorded against your account',
-        'Nothing changes until you set a new password',
+        'Codes are valid for 5 minutes and single-use only',
+        'Failed attempts are limited to protect your account',
+        'Secure token session issued upon verification',
       ]}
-      aside={
-        <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-5 shadow-xl">
-          <p className="text-[10px] font-mono uppercase tracking-widest text-slate-400 font-bold flex items-center gap-1.5 mb-3">
-            <ShieldCheck className="w-3.5 h-3.5 text-blue-400" /> Demo Verification Code
-          </p>
-          <p className="text-2xl font-mono font-bold text-white tracking-[0.35em]">{expectedCode}</p>
-          <p className="text-[11px] text-slate-400 font-mono mt-2 leading-relaxed">
-            No mail server is wired up in this build, so the issued code is shown here.
-          </p>
-        </div>
-      }
     >
       <AuthCard>
         <AuthIconTile icon={MailCheck} tone="blue" />
@@ -136,16 +129,8 @@ export function VerifyCodePage({ email, expectedCode, onVerified, onResend, onBa
         </h2>
         <p className="text-sm text-slate-500 mb-8 font-normal leading-relaxed">
           We sent a {VERIFICATION_CODE_LENGTH}-digit verification code to{' '}
-          <span className="text-slate-900 font-semibold">{email}</span>. Enter it below to continue.
+          <span className="text-slate-900 font-semibold">{email}</span>. Enter it below to complete your login.
         </p>
-
-        {/* The showcase panel carries this hint on desktop; repeat it for small screens. */}
-        <div className="lg:hidden mb-6 rounded-2xl bg-slate-50 border border-slate-200/80 p-4">
-          <p className="font-mono text-[10px] text-slate-400 uppercase tracking-wider font-bold mb-1.5">
-            Demo Verification Code
-          </p>
-          <p className="text-xl font-mono font-bold text-slate-900 tracking-[0.3em]">{expectedCode}</p>
-        </div>
 
         <form onSubmit={handleSubmit} className="space-y-6" noValidate>
           <VerifyCodeInputs
@@ -160,7 +145,7 @@ export function VerifyCodePage({ email, expectedCode, onVerified, onResend, onBa
           {error && <AuthAlert tone="error">{error}</AuthAlert>}
 
           <SubmitButton loading={loading} loadingLabel="Verifying code…">
-            Verify & Continue
+            Verify & Sign In
           </SubmitButton>
         </form>
 

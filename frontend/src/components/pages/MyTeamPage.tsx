@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import {
   Users,
   Building2,
@@ -24,6 +24,7 @@ import {
   RecruiterDetailAnalyticsPage,
   RecruiterDetailData,
 } from './RecruiterDetailAnalyticsPage'
+import { PaginationFooter } from '../ui/PaginationFooter'
 
 export interface TeamMemberData {
   id: string
@@ -171,6 +172,8 @@ export function MyTeamPage() {
   const [adjustClientMember, setAdjustClientMember] = useState<TeamMemberData | null>(null)
   const [selectedClientForMember, setSelectedClientForMember] = useState<string>('Accenture')
   const [toastMsg, setToastMsg] = useState<string | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(5)
 
   const showToast = (msg: string) => {
     setToastMsg(msg)
@@ -192,6 +195,16 @@ export function MyTeamPage() {
     }
     return true
   })
+
+  const totalPages = Math.ceil(filteredMembers.length / pageSize) || 1
+  const paginatedMembers = useMemo(() => {
+    const start = (currentPage - 1) * pageSize
+    return filteredMembers.slice(start, start + pageSize)
+  }, [filteredMembers, currentPage, pageSize])
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, clientFilter, pageSize])
 
   // Drill down to recruiter detail analytics page
   if (selectedRecruiterForDetail) {
@@ -386,7 +399,7 @@ export function MyTeamPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
-              {filteredMembers.map((member, idx) => (
+              {paginatedMembers.map((member, idx) => (
                 <tr key={member.id} className="hover:bg-purple-50/40 transition-colors">
                   {/* Recruiter Name & Role */}
                   <td className="py-3.5 px-4">
@@ -508,6 +521,15 @@ export function MyTeamPage() {
               ))}
             </tbody>
           </table>
+          <PaginationFooter
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={filteredMembers.length}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
+            itemLabel="members"
+          />
         </div>
       </div>
 

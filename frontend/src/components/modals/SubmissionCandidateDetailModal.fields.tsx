@@ -7,6 +7,13 @@ export function SubmissionCandidateDetailFields({
   submittedOn,
   submissionId,
   status,
+  skills,
+  expectedSalary,
+  currentSalary,
+  noticePeriod,
+  location,
+  clientName,
+  requirement,
 }: {
   exp: string
   company: string
@@ -14,10 +21,30 @@ export function SubmissionCandidateDetailFields({
   submittedOn: string
   submissionId: string
   status: string
+  skills?: string[] | string
+  expectedSalary?: string
+  currentSalary?: string
+  noticePeriod?: string
+  location?: string
+  clientName?: string
+  requirement?: string
 }) {
+  const skillsList = Array.isArray(skills)
+    ? skills
+    : typeof skills === 'string'
+    ? skills.split(',').map(s => s.trim()).filter(Boolean)
+    : ['React', 'TypeScript', 'Node.js']
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-5 text-xs">
       <div className="space-y-4">
+        <div>
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+            ROLE / REQUIREMENT
+          </span>
+          <p className="text-sm font-semibold text-slate-900 mt-0.5">{requirement || 'Senior Developer'}</p>
+        </div>
+
         <div>
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
             TOTAL EXPERIENCE
@@ -29,34 +56,33 @@ export function SubmissionCandidateDetailFields({
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
             NOTICE PERIOD
           </span>
-          <p className="text-sm font-semibold text-slate-900 mt-0.5">30 Days</p>
+          <p className="text-sm font-semibold text-slate-900 mt-0.5">{noticePeriod || '30 Days'}</p>
         </div>
 
         <div>
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-            EXPECTED SALARY
+            EXPECTED SALARY / CTC
           </span>
-          <p className="text-sm font-semibold text-slate-900 mt-0.5">6.5 Lpa</p>
+          <p className="text-sm font-semibold text-[#6B3BF6] mt-0.5">{expectedSalary || '18 LPA'}</p>
         </div>
 
         <div>
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
             PREFERRED LOCATION
           </span>
-          <p className="text-sm font-semibold text-slate-900 mt-0.5">Bengaluru</p>
+          <p className="text-sm font-semibold text-slate-900 mt-0.5">{location || 'Bengaluru / Hybrid'}</p>
         </div>
 
         <div>
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
-            SKILLS
+            CORE SKILLS & TECH STACK
           </span>
-          <div className="flex flex-wrap gap-2">
-            <span className="px-2.5 py-1 bg-slate-100 rounded-lg text-slate-700 font-medium text-[11px]">
-              PLM/PDM Engineer
-            </span>
-            <span className="px-2.5 py-1 bg-slate-100 rounded-lg text-slate-700 font-medium text-[11px]">
-              PLM-6 Months PDM-1.06 Years Change Management-1.06 Years
-            </span>
+          <div className="flex flex-wrap gap-1.5">
+            {skillsList.map((skill, idx) => (
+              <span key={idx} className="px-2.5 py-1 bg-purple-50 text-[#6B3BF6] border border-purple-100 rounded-lg font-semibold text-[11px]">
+                {skill}
+              </span>
+            ))}
           </div>
         </div>
 
@@ -66,16 +92,16 @@ export function SubmissionCandidateDetailFields({
           </span>
           <p className="text-sm font-semibold text-slate-900 mt-0.5">{submissionId}</p>
         </div>
-
-        <div>
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-            SUBMITTED BY
-          </span>
-          <p className="text-sm font-semibold text-slate-900 mt-0.5">{submittedBy}</p>
-        </div>
       </div>
 
       <div className="space-y-4">
+        <div>
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+            SUBMITTED TO (CLIENT)
+          </span>
+          <p className="text-sm font-extrabold text-[#6B3BF6] mt-0.5">{clientName || 'Accenture'}</p>
+        </div>
+
         <div>
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
             CURRENT COMPANY
@@ -85,37 +111,39 @@ export function SubmissionCandidateDetailFields({
 
         <div>
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-            CURRENT SALARY
+            CURRENT SALARY / CTC
           </span>
-          <p className="text-sm font-semibold text-slate-900 mt-0.5">3.5 Lpa</p>
+          <p className="text-sm font-semibold text-slate-900 mt-0.5">{currentSalary || '13 LPA'}</p>
         </div>
 
         <div>
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-            LOCATION
+            CURRENT LOCATION
           </span>
-          <p className="text-sm font-semibold text-slate-900 mt-0.5">Bengaluru</p>
+          <p className="text-sm font-semibold text-slate-900 mt-0.5">{location || 'Bengaluru'}</p>
         </div>
 
         <div>
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-            SOURCE
+            SUBMITTED BY (RECRUITER)
           </span>
-          <p className="text-sm font-semibold text-slate-900 mt-0.5">—</p>
+          <p className="text-sm font-semibold text-slate-900 mt-0.5">{submittedBy}</p>
         </div>
 
         <div>
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-            SUBMITTED
+            SUBMISSION DATE & TIME
           </span>
           <p className="text-sm font-semibold text-slate-900 mt-0.5">{submittedOn}</p>
         </div>
 
         <div>
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-            STATUS
+            CLIENT SUBMISSION STATUS
           </span>
-          <p className="text-sm font-semibold text-slate-900 mt-0.5">{status}</p>
+          <span className="inline-block mt-0.5 px-3 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
+            {status}
+          </span>
         </div>
       </div>
     </div>

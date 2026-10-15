@@ -57,6 +57,27 @@ function normalizeName(name?: string | null): string {
   return name.trim().toLowerCase().replace(/\s+/g, ' ')
 }
 
+export function submissionForDuplicateCheck(raw: any): Submission {
+  const candidate = raw?.candidateId && typeof raw.candidateId === 'object' ? raw.candidateId : null
+  const requirement = raw?.requirementId && typeof raw.requirementId === 'object' ? raw.requirementId : null
+  const reqCode = String(raw?.reqCode || requirement?.reqCode || '')
+  return {
+    id: String(raw?.submissionId || raw?.id || raw?._id || ''),
+    candidate: String(raw?.candidateName || candidate?.name || raw?.candidate || ''),
+    candidateId: String(candidate?._id || (typeof raw?.candidateId === 'string' ? raw.candidateId : '') || ''),
+    req: reqCode || String(raw?.req || ''),
+    reqCode,
+    requirementId: String(requirement?._id || (typeof raw?.requirementId === 'string' ? raw.requirementId : '') || ''),
+    client: String(raw?.clientName || raw?.client || ''),
+    date: String(raw?.date || ''),
+    stage: raw?.stage || 'Submitted',
+    match: String(raw?.match || ''),
+    recruiter: String(raw?.recruiterName || raw?.recruiter || ''),
+    email: String(raw?.email || candidate?.email || ''),
+    phone: String(raw?.phone || candidate?.phone || ''),
+  }
+}
+
 export function checkDuplicateSubmission(
   reqId?: string | null,
   candidate?: DuplicateCheckCandidate | null,
@@ -71,10 +92,15 @@ export function checkDuplicateSubmission(
   const targetReqId = reqId.trim().toLowerCase()
 
   for (const sub of submissions) {
-    const subReqId = (sub.req || '').trim().toLowerCase()
-    const isReqMatch = subReqId === targetReqId || subReqId.endsWith(targetReqId.slice(-3))
-    if (!isReqMatch) continue
+    const subReqValues = [sub.req, sub.reqCode, sub.requirementId]
+      .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+      .map(value => value.trim().toLowerCase())
+    if (!subReqValues.includes(targetReqId)) continue
 
+    const subCandidateId = String(sub.candidateId || '').trim().toLowerCase()
+    if (candidateId && subCandidateId && subCandidateId === candidateId) {
+      return { isDuplicate: true, existingSubmission: sub, matchReason: 'Matching candidate on this requirement' }
+    }
     if (normEmail && sub.email && normalizeEmail(sub.email) === normEmail) {
       return { isDuplicate: true, existingSubmission: sub, matchReason: `Matching email address (${candidate.email})` }
     }
@@ -83,12 +109,9 @@ export function checkDuplicateSubmission(
     }
     if (normName && sub.candidate) {
       const subNameNorm = normalizeName(sub.candidate)
-      if (subNameNorm && (subNameNorm === normName) && normName.length > 3) {
+      if (subNameNorm && subNameNorm === normName && normName.length > 3) {
         return { isDuplicate: true, existingSubmission: sub, matchReason: `Matching candidate name (${sub.candidate})` }
       }
-    }
-    if (candidateId && sub.id && sub.id.toLowerCase() === candidateId) {
-      return { isDuplicate: true, existingSubmission: sub, matchReason: `Matching Candidate ID (${sub.id})` }
     }
   }
   return { isDuplicate: false }

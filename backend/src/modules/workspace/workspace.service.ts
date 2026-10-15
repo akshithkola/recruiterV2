@@ -46,9 +46,7 @@ export class WorkspaceService {
       : null;
 
     const reqFilter: Record<string, any> = { ...base };
-    if (role === 'recruiter' && userObjectId) {
-      reqFilter.$or = [{ assignedRecruiterIds: userObjectId }, { assignedLeadId: userObjectId }];
-    } else if (role === 'client' && currentUser.clientId) {
+    if (role === 'client' && currentUser.clientId) {
       reqFilter.clientId = new Types.ObjectId(currentUser.clientId);
     }
 
@@ -62,7 +60,11 @@ export class WorkspaceService {
       activityLogs,
       teams,
     ] = await Promise.all([
-      this.requirementModel.find(reqFilter).sort({ createdAt: -1 }).lean().exec(),
+      this.requirementModel
+        .find(reqFilter)
+        .sort({ firstDetectedAt: -1, sourceEmailReceivedAt: -1, emailArrivedTime: -1, reqCode: -1 })
+        .lean()
+        .exec(),
       this.submissionModel
         .find(role === 'recruiter' && userObjectId
           ? { ...base, $or: [{ recruiterId: userObjectId }, { leadId: userObjectId }] }
@@ -71,7 +73,7 @@ export class WorkspaceService {
         .populate('requirementId', 'title reqCode clientName')
         .populate('clientId', 'clientName')
         .populate('recruiterId', 'name email')
-        .sort({ createdAt: -1 })
+        .sort({ updatedAt: -1, submittedAt: -1, createdAt: -1 })
         .lean()
         .exec(),
       this.interviewModel
@@ -177,9 +179,28 @@ export class WorkspaceService {
         email: u.email,
       }));
 
+    // Newest first by ORIGINAL creation time (firstDetectedAt), never by last update;
+    // _id (insertion order) breaks ties deterministically.
+    const createdTime = (r: any) => {
+      const t = r.firstDetectedAt || r.createdAt || r.emailArrivedTime;
+      return t ? new Date(t).getTime() : 0;
+    };
+    requirements.sort((a: any, b: any) => {
+      const diff = createdTime(b) - createdTime(a);
+      if (diff !== 0) return diff;
+      return String(b._id || '').localeCompare(String(a._id || ''));
+    });
+
     const mappedReqs = requirements.map((r: any) => {
       const lead = r.assignedLeadId ? usersById.get(String(r.assignedLeadId)) : null;
-      return mapRequirement({ ...r, assignedLeadName: lead?.name });
+      const recNames = (r.assignedRecruiterIds || [])
+        .map((id: any) => usersById.get(String(id))?.name)
+        .filter(Boolean);
+      return mapRequirement({
+        ...r,
+        assignedLeadName: lead?.name,
+        assignedRecruiterNames: recNames.join(', '),
+      });
     });
 
     const mappedInterviews = interviews.map((iv: any) => {

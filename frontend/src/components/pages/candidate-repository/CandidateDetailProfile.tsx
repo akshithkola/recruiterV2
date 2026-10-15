@@ -35,13 +35,13 @@ export function CandidateDetailProfile({ viewingCandidateDetail }: { viewingCand
 
                   <div className="sm:col-span-2">
                     <span className="text-slate-400 block text-[11px] font-medium">Qualification & Education</span>
-                    <span className="font-semibold text-slate-800">{viewingCandidateDetail.qualification || 'B.E. Computer Science'}</span>
+                    <span className="font-semibold text-slate-800">{viewingCandidateDetail.qualification || '—'}</span>
                   </div>
 
                   <div className="sm:col-span-2">
                     <span className="text-slate-400 block text-[11px] font-medium mb-1">Key Skills & Competencies</span>
                     <div className="flex flex-wrap gap-1.5">
-                      {(viewingCandidateDetail.skills || 'Testing, Automation, Java, Python, SQL').split(',').map((skill, idx) => (
+                      {(viewingCandidateDetail.skills || '—').split(',').map((skill, idx) => (
                         <span key={idx} className="px-2.5 py-1 bg-purple-50 text-[#6B3BF6] border border-purple-200/60 rounded-lg text-[11px] font-bold">
                           {skill.trim()}
                         </span>
@@ -61,17 +61,17 @@ export function CandidateDetailProfile({ viewingCandidateDetail }: { viewingCand
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
                   <div>
                     <span className="text-slate-400 block text-[11px] font-medium">Current CTC</span>
-                    <span className="font-extrabold text-slate-900">{viewingCandidateDetail.currentCtc || '12 LPA'}</span>
+                    <span className="font-extrabold text-slate-900">{viewingCandidateDetail.currentCtc || '—'}</span>
                   </div>
 
                   <div>
                     <span className="text-slate-400 block text-[11px] font-medium">Expected CTC</span>
-                    <span className="font-extrabold text-emerald-700">{viewingCandidateDetail.expectedCtc || '16 LPA'}</span>
+                    <span className="font-extrabold text-emerald-700">{viewingCandidateDetail.expectedCtc || '—'}</span>
                   </div>
 
                   <div>
                     <span className="text-slate-400 block text-[11px] font-medium">Notice Period</span>
-                    <span className="font-extrabold text-amber-700">{viewingCandidateDetail.noticePeriod || '30 Days'}</span>
+                    <span className="font-extrabold text-amber-700">{viewingCandidateDetail.noticePeriod || '—'}</span>
                   </div>
 
                   <div>

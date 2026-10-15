@@ -1,6 +1,8 @@
 import type { RequirementsPageProps } from './preamble'
 import { Requirement } from '../../../types'
 import { CardFilterType } from '../../ui/RequirementCardsGrid'
+import { usersService, workspaceService } from '../../../services/workspace.service'
+import { getSessionUser } from '../../../store/session'
 import { useState, useMemo } from 'react'
 import React from 'react'
 
@@ -33,6 +35,9 @@ export function useRequirementsPageState(props: RequirementsPageProps) {
   const [globalSearch, setGlobalSearch] = useState('')
   const [statusDropdown, setStatusDropdown] = useState<string>('Unassigned')
   const [clientDropdown, setClientDropdown] = useState<string>('All')
+  const [dateFilter, setDateFilter] = useState<string>('All')
+  const [customStartDate, setCustomStartDate] = useState<string>('')
+  const [customEndDate, setCustomEndDate] = useState<string>('')
 
 
   // Selected card filter
@@ -40,6 +45,19 @@ export function useRequirementsPageState(props: RequirementsPageProps) {
 
   // Selected table rows
   const [selectedReqIds, setSelectedReqIds] = useState<Set<string>>(new Set())
+
+  // Table Sorting state (default: Requirement ID descending)
+  const [sortField, setSortField] = useState<'reqId' | 'client' | 'role' | 'arrivedTime'>('reqId')
+  const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc')
+
+  const handleSort = (field: 'reqId' | 'client' | 'role' | 'arrivedTime') => {
+    if (sortField === field) {
+      setSortOrder(prev => (prev === 'desc' ? 'asc' : 'desc'))
+    } else {
+      setSortField(field)
+      setSortOrder('desc')
+    }
+  }
 
   // Dynamic unique client list derived from local requirements
   const availableClients = useMemo(() => {
@@ -54,42 +72,64 @@ export function useRequirementsPageState(props: RequirementsPageProps) {
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
 
+  // Auto Email Extraction sync state
+  const [isSyncingMail, setIsSyncingMail] = useState(false)
+  const [mailSyncStatus, setMailSyncStatus] = useState<{
+    status: string
+    message: string
+    lastSyncedAt?: string
+    totalProcessed?: number
+    totalSynced?: number
+    totalDeduped?: number
+    error?: string | null
+  } | null>(null)
+
+  React.useEffect(() => {
+    workspaceService
+      .getRequirementsSyncStatus()
+      .then((res: any) => {
+        if (res) setMailSyncStatus(res)
+      })
+      .catch(() => {})
+  }, [])
+
   // States for "Assign to recruiters" modal matching screenshot
   const [isAssignMyselfChecked, setIsAssignMyselfChecked] = useState(true)
   const [selectedRecruiterNames, setSelectedRecruiterNames] = useState<Set<string>>(new Set())
   const [recruiterSearchQuery, setRecruiterSearchQuery] = useState('')
 
-  // Current logged in user name based on role (defaults to Harish Gadipally as shown in screenshot)
+  // Current logged in user name based on role or session
   const currentUserName = useMemo(() => {
-    if (role === 'superadmin') return 'Harish Gadipally'
-    if (role === 'admin') return 'Harish Gadipally'
-    if (role === 'lead') return 'Sarah Kim'
-    if (role === 'recruiter') return 'Harish Gadipally'
-    return 'Harish Gadipally'
+    const session = getSessionUser()
+    if (session?.name) return session.name
+    if (role === 'superadmin') return 'Super Admin'
+    if (role === 'admin') return 'Admin'
+    if (role === 'lead') return 'Team Lead'
+    if (role === 'recruiter') return 'Recruiter'
+    return 'User'
   }, [role])
 
-  // List of recruiters matching screenshot (Showing 17 recruiters)
-  const recruiterList = useMemo(() => {
-    return [
-      { id: '1', name: 'Adirala sathvika', email: 'No email' },
-      { id: '2', name: 'Arvind GR', email: 'arvind.gr@metaforgeit.com' },
-      { id: '3', name: 'Charlie Darwin', email: 'charlie@metaforgeit.com' },
-      { id: '4', name: 'Harini Sindey', email: 'harini.s@metaforgeit.com' },
-      { id: '5', name: 'Harish Gadipally', email: 'harish.g@metaforgeit.com' },
-      { id: '6', name: 'Puttapaka Saiteja', email: 'saiteja.p@metaforgeit.com' },
-      { id: '7', name: 'Kallol Chakraborty', email: 'kallol.c@ltts.com' },
-      { id: '8', name: 'Marcus Chen', email: 'm.chen@talentflow.io' },
-      { id: '9', name: 'Sarah Kim', email: 's.kim@talentflow.io' },
-      { id: '10', name: 'David Park', email: 'd.park@talentflow.io' },
-      { id: '11', name: 'Alex Turner', email: 'alex.t@dev.com' },
-      { id: '12', name: 'Nina Brooks', email: 'n.brooks@talentflow.io' },
-      { id: '13', name: 'Priya Sharma', email: 'priya.s@talentflow.io' },
-      { id: '14', name: 'James O\'Brien', email: 'j.obrien@talentflow.io' },
-      { id: '15', name: 'Carlos Rivera', email: 'c.rivera@talentflow.io' },
-      { id: '16', name: 'Tejasree Chakravarthy', email: 'tejasree@metaforgeit.com' },
-      { id: '17', name: 'Rahul Verma', email: 'rahul.v@metaforgeit.com' },
-    ]
+  const [dbUsers, setDbUsers] = useState<any[]>([])
+
+  React.useEffect(() => {
+    usersService.list().then((data: any) => {
+      const list = Array.isArray(data) ? data : data?.items || data?.data || []
+      setDbUsers(list)
+    }).catch(() => {})
   }, [])
+
+  const recruiterList = useMemo(() => {
+    return dbUsers
+      .filter(u => u && !u.deletedAt && u.active !== false)
+      .filter(u => String(u.role || '').toLowerCase() === 'recruiter')
+      .filter(u => u.name && (u.id || u._id))
+      .map(u => ({
+        id: String(u.id || u._id),
+        name: String(u.name),
+        email: u.email || '',
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [dbUsers])
 
   // Filtered recruiter list based on search input
   const filteredRecruiterList = useMemo(() => {
@@ -114,7 +154,7 @@ export function useRequirementsPageState(props: RequirementsPageProps) {
     setToastMessage(msg)
     setTimeout(() => {
       setToastMessage(null)
-    }, 4000)
+    }, 5000)
   }
 
   // Single Self Assign handler
@@ -140,6 +180,12 @@ export function useRequirementsPageState(props: RequirementsPageProps) {
     setStatusDropdown,
     clientDropdown,
     setClientDropdown,
+    dateFilter,
+    setDateFilter,
+    customStartDate,
+    setCustomStartDate,
+    customEndDate,
+    setCustomEndDate,
     activeCardFilter,
     setActiveCardFilter,
     selectedReqIds,
@@ -161,6 +207,15 @@ export function useRequirementsPageState(props: RequirementsPageProps) {
     totalSelectedRecruitersCount,
     toggleRecruiterSelection,
     showToast,
+    isSyncingMail,
+    setIsSyncingMail,
+    mailSyncStatus,
+    setMailSyncStatus,
+    sortField,
+    setSortField,
+    sortOrder,
+    setSortOrder,
+    handleSort,
   }
 }
 export type RequirementsVmState = ReturnType<typeof useRequirementsPageState>

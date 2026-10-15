@@ -1,17 +1,17 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState } from 'react'
 import {
-  ArrowLeft,
   FileText,
+  User,
+  Clock,
+  ArrowLeft,
   Pencil,
   Briefcase,
   Calendar,
   Eye,
-  CheckCircle,
-  Clock,
-  User,
-  Users,
-  UserPlus,
-  ChevronRight,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+  HelpCircle,
   ChevronDown,
   Search,
   RotateCcw,
@@ -28,4 +28,5 @@ export interface RequirementDetailOverviewProps {
   onEditRequirement?: () => void
   onAddCandidate?: () => void
   onRevokeRequirement?: () => void
+  onRequirementUpdated?: (updated: Requirement) => void
 }

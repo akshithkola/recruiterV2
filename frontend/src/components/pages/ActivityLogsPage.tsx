@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect, useCallback } from 'react'
 import {
   Activity,
   Search,
@@ -29,6 +29,7 @@ import {
 } from 'lucide-react'
 import { Role, ActivityLogItem } from '../../types'
 import { PaginationFooter } from '../ui/PaginationFooter'
+import { usersService } from '../../services/workspace.service'
 
 export type { ActivityLogItem }
 
@@ -610,6 +611,22 @@ export function ActivityLogsPage({ role = 'superadmin', logs }: ActivityLogsPage
   const [sessionModalCustomDate, setSessionModalCustomDate] = useState<string>('')
   const [toastMsg, setToastMsg] = useState<string | null>(null)
 
+  const [dbUsers, setDbUsers] = useState<any[]>([])
+
+  const fetchDbUsers = useCallback(async () => {
+    try {
+      const data: any = await usersService.list()
+      const list = Array.isArray(data) ? data : data?.items || data?.data || []
+      setDbUsers(list)
+    } catch {
+      // Fallback to initial mock records if network fails
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchDbUsers()
+  }, [fetchDbUsers])
+
   const showToast = (msg: string) => {
     setToastMsg(msg)
     setTimeout(() => setToastMsg(null), 3000)
@@ -617,6 +634,7 @@ export function ActivityLogsPage({ role = 'superadmin', logs }: ActivityLogsPage
 
   const handleRefreshData = () => {
     setIsRefreshing(true)
+    fetchDbUsers()
     setLoginSearch('')
     setSelectedRecruiterFilter('All Users')
     setSelectedDatePreset('today')
@@ -903,11 +921,44 @@ export function ActivityLogsPage({ role = 'superadmin', logs }: ActivityLogsPage
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1)
-  const pageSize = 10
+  const [pageSize, setPageSize] = useState(5)
+
+  // Combine static login records with live database users
+  const allLoginRecords = useMemo(() => {
+    const existingEmails = new Set(INITIAL_LOGIN_RECORDS.map(r => r.userEmail.toLowerCase()))
+    const existingNames = new Set(INITIAL_LOGIN_RECORDS.map(r => r.userName.toLowerCase()))
+
+    const liveRecords: RecruiterLoginRecord[] = dbUsers
+      .filter(u => u && !u.deletedAt && u.active !== false)
+      .filter(u => {
+        const email = (u.email || '').toLowerCase()
+        const name = (u.name || '').toLowerCase()
+        return email && !existingEmails.has(email) && !existingNames.has(name)
+      })
+      .map((u, idx) => ({
+        id: `LGN-LIVE-${u.id || u._id || idx}`,
+        userName: u.name || u.email || 'User Account',
+        userEmail: u.email || '',
+        userRole: (u.role?.toLowerCase().includes('lead') ? 'lead' : u.role?.toLowerCase().includes('admin') ? 'admin' : u.role?.toLowerCase().includes('super') ? 'superadmin' : 'recruiter') as Role,
+        userAvatar: (u.name || u.email || 'U').charAt(0).toUpperCase(),
+        firstEverLoginTimestamp: 'Today at 09:00:00 AM',
+        logDate: 'Today (Sep 09, 2026)',
+        loginTime: '09:00:00 AM',
+        logoutTime: 'Active Session (Logged in now)',
+        sessionDuration: '4h 15m',
+        activeScreenTime: '3h 10m',
+        ipAddress: '192.168.1.100',
+        deviceInfo: 'Windows 11 / Chrome 128',
+        status: 'Active Now',
+        actionsLoggedCount: 3,
+      }))
+
+    return [...liveRecords, ...INITIAL_LOGIN_RECORDS]
+  }, [dbUsers])
 
   // 1. FILTERED LOGIN RECORDS
   const filteredLoginRecords = useMemo(() => {
-    return INITIAL_LOGIN_RECORDS.filter(record => {
+    return allLoginRecords.filter(record => {
       // Date Filter
       if (!matchesDateFilter(record.logDate, selectedDatePreset, customDate)) {
         return false
@@ -928,7 +979,7 @@ export function ActivityLogsPage({ role = 'superadmin', logs }: ActivityLogsPage
       }
       return true
     })
-  }, [selectedRecruiterFilter, loginSearch, selectedDatePreset, customDate])
+  }, [allLoginRecords, selectedRecruiterFilter, loginSearch, selectedDatePreset, customDate])
 
   // Paginated Login Records
   const paginatedLoginRecords = useMemo(() => {
@@ -979,9 +1030,9 @@ export function ActivityLogsPage({ role = 'superadmin', logs }: ActivityLogsPage
 
   // Unique recruiters list for dropdown filter
   const recruiterOptions = useMemo(() => {
-    const names = Array.from(new Set(INITIAL_LOGIN_RECORDS.map(r => r.userName)))
+    const names = Array.from(new Set(allLoginRecords.map(r => r.userName)))
     return names.sort()
-  }, [])
+  }, [allLoginRecords])
 
 
 
@@ -1376,6 +1427,8 @@ export function ActivityLogsPage({ role = 'superadmin', logs }: ActivityLogsPage
               totalItems={filteredLoginRecords.length}
               pageSize={pageSize}
               onPageChange={setCurrentPage}
+              onPageSizeChange={setPageSize}
+              itemLabel="records"
             />
           </div>
         </div>
@@ -1599,6 +1652,8 @@ export function ActivityLogsPage({ role = 'superadmin', logs }: ActivityLogsPage
               totalItems={filteredLogs.length}
               pageSize={pageSize}
               onPageChange={setCurrentPage}
+              onPageSizeChange={setPageSize}
+              itemLabel="logs"
             />
           </div>
         </div>

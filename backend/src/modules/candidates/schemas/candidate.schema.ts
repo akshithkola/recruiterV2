@@ -54,6 +54,15 @@ export class Candidate {
   @Prop({ default: 'No', enum: ['No', 'Yes', 'In Pipeline', 'Multiple'] })
   offerInHand: string;
 
+  @Prop({ default: null })
+  interviewAvailability: string;
+
+  @Prop({ default: null })
+  reasonForChange: string;
+
+  @Prop({ default: null })
+  notes: string;
+
   @Prop({ type: [String], default: [] })
   skills: string[];
 

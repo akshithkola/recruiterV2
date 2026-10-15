@@ -43,16 +43,23 @@ export function SubmissionCandidateDetailModal({
 
   if (!submission) return null
 
-  const name = submission.candidateName || submission.candidate || 'PUNEETH K A'
-  const email = `${name.toLowerCase().replace(/\s+/g, '')}@gmail.com`
-  const phone = '+91 89045 52774'
-  const exp = submission.experience || '2 Years 6 Months'
-  const company = submission.currentCompany || 'TE Connectivity India Pvt. Ltd'
-  const submittedBy = submission.submittedBy || 'Suresh kulkarni'
-  const submittedOn = submission.submittedOn || submission.date || '10 Aug 2026, 17:07'
-  const submissionId = submission.id?.startsWith('SUB-') ? submission.id : `SUB-${submission.id || '571'}`
+  const name = submission.candidateName || submission.candidate || 'Alex Turner'
+  const email = submission.email || (submission.raw?.candidateEmail || submission.raw?.candidateId?.email) || `${name.toLowerCase().replace(/[^a-z0-9]/g, '')}@gmail.com`
+  const phone = submission.phone || (submission.raw?.candidatePhone || submission.raw?.candidateId?.phone) || '+91 98765 43210'
+  const exp = submission.experience || '5 Years'
+  const company = submission.currentCompany || submission.client || 'Cognizant Technology Solutions'
+  const submittedBy = submission.submittedBy || submission.recruiter || 'Marcus Chen'
+  const submittedOn = submission.submittedOn || submission.date || 'Aug 17, 2026'
+  const submissionId = submission.id?.startsWith('SUB-') ? submission.id : `SUB-${submission.id || '201'}`
   const status = submission.status || submission.stage || 'Submitted to Client'
   const targetId = submission.id
+  const skills = submission.skills || submission.raw?.skills || ['React', 'TypeScript', 'Node.js']
+  const expectedSalary = submission.expectedSalary || submission.expectedCtc || '18 LPA'
+  const currentSalary = submission.currentSalary || submission.currentCtc || '13 LPA'
+  const noticePeriod = submission.noticePeriod || '30 Days'
+  const location = submission.location || 'Bengaluru / Hyderabad'
+  const clientName = submission.clientName || submission.client || 'Accenture'
+  const requirement = submission.requirement || submission.req || 'Requirement'
 
   const handleSaveReason = async () => {
     if (onSaveRejectionReason) {
@@ -159,6 +166,13 @@ export function SubmissionCandidateDetailModal({
                 submittedOn={submittedOn}
                 submissionId={submissionId}
                 status={status}
+                skills={skills}
+                expectedSalary={expectedSalary}
+                currentSalary={currentSalary}
+                noticePeriod={noticePeriod}
+                location={location}
+                clientName={clientName}
+                requirement={requirement}
               />
               <SubmissionCandidateRejectionForm
                 savedSuccessMsg={savedSuccessMsg}

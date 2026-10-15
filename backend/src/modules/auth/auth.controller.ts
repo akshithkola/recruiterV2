@@ -17,6 +17,8 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { RequestLoginOtpDto } from './dto/request-login-otp.dto';
+import { VerifyLoginOtpDto } from './dto/verify-login-otp.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 
 const COOKIE = {
@@ -30,6 +32,23 @@ const COOKIE = {
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
+
+  @Post('request-login-otp')
+  @HttpCode(HttpStatus.OK)
+  async requestLoginOtp(@Body() dto: RequestLoginOtpDto) {
+    return this.authService.requestLoginOtp(dto);
+  }
+
+  @Post('verify-login-otp')
+  @HttpCode(HttpStatus.OK)
+  async verifyLoginOtp(@Body() dto: VerifyLoginOtpDto, @Res({ passthrough: true }) res: Response) {
+    const result = await this.authService.verifyLoginOtp(dto);
+    res.cookie('access_token', result.accessToken, COOKIE);
+    if (result.refreshToken) {
+      res.cookie('refresh_token', result.refreshToken, { ...COOKIE, maxAge: 7 * 24 * 60 * 60 * 1000 });
+    }
+    return result;
+  }
 
   @Post('login')
   @HttpCode(HttpStatus.OK)

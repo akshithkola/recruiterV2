@@ -62,7 +62,7 @@ export function AddCandidateBasicFields({ vm }: { vm: AddCandidateVm }) {
               </label>
               <input
                 type="text"
-                placeholder="e.g. Priya Nair"
+                placeholder="e.g. John Doe"
                 value={candidateName}
                 onChange={e => setCandidateName(e.target.value)}
                 className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6B3BF6]/20 focus:border-[#6B3BF6] text-slate-800 placeholder-slate-300"
@@ -76,7 +76,7 @@ export function AddCandidateBasicFields({ vm }: { vm: AddCandidateVm }) {
               </label>
               <input
                 type="text"
-                placeholder="e.g. Contoso"
+                placeholder="e.g. Acme Corp"
                 value={currentCompany}
                 onChange={e => setCurrentCompany(e.target.value)}
                 className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6B3BF6]/20 focus:border-[#6B3BF6] text-slate-800 placeholder-slate-300"

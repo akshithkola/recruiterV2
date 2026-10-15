@@ -1,5 +1,5 @@
 import React from 'react'
-import { ExternalLink } from 'lucide-react'
+import { ExternalLink, Mail, Phone, Building2 } from 'lucide-react'
 import { PaginationFooter } from '../../ui/PaginationFooter'
 import { PageHeader } from '../../layout/PageHeader'
 import { SubmissionCandidateDetailModal } from '../../modals/SubmissionCandidateDetailModal'
@@ -72,6 +72,20 @@ export function SubmissionsTable({ vm }: { vm: SubmissionsVm }) {
                           <div className="text-[11px] text-slate-600 font-semibold mt-0.5">
                             {sub.requirement}
                           </div>
+                          <div className="flex flex-wrap items-center gap-2 mt-1 text-[10px] text-slate-500">
+                            {sub.email && (
+                              <span className="inline-flex items-center gap-1 text-slate-600 font-medium">
+                                <Mail className="w-3 h-3 text-slate-400" />
+                                <span>{sub.email}</span>
+                              </span>
+                            )}
+                            {sub.phone && (
+                              <span className="inline-flex items-center gap-1 text-slate-600 font-medium">
+                                <Phone className="w-3 h-3 text-slate-400" />
+                                <span>{sub.phone}</span>
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -94,8 +108,18 @@ export function SubmissionsTable({ vm }: { vm: SubmissionsVm }) {
                         {sub.currentCompany}
                       </div>
                       <div className="text-[10px] text-slate-500 font-normal mt-0.5">
-                        Experience: {sub.experience}
+                        Experience: <span className="font-semibold text-slate-700">{sub.experience}</span>
+                        {sub.noticePeriod && <span className="ml-1.5 text-slate-400">· NP: {sub.noticePeriod}</span>}
                       </div>
+                      {sub.skills && (
+                        <div className="flex flex-wrap gap-1 mt-1.5 max-w-[220px]">
+                          {(Array.isArray(sub.skills) ? sub.skills : String(sub.skills).split(',')).slice(0, 3).map((sk, idx) => (
+                            <span key={idx} className="px-1.5 py-0.5 rounded bg-purple-50 text-[#6B3BF6] text-[9.5px] font-semibold border border-purple-100">
+                              {typeof sk === 'string' ? sk.trim() : String(sk)}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </td>
 
                     {/* 4. SUBMITTED BY & DATE */}
@@ -115,11 +139,13 @@ export function SubmissionsTable({ vm }: { vm: SubmissionsVm }) {
 
                     {/* 5. SUBMITTED TO (CLIENT NAME) */}
                     <td className="py-4 px-4 whitespace-nowrap">
-                      <div className="font-extrabold text-slate-900 text-xs">
-                        {sub.clientName || 'ITC Limited'}
+                      <div className="font-extrabold text-slate-900 text-xs flex items-center gap-1.5">
+                        <Building2 className="w-3.5 h-3.5 text-[#6B3BF6]" />
+                        <span>{sub.clientName || 'ITC Limited'}</span>
                       </div>
-                      <div className="text-[10px] text-slate-400 font-normal mt-0.5">
-                        Direct Client
+                      <div className="text-[10px] text-emerald-700 font-semibold mt-0.5 flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>
+                        <span>Client Submitted</span>
                       </div>
                     </td>
 

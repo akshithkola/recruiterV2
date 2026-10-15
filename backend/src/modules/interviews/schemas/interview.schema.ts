@@ -21,7 +21,7 @@ export class Interview {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Requirement', required: true })
   requirementId: MongooseSchema.Types.ObjectId;
 
-  @Prop({ default: 'Screening', enum: ['Screening', 'L1 Technical', 'L2 Technical', 'Manager Round', 'Client Round', 'HR Round'] })
+  @Prop({ default: 'L1 Technical' })
   round: string;
 
   @Prop({ required: true })
@@ -30,7 +30,7 @@ export class Interview {
   @Prop({ default: 60 })
   durationMinutes: number;
 
-  @Prop({ default: 'Online', enum: ['Online', 'In-Person', 'Telephonic'] })
+  @Prop({ default: 'Online' })
   mode: string;
 
   @Prop({ default: null })
@@ -42,11 +42,29 @@ export class Interview {
   @Prop({ required: true, lowercase: true, trim: true })
   interviewerEmail: string;
 
-  @Prop({ default: 'Scheduled', enum: ['Scheduled', 'Confirmed', 'In Progress', 'Completed', 'Passed', 'Rejected', 'Rescheduled', 'Cancelled'] })
+  @Prop({ default: 'Scheduled' })
   status: string;
+
+  @Prop({ default: null })
+  notes: string;
+
+  @Prop({ default: null })
+  candidateEmail: string;
+
+  @Prop({ default: null })
+  candidatePhone: string;
 
   @Prop({ default: false })
   reminderSent: boolean;
+
+  @Prop({ default: false })
+  emailSent: boolean;
+
+  @Prop({ default: false })
+  whatsappSent: boolean;
+
+  @Prop({ default: null })
+  whatsappUrl: string;
 
   @Prop({ type: Date, default: null })
   deletedAt: Date;

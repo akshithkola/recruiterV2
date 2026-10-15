@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Interview, Requirement, Submission, ActivityLogItem } from '../../../types'
+import { Interview, Requirement, Submission, ActivityLogItem, Candidate } from '../../../types'
 import { RequirementDetailOverview } from '../../pages/RequirementDetailOverview'
 import { CandidateRepositoryPage } from '../../pages/CandidateRepositoryPage'
 import { SubmissionsPage } from '../../pages/SubmissionsPage'
@@ -23,6 +23,7 @@ import { PaginationFooter } from '../../ui/PaginationFooter'
 import { PageHeader } from '../../layout/PageHeader'
 
 export interface Props {
+  candidates?: Candidate[]
   submissions: Submission[]
   interviews: Interview[]
   requirements: Requirement[]
@@ -34,6 +35,7 @@ export interface Props {
   onOpenFeedbackModal?: (interview: Interview) => void
   onOpenCandidateDetail?: (sub: Submission) => void
   onAddActivityLog?: (log: ActivityLogItem) => void
+  onUpdateRequirements?: (next: Requirement[]) => void
 }
 
 export interface ActiveReqRow {

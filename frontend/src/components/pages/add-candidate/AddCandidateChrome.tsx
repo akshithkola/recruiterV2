@@ -8,13 +8,12 @@ export function AddCandidateChrome({ vm }: { vm: AddCandidateVm }) {
   const {
     onOpenRepository,
     showSuccessToast,
+    showBack = false,
   } = vm
 
   const handleBack = () => {
     if (typeof onOpenRepository === 'function') {
       onOpenRepository()
-    } else if (typeof window !== 'undefined' && window.history.length > 1) {
-      window.history.back()
     }
   }
 
@@ -29,15 +28,17 @@ export function AddCandidateChrome({ vm }: { vm: AddCandidateVm }) {
       )}
 
       <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={handleBack}
-          className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs transition-all cursor-pointer shrink-0"
-          title="Return to candidate repository"
-        >
-          <ArrowLeft className="w-4 h-4 text-slate-500" />
-          <span>Back</span>
-        </button>
+        {showBack && (
+          <button
+            type="button"
+            onClick={handleBack}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs transition-all cursor-pointer shrink-0"
+            title="Return to candidate repository"
+          >
+            <ArrowLeft className="w-4 h-4 text-slate-500" />
+            <span>Back</span>
+          </button>
+        )}
 
         <div className="flex-1">
           <PageHeader

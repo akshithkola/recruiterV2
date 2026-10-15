@@ -54,6 +54,9 @@ export function ScheduleInterviewFormFields({
             <option value="">
               Select submission
             </option>
+            {submission && !dynamicSubmissions.some(item => item.id === submission || item.label === submission) && (
+              <option value={submission}>{submission}</option>
+            )}
             {dynamicSubmissions.length > 0 ? (
               dynamicSubmissions.map(item => (
                 <option key={item.id} value={item.id}>

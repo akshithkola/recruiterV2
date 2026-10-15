@@ -14,6 +14,7 @@ import {
 } from '@nestjs/common';
 
 import { RequirementsService } from './requirements.service';
+import { MailExtractionSchedulerService } from './mail-extraction-scheduler.service';
 import { CreateRequirementDto } from './dto/create-requirement.dto';
 import { UpdateRequirementDto } from './dto/update-requirement.dto';
 import { AssignRequirementDto } from './dto/assign-requirement.dto';
@@ -25,7 +26,10 @@ import { RequirePermission } from '../../common/decorators/require-permission.de
 @Controller('requirements')
 @UseGuards(JwtAuthGuard)
 export class RequirementsController {
-  constructor(private readonly requirementsService: RequirementsService) {}
+  constructor(
+    private readonly requirementsService: RequirementsService,
+    private readonly schedulerService: MailExtractionSchedulerService,
+  ) {}
 
   /** GET /api/v1/requirements */
   @Get()
@@ -42,6 +46,34 @@ export class RequirementsController {
   @RequirePermission('req_edit')
   async bulkUpdate(@Body() body: any[], @Req() req: any) {
     return this.requirementsService.bulkUpdate(body, req.user);
+  }
+
+  /** POST /api/v1/requirements/sync-emails */
+  @Post('sync-emails')
+  @Roles('superadmin', 'admin', 'lead', 'devteam', 'recruiter')
+  @HttpCode(HttpStatus.OK)
+  async syncEmails(@Body() body: { limit?: number }, @Req() req: any) {
+    return this.requirementsService.syncEmails(body?.limit || 25);
+  }
+
+  /** POST /api/v1/requirements/backfill-historical */
+  @Post('backfill-historical')
+  @Roles('superadmin', 'admin', 'lead', 'devteam')
+  @HttpCode(HttpStatus.OK)
+  async backfillHistorical(@Body() body: { days?: number; force?: boolean; limit?: number }) {
+    return this.requirementsService.backfillHistorical(body);
+  }
+
+  /** GET /api/v1/requirements/sync-status */
+  @Get('sync-status')
+  async getSyncStatus() {
+    return this.requirementsService.getSyncStatus();
+  }
+
+  /** GET /api/v1/requirements/scheduler-status */
+  @Get('scheduler-status')
+  async getSchedulerStatus() {
+    return this.schedulerService.getStatus();
   }
 
   /** GET /api/v1/requirements/:id */
@@ -61,7 +93,7 @@ export class RequirementsController {
 
   /** PUT /api/v1/requirements/:id */
   @Put(':id')
-  @Roles('superadmin', 'admin', 'lead', 'devteam')
+  @Roles('superadmin', 'admin', 'lead', 'devteam', 'recruiter')
   @RequirePermission('req_edit')
   async update(
     @Param('id') id: string,
@@ -73,7 +105,7 @@ export class RequirementsController {
 
   /** POST /api/v1/requirements/:id/assign */
   @Post(':id/assign')
-  @Roles('superadmin', 'admin', 'lead', 'devteam')
+  @Roles('superadmin', 'admin', 'lead', 'devteam', 'recruiter')
   @RequirePermission('req_assign')
   @HttpCode(HttpStatus.OK)
   async assign(
@@ -86,7 +118,7 @@ export class RequirementsController {
 
   /** POST /api/v1/requirements/:id/revoke */
   @Post(':id/revoke')
-  @Roles('superadmin', 'admin', 'lead', 'devteam')
+  @Roles('superadmin', 'admin', 'lead', 'devteam', 'recruiter')
   @RequirePermission('req_assign')
   @HttpCode(HttpStatus.OK)
   async revoke(

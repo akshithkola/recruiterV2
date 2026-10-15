@@ -1,38 +1,32 @@
 import React from 'react'
-import { Search, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { RequirementDetailOverview } from '../../pages/RequirementDetailOverview'
-import { CandidateRepositoryPage } from '../../pages/CandidateRepositoryPage'
-import { SubmissionsPage } from '../../pages/SubmissionsPage'
-import { InterviewTrackingPage } from '../../pages/InterviewTrackingPage'
-import { PaginationFooter } from '../../ui/PaginationFooter'
-import { PageHeader } from '../../layout/PageHeader'
+import { RevokeRequirementModal } from '../../modals/RevokeRequirementModal'
 import { RecruiterDashboardVm } from './useRecruiterDashboard'
 
 export function RecruiterDashDetail({ vm }: { vm: RecruiterDashboardVm }) {
   const {
-    submissions,
-    requirements,
     onOpenSubmitCandidate,
     selectedReqForDetail,
     setSelectedReqForDetail,
+    currentUserName,
     isAssignModalOpen,
     setIsAssignModalOpen,
     isAssignMyselfChecked,
     setIsAssignMyselfChecked,
     selectedRecruiterNames,
+    setSelectedRecruiterNames,
     recruiterSearchQuery,
     setRecruiterSearchQuery,
-    searchQuery,
-    statusFilter,
-    recentSubmissionsFilter,
-    currentPage,
-    pageSize,
-    key,
+    isRevokeModalOpen,
+    setIsRevokeModalOpen,
+    toastMsg,
     recruiterList,
     filteredRecruiterList,
     totalSelectedRecruitersCount,
     toggleRecruiterSelection,
     handleConfirmReassign,
+    handleConfirmRevoke,
   } = vm
   if (!selectedReqForDetail) return null
   return (
@@ -41,21 +35,27 @@ export function RecruiterDashDetail({ vm }: { vm: RecruiterDashboardVm }) {
           requirement={selectedReqForDetail}
           role="recruiter"
           onBack={() => setSelectedReqForDetail(null)}
+          onOpenAssignModal={() => {
+            setIsAssignMyselfChecked(true)
+            setSelectedRecruiterNames(new Set())
+            setRecruiterSearchQuery('')
+            setIsAssignModalOpen(true)
+          }}
+          onRevokeRequirement={() => setIsRevokeModalOpen(true)}
           onAddCandidate={() => onOpenSubmitCandidate?.(selectedReqForDetail.id)}
+          onRequirementUpdated={updated => {
+            setSelectedReqForDetail(updated)
+          }}
         />
 
-        {/* REASSIGN MODAL OVERLAY */}
         {isAssignModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 animate-in fade-in duration-150">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[480px] overflow-hidden border border-slate-100 font-sans">
-              {/* Header */}
               <div className="flex items-start justify-between px-6 py-5 border-b border-slate-100">
                 <div>
-                  <h3 className="text-xl font-bold text-slate-900 tracking-tight">
-                    Reassign
-                  </h3>
+                  <h3 className="text-xl font-bold text-slate-900 tracking-tight">Reassign</h3>
                   <p className="text-xs text-slate-500 font-normal mt-1">
-                    Select yourself and/or other recruiters for this requirement in one step.
+                    Keep yourself and/or assign other recruiters for this requirement.
                   </p>
                 </div>
                 <button
@@ -66,9 +66,7 @@ export function RecruiterDashDetail({ vm }: { vm: RecruiterDashboardVm }) {
                 </button>
               </div>
 
-              {/* Content */}
               <div className="p-6 space-y-4">
-                {/* Assign myself card */}
                 <label className="bg-blue-50/80 border border-blue-200/80 rounded-2xl p-4 flex items-start gap-3.5 cursor-pointer hover:bg-blue-50 transition-colors block">
                   <input
                     type="checkbox"
@@ -78,15 +76,14 @@ export function RecruiterDashDetail({ vm }: { vm: RecruiterDashboardVm }) {
                   />
                   <div>
                     <div className="text-sm font-bold text-blue-900 leading-snug">
-                      Assign myself (Harish Gadipally)
+                      Keep myself ({currentUserName})
                     </div>
                     <div className="text-xs text-blue-600/90 leading-normal mt-0.5 font-normal">
-                      Include yourself along with any recruiters selected below.
+                      Stay assigned along with any recruiters selected below.
                     </div>
                   </div>
                 </label>
 
-                {/* Search recruiter input */}
                 <div className="space-y-1">
                   <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                     ASSIGN TO RECRUITER
@@ -100,12 +97,10 @@ export function RecruiterDashDetail({ vm }: { vm: RecruiterDashboardVm }) {
                   />
                 </div>
 
-                {/* Showing counter */}
                 <div className="text-xs text-slate-500 font-medium px-0.5">
                   Showing {filteredRecruiterList.length} of {recruiterList.length} recruiters
                 </div>
 
-                {/* Recruiter cards scrollable list */}
                 <div className="max-h-56 overflow-y-auto space-y-2.5 pr-1.5 custom-scrollbar">
                   {filteredRecruiterList.map(rec => {
                     const isChecked = selectedRecruiterNames.has(rec.name)
@@ -125,20 +120,18 @@ export function RecruiterDashDetail({ vm }: { vm: RecruiterDashboardVm }) {
                           className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer shrink-0"
                         />
                         <div>
-                          <div className="text-sm font-bold text-slate-900 leading-snug">
-                            {rec.name}
-                          </div>
-                          <div className="text-xs text-slate-400 mt-0.5 font-normal">
-                            {rec.email}
-                          </div>
+                          <div className="text-sm font-bold text-slate-900 leading-snug">{rec.name}</div>
+                          <div className="text-xs text-slate-400 mt-0.5 font-normal">{rec.email}</div>
                         </div>
                       </label>
                     )
                   })}
+                  {filteredRecruiterList.length === 0 && (
+                    <div className="text-xs text-slate-400 py-4 text-center">No other recruiters found.</div>
+                  )}
                 </div>
               </div>
 
-              {/* Footer actions */}
               <div className="px-6 py-4 bg-slate-50/50 border-t border-slate-100 flex items-center justify-end gap-3">
                 <button
                   type="button"
@@ -151,12 +144,29 @@ export function RecruiterDashDetail({ vm }: { vm: RecruiterDashboardVm }) {
                   type="button"
                   onClick={handleConfirmReassign}
                   disabled={totalSelectedRecruitersCount === 0}
-                  className="px-6 h-11 bg-[#6B3BF6] hover:bg-[#5833E0] disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-bold rounded-xl transition-all shadow-xs cursor-pointer active:scale-98"
+                  className="px-6 h-11 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-bold rounded-xl transition-all shadow-xs cursor-pointer active:scale-98"
                 >
                   Assign {totalSelectedRecruitersCount} recruiter(s)
                 </button>
               </div>
             </div>
+          </div>
+        )}
+
+        <RevokeRequirementModal
+          isOpen={isRevokeModalOpen}
+          onClose={() => setIsRevokeModalOpen(false)}
+          requirement={selectedReqForDetail}
+          userRole="recruiter"
+          currentUserName={currentUserName}
+          onSubmitRevoke={(reqId, reason) => {
+            void handleConfirmRevoke(reqId, reason)
+          }}
+        />
+
+        {toastMsg && (
+          <div className="fixed bottom-6 right-6 z-[60] bg-slate-900 text-white text-sm font-medium px-4 py-3 rounded-xl shadow-lg max-w-sm">
+            {toastMsg}
           </div>
         )}
       </>

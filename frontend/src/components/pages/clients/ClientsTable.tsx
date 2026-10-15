@@ -18,6 +18,7 @@ export function ClientsTable({ vm }: { vm: ClientsVm }) {
     setCurrentPage,
     filteredClients,
     pageSize,
+    setPageSize,
     totalPages,
     paginatedClients,
     openEditClient,
@@ -211,13 +212,14 @@ export function ClientsTable({ vm }: { vm: ClientsVm }) {
           </table>
         </div>
 
-        {/* 10-ITEM PAGINATION FOOTER */}
         <PaginationFooter
           currentPage={currentPage}
           totalPages={totalPages}
           totalItems={filteredClients.length}
           pageSize={pageSize}
           onPageChange={setCurrentPage}
+          onPageSizeChange={setPageSize}
+          itemLabel="clients"
         />
       </div>
 

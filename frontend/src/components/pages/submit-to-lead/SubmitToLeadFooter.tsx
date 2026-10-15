@@ -1,42 +1,33 @@
 import React from 'react'
 import { Send, ShieldAlert } from 'lucide-react'
 import { SubmitToLeadVm } from './useSubmitToLeadPage'
+import { hasCapability } from '../../../store/session'
 
 export function SubmitToLeadFooter({ vm }: { vm: SubmitToLeadVm }) {
   const {
     requirement,
-    forwardLoopChecked,
+    clientName,
     confirmForwardChecked,
     setConfirmForwardChecked,
     toastMsg,
     currentReqId,
-    isLeadApproved,
     hasDuplicateSubmission,
     firstDuplicate,
     handleSubmitFinal,
+    selectedCandidates,
+    validCandidatesToSubmit,
+    allCandidatesAreDuplicates,
+    duplicateCheckResults,
   } = vm
-  return (
-    <>
-      {/* 7. CONFIRMATION CHECKBOX (Only shown after Forward to client loop is approved & checked) */}
-      {isLeadApproved && forwardLoopChecked && (
-        <div className="bg-amber-50/70 border border-amber-200 rounded-2xl p-4 space-y-2 animate-in fade-in duration-200">
-          <label className="flex items-start gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={confirmForwardChecked}
-              onChange={e => setConfirmForwardChecked(e.target.checked)}
-              className="mt-0.5 w-4 h-4 text-amber-600 rounded-md focus:ring-amber-500 cursor-pointer"
-            />
-            <span className="text-xs font-bold text-amber-950">
-              I confirm these candidates should be forwarded in the original client requirement email thread.
-            </span>
-          </label>
-          <p className="text-[10px] text-slate-500 pl-7">
-            One submission will be recorded; lead email and client thread forward for: <strong>{requirement?.client || 'Client Account'}</strong>
-          </p>
-        </div>
-      )}
 
+  const canSubmit = hasCapability('submitToClients')
+  const count = Array.isArray(selectedCandidates) ? selectedCandidates.length : 0
+  const validCount = Array.isArray(validCandidatesToSubmit) ? validCandidatesToSubmit.length : (allCandidatesAreDuplicates ? 0 : count)
+  const blockedCount = Array.isArray(duplicateCheckResults) ? (duplicateCheckResults.length - validCount) : 0
+  const isSubmitDisabled = !confirmForwardChecked || allCandidatesAreDuplicates || validCount === 0 || !canSubmit
+
+  return (
+    <div className="space-y-6 pt-2">
       {/* DUPLICATE SUBMISSION BANNER IN PAGE */}
       {hasDuplicateSubmission && firstDuplicate && (
         <div className="bg-rose-50 border-2 border-rose-300 rounded-2xl p-4 space-y-2 animate-in fade-in">
@@ -46,7 +37,7 @@ export function SubmitToLeadFooter({ vm }: { vm: SubmitToLeadVm }) {
               <span className="font-extrabold text-rose-900 text-xs uppercase tracking-wide bg-rose-600 text-white px-2 py-0.5 rounded-md">
                 Duplicate Submission
               </span>
-              <span className="text-xs font-bold text-rose-800">Submission Blocked</span>
+              <span className="text-xs font-bold text-rose-800">Already submitted for this requirement</span>
             </div>
           </div>
           <p className="text-xs text-rose-950 font-medium leading-relaxed">
@@ -61,43 +52,53 @@ export function SubmitToLeadFooter({ vm }: { vm: SubmitToLeadVm }) {
         </div>
       )}
 
-      {/* 8. STICKY BOTTOM ACTION BAR */}
-      <div className={`sticky bottom-4 z-30 border backdrop-blur-md py-3.5 px-6 rounded-2xl shadow-xl flex items-center justify-between gap-4 mt-6 ${
+      {/* STICKY BOTTOM ACTION BAR MATCHING SCREENSHOT 3 & 4 */}
+      <div className={`sticky bottom-4 z-30 border backdrop-blur-md py-3.5 px-6 rounded-2xl shadow-xl flex items-center justify-between gap-4 ${
         hasDuplicateSubmission
           ? 'bg-rose-50/95 border-rose-300'
           : 'bg-white/95 border-slate-200/90'
       }`}>
         <span className="text-xs font-bold text-slate-700">
-          {hasDuplicateSubmission ? (
-            <span className="text-rose-700 flex items-center gap-1.5">
-              <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0" />
-              <span>Duplicate Candidate Submission — Cannot forward to Client.</span>
+          {allCandidatesAreDuplicates ? (
+            <span className="text-rose-700 font-extrabold">All selected candidate(s) are already submitted. Submission is blocked.</span>
+          ) : blockedCount > 0 ? (
+            <span>
+              Submit <strong className="text-slate-900">{validCount}</strong> valid candidate(s) to the client email ({blockedCount} duplicate candidate blocked).
             </span>
           ) : (
-            <span>Forward candidate(s) in the client email loop.</span>
+            <span>Submit the selected {count} candidate(s) to the client email on this page.</span>
+          )}
+          {!canSubmit ? (
+            <span className="block text-[11px] text-rose-700 font-bold mt-0.5">
+              ⛔ Access Restricted: Super Admin has disabled client submissions for your account.
+            </span>
+          ) : !confirmForwardChecked && !allCandidatesAreDuplicates && (
+            <span className="block text-[11px] text-amber-700 font-normal mt-0.5">
+              ⚠ Mandatory confirmation checkbox must be checked above before submitting.
+            </span>
           )}
         </span>
 
         <button
           onClick={handleSubmitFinal}
-          disabled={hasDuplicateSubmission}
-          className={`px-6 py-2.5 font-extrabold text-xs rounded-xl shadow-lg transition-all flex items-center gap-2 shrink-0 ${
-            hasDuplicateSubmission
-              ? 'bg-rose-300 text-rose-900 cursor-not-allowed border border-rose-300 shadow-none'
-              : 'bg-[#2563EB] hover:bg-[#1D4ED8] text-white cursor-pointer active:scale-98'
+          disabled={isSubmitDisabled}
+          title={
+            !canSubmit
+              ? 'Access Restricted: Super Admin has disabled client submissions for your account'
+              : !confirmForwardChecked
+              ? 'Check the confirmation checkbox above to enable submission'
+              : allCandidatesAreDuplicates
+              ? 'Candidate is already submitted'
+              : 'Submit to Client'
+          }
+          className={`px-6 py-2.5 font-extrabold text-xs rounded-xl transition-all flex items-center gap-2 shrink-0 ${
+            isSubmitDisabled
+              ? 'bg-slate-200 text-slate-400 border border-slate-300 shadow-none cursor-not-allowed opacity-60'
+              : 'bg-[#2563EB] hover:bg-[#1D4ED8] text-white shadow-lg cursor-pointer active:scale-98'
           }`}
         >
-          {hasDuplicateSubmission ? (
-            <>
-              <ShieldAlert className="w-3.5 h-3.5" />
-              <span>Duplicate Submission - Blocked</span>
-            </>
-          ) : (
-            <>
-              <Send className="w-3.5 h-3.5" />
-              <span>Forward to Client</span>
-            </>
-          )}
+          <Send className="w-4 h-4" />
+          <span>Submit to Client</span>
         </button>
       </div>
 
@@ -107,6 +108,6 @@ export function SubmitToLeadFooter({ vm }: { vm: SubmitToLeadVm }) {
           {toastMsg}
         </div>
       )}
-    </>
+    </div>
   )
 }

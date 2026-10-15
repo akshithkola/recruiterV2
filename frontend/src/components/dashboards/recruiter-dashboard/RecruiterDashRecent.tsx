@@ -20,10 +20,12 @@ export function RecruiterDashRecent({ vm }: { vm: RecruiterDashboardVm }) {
     key,
     found,
   } = vm
+  const [pageSize, setPageSize] = React.useState<number>(5)
+
   return (
     <>
       {/* Recent Activity Section */}
-      <section className="space-y-4">
+      <section className="space-y-4 overflow-visible">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-lg font-bold text-slate-900 tracking-tight">Recent Activity</h2>
@@ -31,14 +33,30 @@ export function RecruiterDashRecent({ vm }: { vm: RecruiterDashboardVm }) {
               Actions and updates performed in your recruiter account.
             </p>
           </div>
-          <span className="text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full border border-blue-200/60 shadow-2xs">
-            {userActivityLogs.length} Action{userActivityLogs.length === 1 ? '' : 's'} Logged
-          </span>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-2.5 py-1 shadow-2xs relative z-20">
+              <label htmlFor="recent-activity-page-size" className="text-xs text-slate-500 font-medium whitespace-nowrap">Page size:</label>
+              <select
+                id="recent-activity-page-size"
+                value={pageSize}
+                onChange={(e) => setPageSize(Number(e.target.value))}
+                className="text-xs font-bold text-slate-800 bg-transparent focus:outline-none cursor-pointer border-none p-0"
+              >
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={15}>15</option>
+                <option value={20}>20</option>
+              </select>
+            </div>
+            <span className="text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full border border-blue-200/60 shadow-2xs">
+              Showing {Math.min(userActivityLogs.length, pageSize)} of {userActivityLogs.length} Action{userActivityLogs.length === 1 ? '' : 's'}
+            </span>
+          </div>
         </div>
 
         {userActivityLogs.length > 0 ? (
           <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs divide-y divide-slate-100 overflow-hidden">
-            {userActivityLogs.slice(0, 10).map((log, idx) => {
+            {userActivityLogs.slice(0, pageSize).map((log, idx) => {
               const isSubmission = log.category === 'Submissions' || log.action.toLowerCase().includes('submit')
               const isInterview = log.category === 'Interviews' || log.action.toLowerCase().includes('interview')
 

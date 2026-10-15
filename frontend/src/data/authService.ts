@@ -50,7 +50,7 @@ export async function authenticate(email: string, password: string, expectedRole
     }
     setSessionUser({ ...res.user, title: account.title })
     if (expectedRole && role !== expectedRole) {
-      return { ok: false, field: 'general', message: 'This account does not match the selected portal.' }
+      return { ok: false, field: 'general', message: `You are not authorized for the ${expectedRole} portal. Account role is ${role}.` }
     }
     return { ok: true, account }
   } catch (err) {
@@ -58,9 +58,7 @@ export async function authenticate(email: string, password: string, expectedRole
       return {
         ok: false,
         field: 'general',
-        message: expectedRole
-          ? 'Invalid email or password. Use the seeded credentials below.'
-          : 'Invalid email or password. Check your credentials and try again.',
+        message: err.message || 'Invalid email or password. Check your credentials and try again.',
       }
     }
     return {
@@ -138,10 +136,72 @@ export function passwordStrength(value: string): { score: number; label: string;
   return { score, label: 'Strong', color: '#059669' }
 }
 
-export function generateVerificationCode(): string {
-  return String(Math.floor(100000 + Math.random() * 900000))
+export async function requestLoginOtp(email: string, expectedRole?: Role): Promise<{ message: string }> {
+  const trimmed = email.trim()
+  if (!trimmed) throw new Error('Work email address is required')
+  if (!isValidEmail(trimmed)) throw new Error('Enter a valid work email address')
+
+  try {
+    const payload: { email: string; role?: Role } = { email: trimmed }
+    if (expectedRole) payload.role = expectedRole
+    return await api.post<{ message: string }>('/auth/request-login-otp', payload)
+  } catch (err) {
+    if (err instanceof ApiError) {
+      throw new Error(err.message || 'Failed to send OTP code.')
+    }
+    throw new Error('Unable to connect to the login service. Check that the backend server is running.')
+  }
 }
 
-export const VERIFICATION_CODE_LENGTH = 6
+export async function verifyLoginOtp(email: string, code: string, expectedRole?: Role): Promise<AuthResult> {
+  const trimmedEmail = email.trim()
+  const trimmedCode = code.trim()
+
+  if (!trimmedEmail) return { ok: false, field: 'email', message: 'Work email address is required' }
+  if (!trimmedCode || trimmedCode.length !== 4) {
+    return { ok: false, field: 'general', message: 'Enter all 4 digits of your verification code' }
+  }
+
+  try {
+    const payload: { email: string; code: string; role?: Role } = { email: trimmedEmail, code: trimmedCode }
+    if (expectedRole) payload.role = expectedRole
+    const res = await api.post<{
+      accessToken: string
+      user: SessionUser & { role: Role }
+    }>('/auth/verify-login-otp', payload)
+
+    setAccessToken(res.accessToken)
+    const role = res.user.role
+    const hint = seedAccountByEmail(res.user.email)
+    const account: ResolvedAccount = {
+      role,
+      email: res.user.email,
+      name: res.user.name,
+      password: '',
+      title: res.user.title || hint?.title || titleForRole(role),
+    }
+    setSessionUser({ ...res.user, title: account.title })
+    return { ok: true, account }
+  } catch (err) {
+    if (err instanceof ApiError) {
+      return {
+        ok: false,
+        field: 'general',
+        message: err.message || 'Verification failed. Please try again.',
+      }
+    }
+    return {
+      ok: false,
+      field: 'general',
+      message: 'Unable to reach the API. Confirm the backend is running.',
+    }
+  }
+}
+
+export function generateVerificationCode(): string {
+  return String(Math.floor(1000 + Math.random() * 9000))
+}
+
+export const VERIFICATION_CODE_LENGTH = 4
 
 export { SEED_ACCOUNTS }

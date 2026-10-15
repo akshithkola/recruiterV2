@@ -1,11 +1,8 @@
 import React from 'react'
-import { PaginationFooter } from '../../ui/PaginationFooter'
-import { PageHeader } from '../../layout/PageHeader'
-import { SubmissionCandidateDetailModal } from '../../modals/SubmissionCandidateDetailModal'
-import { ScheduleInterviewModal } from '../../modals/ScheduleInterviewModal'
-import { RequirementDetailOverview } from '../RequirementDetailOverview'
 import { CreateJobDemandForm } from '../CreateJobDemandForm'
 import { SubmissionsVm } from './useSubmissionsPage'
+import { workspaceService } from '../../../services/workspace.service'
+import { apiErrorMessage } from './preamble'
 
 export function SubmissionsEdit({ vm }: { vm: SubmissionsVm }) {
   const {
@@ -18,18 +15,19 @@ export function SubmissionsEdit({ vm }: { vm: SubmissionsVm }) {
     setEditingReq,
     showToast,
   } = vm
+
   return (
-    <>
-    return (
-      <CreateJobDemandForm
-        userRole={role === 'superadmin' ? 'Super Admin View' : role === 'admin' ? 'Admin View' : 'Recruiter View'}
-        mode="edit"
-        initialData={editingReq}
-        onCancel={() => {
-          setIsEditingReq(false)
-          setEditingReq(null)
-        }}
-        onSubmit={updatedReq => {
+    <CreateJobDemandForm
+      userRole={role === 'superadmin' ? 'Super Admin View' : role === 'admin' ? 'Admin View' : 'Recruiter View'}
+      mode="edit"
+      initialData={editingReq}
+      onCancel={() => {
+        setIsEditingReq(false)
+        setEditingReq(null)
+      }}
+      onSubmit={async updatedReq => {
+        try {
+          await workspaceService.updateRequirement(updatedReq.id, updatedReq)
           setSelectedReqDetail(updatedReq)
           if (onUpdateRequirements && requirements.length > 0) {
             const updatedList = requirements.map(r => (r.id === updatedReq.id ? updatedReq : r))
@@ -38,9 +36,10 @@ export function SubmissionsEdit({ vm }: { vm: SubmissionsVm }) {
           setIsEditingReq(false)
           setEditingReq(null)
           showToast('Requirement details updated successfully!')
-        }}
-      />
-    )
-    </>
+        } catch (err) {
+          showToast(apiErrorMessage(err) || 'Failed to update requirement')
+        }
+      }}
+    />
   )
 }

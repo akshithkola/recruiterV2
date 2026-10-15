@@ -121,7 +121,7 @@ export function useClientsPageState(props: ClientsPageProps) {
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1)
-  const pageSize = 10
+  const [pageSize, setPageSize] = useState(5)
 
   const totalPages = Math.ceil(filteredClients.length / pageSize) || 1
 
@@ -236,6 +236,7 @@ export function useClientsPageState(props: ClientsPageProps) {
     filteredClients,
     filteredModalReqs,
     pageSize,
+    setPageSize,
     totalPages,
     paginatedClients,
     openAgreementPage,

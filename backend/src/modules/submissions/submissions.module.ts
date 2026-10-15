@@ -17,6 +17,7 @@ import {
   CandidateSchema,
 } from '../candidates/schemas/candidate.schema';
 import { User, UserSchema } from '../users/schemas/user.schema';
+import { Team, TeamSchema } from '../teams/schemas/team.schema';
 import {
   Notification,
   NotificationSchema,
@@ -31,6 +32,7 @@ import { NotificationsService } from '../notifications/notifications.service';
       { name: Requirement.name, schema: RequirementSchema },
       { name: Candidate.name, schema: CandidateSchema },
       { name: User.name, schema: UserSchema },
+      { name: Team.name, schema: TeamSchema },
       { name: Notification.name, schema: NotificationSchema },
     ]),
   ],

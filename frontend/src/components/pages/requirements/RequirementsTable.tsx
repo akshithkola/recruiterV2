@@ -2,10 +2,12 @@ import React, { useState } from 'react'
 import { Clock, ChevronDown, Edit3 } from 'lucide-react'
 import { PaginationFooter } from '../../ui/PaginationFooter'
 import { RequirementsVm } from './useRequirementsPage'
+import { CLIENT_EMAIL_DEFAULTS } from '../../../config/clientEmailDefaults'
 
 export function RequirementsTable({ vm }: { vm: RequirementsVm }) {
   const {
     requirements,
+    onOpenSubmit,
     setSelectedReqForDetail,
     selectedReqIds,
     currentPage,
@@ -18,6 +20,11 @@ export function RequirementsTable({ vm }: { vm: RequirementsVm }) {
     toggleSelectAll,
     toggleSelectRow,
     handleUpdateReqStatus,
+    recruiterList,
+    handleAssignRecruiter,
+    sortField,
+    sortOrder,
+    handleSort,
   } = vm
 
   const [customModalReq, setCustomModalReq] = useState<{ id: string; currentStatus: string } | null>(null)
@@ -38,37 +45,120 @@ export function RequirementsTable({ vm }: { vm: RequirementsVm }) {
                     className="rounded border-slate-300 text-[#6B3BF6] focus:ring-[#6B3BF6] cursor-pointer"
                   />
                 </th>
-                <th className="py-3.5 px-4 font-bold">REQUIREMENT ID</th>
-                <th className="py-3.5 px-4 font-bold">CLIENT NAME</th>
-                <th className="py-3.5 px-4 font-bold">ROLE & LOCATION</th>
+                <th
+                  className="py-3.5 px-4 font-bold cursor-pointer select-none hover:bg-slate-100 transition-colors"
+                  onClick={() => handleSort && handleSort('reqId')}
+                  title="Click to toggle sorting by Requirement ID"
+                >
+                  <span className="inline-flex items-center gap-1">
+                    <span>REQUIREMENT ID</span>
+                    <span className={`text-[10px] font-extrabold ${sortField === 'reqId' ? 'text-[#6B3BF6]' : 'text-slate-400'}`}>
+                      {sortField === 'reqId' ? (sortOrder === 'desc' ? '▼' : '▲') : '▼'}
+                    </span>
+                  </span>
+                </th>
+                <th
+                  className="py-3.5 px-4 font-bold cursor-pointer select-none hover:bg-slate-100 transition-colors"
+                  onClick={() => handleSort && handleSort('client')}
+                  title="Click to toggle sorting by Client Name"
+                >
+                  <span className="inline-flex items-center gap-1">
+                    <span>CLIENT NAME</span>
+                    {sortField === 'client' && (
+                      <span className="text-[10px] text-[#6B3BF6] font-extrabold">{sortOrder === 'desc' ? '▼' : '▲'}</span>
+                    )}
+                  </span>
+                </th>
+                <th className="py-3.5 px-4 font-bold">CLIENT EMAIL ID</th>
+                <th
+                  className="py-3.5 px-4 font-bold cursor-pointer select-none hover:bg-slate-100 transition-colors"
+                  onClick={() => handleSort && handleSort('role')}
+                  title="Click to toggle sorting by Role"
+                >
+                  <span className="inline-flex items-center gap-1">
+                    <span>ROLE</span>
+                    {sortField === 'role' && (
+                      <span className="text-[10px] text-[#6B3BF6] font-extrabold">{sortOrder === 'desc' ? '▼' : '▲'}</span>
+                    )}
+                  </span>
+                </th>
                 <th className="py-3.5 px-4 font-bold">ASSIGNED TO RECRUITER</th>
-                <th className="py-3.5 px-4 font-bold">EMAIL ARRIVED TIME</th>
+                <th
+                  className="py-3.5 px-4 font-bold cursor-pointer select-none hover:bg-slate-100 transition-colors"
+                  onClick={() => handleSort && handleSort('arrivedTime')}
+                  title="Click to toggle sorting by Email Arrival Time"
+                >
+                  <span className="inline-flex items-center gap-1">
+                    <span>EMAIL ARRIVED TIME</span>
+                    {sortField === 'arrivedTime' && (
+                      <span className="text-[10px] text-[#6B3BF6] font-extrabold">{sortOrder === 'desc' ? '▼' : '▲'}</span>
+                    )}
+                  </span>
+                </th>
                 <th className="py-3.5 px-4 font-bold text-center">UPDATE STATUS</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white font-medium text-slate-800">
               {filteredRequirements.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-400">
+                  <td colSpan={8} className="py-12 text-center text-slate-400">
                     <p className="text-xs font-semibold">
                       No requirements match your current search or filter.
                     </p>
                   </td>
                 </tr>
               ) : (
-                paginatedRequirements.map(req => {
+                paginatedRequirements.map((req, reqIndex) => {
                   const isUnassigned =
-                    !req.owner || req.owner === 'Unassigned'
-                  const isSelected = selectedReqIds.has(req.id)
-                  const rawStatus = req.status || 'Open'
+                    !req.owner || req.owner === 'Unassigned' || req.assignmentStatus === 'Unassigned'
+                  const rawStatus = (req.status || 'Open') as string
+                  const isHold = rawStatus === 'Hold' || rawStatus === 'On Hold'
+                  const isSelected = !isHold && selectedReqIds.has(req.id)
                   const isCustomStatus = rawStatus.startsWith('Custom:')
-                  const displaySelectVal = isCustomStatus ? 'Custom' : (rawStatus === 'Hold' || rawStatus === 'Reopen' || rawStatus === 'Open' ? rawStatus : 'Open')
+                  const workflowStatus = isHold ? 'Hold' : (isCustomStatus ? 'Custom' : (rawStatus === 'Assigned' || req.assignmentStatus === 'Assigned' ? 'Assigned' : (rawStatus === 'Reopen' ? 'Reopen' : (rawStatus === 'Active' || rawStatus === 'In Progress' ? 'Open' : rawStatus))))
+                  const displaySelectVal = isCustomStatus ? 'Custom' : (isHold ? 'Hold' : workflowStatus)
+                  const ownerNames = (req.owner || '').split(',').map(name => name.trim()).filter(Boolean)
+                  const matchedRecruiter = recruiterList.find(rec =>
+                    rec.id === req.owner ||
+                    rec.name.toLowerCase() === (req.owner || '').toLowerCase() ||
+                    ownerNames.some(name => name.toLowerCase() === rec.name.toLowerCase() || name.toLowerCase() === rec.id.toLowerCase())
+                  )
+                  const selectedRecruiterId = matchedRecruiter ? matchedRecruiter.id : (isUnassigned ? 'Unassigned' : req.owner || 'Unassigned')
+
+                  const clientKey = req.client
+                    ? (Object.keys(CLIENT_EMAIL_DEFAULTS).find(k => k.toLowerCase() === req.client.toLowerCase()) || req.client)
+                    : ''
+                  const fallbackEmail = clientKey ? CLIENT_EMAIL_DEFAULTS[clientKey]?.requirement?.from : ''
+
+                  const clientEmailDisplay =
+                    req.clientEmail
+                      ? (req.clientEmail.match(/<([^>]+)>/)?.[1] || req.clientEmail)
+                      : (req.client && req.client.includes('@')
+                        ? req.client
+                        : (fallbackEmail || '—'))
+
+                  // "YYYY-MM-DD-NNN (client requirement/request ID)"; the stored ID itself stays clean.
+                  const baseId = req.reqCode || req.id || ''
+                  const clientReqId = req.sourceClientJdId || (req as any).clientJdId || ''
+                  const displayId = clientReqId && !baseId.includes(`(${clientReqId})`) ? `${baseId} (${clientReqId})` : baseId
+                  const isNew =
+                    (currentPage === 1 && reqIndex === 0) ||
+                    Boolean(req.emailArrivedTime && Math.abs(Date.now() - new Date(req.emailArrivedTime).getTime()) < 48 * 60 * 60 * 1000)
+
+                  const roleSnippet =
+                    req.skills && req.skills.length > 0
+                      ? req.skills.join(', ')
+                      : (req.location ? `📍 ${req.location}` : '')
 
                   return (
                     <tr
                       key={req.id}
-                      className={`hover:bg-purple-50/30 transition-colors ${
-                        isSelected ? 'bg-purple-50/40' : ''
+                      className={`transition-colors ${
+                        isHold
+                          ? 'bg-slate-50/70 opacity-75'
+                          : isSelected
+                          ? 'bg-purple-50/40 hover:bg-purple-50/50'
+                          : 'hover:bg-purple-50/30'
                       }`}
                     >
                       {/* Checkbox */}
@@ -76,55 +166,61 @@ export function RequirementsTable({ vm }: { vm: RequirementsVm }) {
                         <input
                           type="checkbox"
                           checked={isSelected}
-                          onChange={() => toggleSelectRow(req.id)}
-                          className="rounded border-slate-300 text-[#6B3BF6] focus:ring-[#6B3BF6] cursor-pointer"
+                          disabled={isHold}
+                          onChange={() => !isHold && toggleSelectRow(req.id)}
+                          title={isHold ? 'Requirements on Hold cannot be selected' : 'Select requirement'}
+                          className={`rounded border-slate-300 text-[#6B3BF6] focus:ring-[#6B3BF6] ${
+                            isHold ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'
+                          }`}
                         />
                       </td>
 
                       {/* Requirement ID */}
                       <td className="py-3.5 px-4 font-semibold text-slate-900 whitespace-nowrap">
-                        <div className="space-y-1">
+                        <div className="flex items-center gap-2">
                           <button
                             onClick={() => setSelectedReqForDetail(req)}
-                            className="text-xs font-extrabold text-[#6B3BF6] hover:text-[#5833E0] hover:underline cursor-pointer flex items-center gap-1 group text-left"
+                            className="text-xs font-bold text-slate-900 hover:text-[#6B3BF6] hover:underline cursor-pointer flex items-center gap-1.5 group text-left"
                             title="Click to view full requirement overview"
                           >
-                            <span>{req.id}</span>
+                            <span>{displayId}</span>
                           </button>
-                          <div>
-                            <span
-                              className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                                isUnassigned
-                                  ? 'bg-slate-100 text-slate-600 border-slate-300'
-                                  : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                              }`}
-                            >
-                              {req.owner || 'Unassigned'}
+                          {isNew && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wide bg-[#00a86b] text-white leading-none shadow-2xs">
+                              NEW
                             </span>
-                          </div>
+                          )}
                         </div>
                       </td>
 
                       {/* Client Name */}
-                      <td className="py-3.5 px-4 font-bold text-slate-900 whitespace-nowrap">
-                        <span className="px-2.5 py-1 bg-purple-50 text-purple-900 border border-purple-200/80 rounded-xl text-xs inline-block">
-                          {req.client}
+                      <td className="py-3.5 px-4 font-bold text-slate-900 whitespace-nowrap text-xs">
+                        {req.client}
+                      </td>
+
+                      {/* Client Email ID */}
+                      <td className="py-3.5 px-4 text-slate-700 whitespace-nowrap">
+                        <span
+                          className="text-xs font-normal text-slate-600 block max-w-[240px] truncate"
+                          title={clientEmailDisplay}
+                        >
+                          {clientEmailDisplay}
                         </span>
                       </td>
 
-                      {/* Role & Location */}
+                      {/* Role & Skills Snippet */}
                       <td className="py-3.5 px-4 max-w-sm">
-                        <div className="font-extrabold text-slate-900 leading-snug line-clamp-2 text-xs">
+                        <div className="font-bold text-slate-900 leading-snug line-clamp-1 text-xs" title={req.title}>
                           {req.title}
                         </div>
-                        {req.location && (
-                          <div className="text-[11px] text-slate-400 mt-0.5 truncate font-medium">
-                            📍 {req.location}
+                        {roleSnippet && (
+                          <div className="text-[11px] text-slate-500 mt-0.5 truncate font-normal" title={roleSnippet}>
+                            {roleSnippet}
                           </div>
                         )}
                       </td>
 
-                      {/* Submitted to Recruiter */}
+                      {/* Assigned to Recruiter (Display only - manual dropdown removed) */}
                       <td className="py-3.5 px-4 whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           <div className={`w-7 h-7 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 ${
@@ -157,7 +253,7 @@ export function RequirementsTable({ vm }: { vm: RequirementsVm }) {
                         </div>
                       </td>
 
-                      {/* Requirement Status Dropdown */}
+                      {/* Requirement Status Dropdown (Only manually editable column) */}
                       <td className="py-3.5 px-4 text-center whitespace-nowrap">
                         <div className="space-y-1 flex flex-col items-center">
                           <div className="relative inline-block text-left">
@@ -173,19 +269,32 @@ export function RequirementsTable({ vm }: { vm: RequirementsVm }) {
                                 }
                               }}
                               className={`appearance-none pl-3 pr-7 py-1.5 rounded-xl text-xs font-extrabold border cursor-pointer transition-all shadow-2xs focus:outline-none focus:ring-2 focus:ring-[#6B3BF6]/20 ${
-                                displaySelectVal === 'Hold'
+                                isHold
                                   ? 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100'
-                                  : displaySelectVal === 'Reopen'
-                                  ? 'bg-blue-50 text-blue-900 border-blue-300 hover:bg-blue-100'
                                   : displaySelectVal === 'Custom'
                                   ? 'bg-purple-50 text-purple-900 border-purple-300 hover:bg-purple-100'
+                                  : displaySelectVal === 'Assigned'
+                                  ? 'bg-blue-50 text-blue-900 border-blue-300 hover:bg-blue-100'
                                   : 'bg-emerald-50 text-emerald-900 border-emerald-300 hover:bg-emerald-100'
                               }`}
                             >
-                              <option value="Open" className="bg-white text-emerald-900 font-bold">🟢 Open</option>
-                              <option value="Hold" className="bg-white text-amber-900 font-bold">⏸️ Hold</option>
-                              <option value="Reopen" className="bg-white text-blue-900 font-bold">🔄 Reopen</option>
-                              <option value="Custom" className="bg-white text-purple-900 font-bold">✏️ Custom...</option>
+                              {isHold ? (
+                                <>
+                                  <option value="Hold" className="bg-white text-amber-900 font-bold">⏸️ On Hold</option>
+                                  <option value="Reopen" className="bg-white text-blue-900 font-bold">🔄 Reopen</option>
+                                  <option value="Open" className="bg-white text-emerald-900 font-bold">🟢 Open</option>
+                                </>
+                              ) : (
+                                <>
+                                  {displaySelectVal === 'Assigned' && (
+                                    <option value="Assigned" disabled className="bg-white text-blue-900 font-bold">👤 Assigned</option>
+                                  )}
+                                  <option value="Open" className="bg-white text-emerald-900 font-bold">🟢 Open</option>
+                                  <option value="Hold" className="bg-white text-amber-900 font-bold">⏸️ Hold</option>
+                                  <option value="Reopen" className="bg-white text-blue-900 font-bold">🔄 Reopen</option>
+                                  <option value="Custom" className="bg-white text-purple-900 font-bold">✏️ Custom...</option>
+                                </>
+                              )}
                             </select>
                             <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-current opacity-70">
                               <ChevronDown className="w-3.5 h-3.5" />

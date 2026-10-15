@@ -51,10 +51,10 @@ export function SignUpPage({ onBack, onSubmitted }: SignUpPageProps) {
 
   const validateStep2 = () => {
     const next: Record<string, string> = {}
-    if (!form.password) next.password = 'Password is required'
-    else if (!isStrongPassword(form.password)) next.password = 'Password does not meet all requirements'
-    if (!form.confirm) next.confirm = 'Confirm your password'
-    else if (form.confirm !== form.password) next.confirm = 'Passwords do not match'
+    if (form.password) {
+      if (!isStrongPassword(form.password)) next.password = 'Password does not meet all requirements'
+      if (form.confirm !== form.password) next.confirm = 'Passwords do not match'
+    }
     if (!form.agree) next.agree = 'You must accept the Terms of Service and Privacy Policy'
     setErrors(next)
     return Object.keys(next).length === 0
@@ -73,7 +73,7 @@ export function SignUpPage({ onBack, onSubmitted }: SignUpPageProps) {
     try {
       await requestAccess({
         email: form.email.trim(),
-        password: form.password,
+        password: form.password ? form.password : undefined,
         name: `${form.firstName.trim()} ${form.lastName.trim()}`.trim(),
         role: form.role,
         phone: form.phone.trim() || undefined,

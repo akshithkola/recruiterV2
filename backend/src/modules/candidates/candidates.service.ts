@@ -12,12 +12,15 @@ import { CreateCandidateDto } from './dto/create-candidate.dto';
 import { UpdateCandidateDto } from './dto/update-candidate.dto';
 import { DuplicateCheckDto } from './dto/duplicate-check.dto';
 
+import { NotificationsService } from '../notifications/notifications.service';
+
 @Injectable()
 export class CandidatesService {
   constructor(
     @InjectModel(Candidate.name)
     private readonly candidateModel: Model<CandidateDocument>,
     private readonly candidateRepository: CandidateRepository,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   /** Format document for API output */
@@ -51,6 +54,9 @@ export class CandidatesService {
       currentLocation: obj.currentLocation || 'N/A',
       preferredLocation: obj.preferredLocation || (Array.isArray(obj.preferredLocations) ? obj.preferredLocations.join(', ') : 'N/A'),
       offerInHand: obj.offerInHand || 'No',
+      interviewAvailability: obj.interviewAvailability || null,
+      reasonForChange: obj.reasonForChange || null,
+      notes: obj.notes || null,
       skills: skillsList,
       primarySkills: skillsList,
       resumeUrl: obj.resumeUrl || obj.resumeFileUrl || null,
@@ -282,6 +288,9 @@ export class CandidatesService {
       currentLocation: dto.currentLocation || null,
       preferredLocation: dto.preferredLocation || null,
       offerInHand: dto.offerInHand || 'No',
+      interviewAvailability: dto.interviewAvailability || null,
+      reasonForChange: dto.reasonForChange || null,
+      notes: dto.notes || null,
       skills: skillsList,
       primarySkills: skillsList,
       sourcedByRecruiterId: performedBy,
@@ -289,6 +298,23 @@ export class CandidatesService {
     });
 
     const saved = await newCandidate.save();
+
+    if (this.notificationsService) {
+      try {
+        await this.notificationsService.createNotification({
+          orgId,
+          userId: performedBy,
+          type: 'candidate_placed',
+          title: 'Candidate Profile Created',
+          message: `Candidate ${saved.name} (${saved.candidateId}) profile was created successfully`,
+          entityId: new Types.ObjectId(saved._id.toString()),
+          entityType: 'candidate',
+        });
+      } catch (e) {
+        console.error('Candidate notification error:', e);
+      }
+    }
+
     return this.sanitizeCandidate(saved);
   }
 
@@ -337,6 +363,9 @@ export class CandidatesService {
     if (dto.currentLocation !== undefined) doc.currentLocation = dto.currentLocation;
     if (dto.preferredLocation !== undefined) doc.preferredLocation = dto.preferredLocation;
     if (dto.offerInHand !== undefined) doc.offerInHand = dto.offerInHand;
+    if (dto.interviewAvailability !== undefined) doc.interviewAvailability = dto.interviewAvailability;
+    if (dto.reasonForChange !== undefined) doc.reasonForChange = dto.reasonForChange;
+    if (dto.notes !== undefined) doc.notes = dto.notes;
     if (dto.status !== undefined) doc.status = dto.status;
 
     if (dto.skills !== undefined) {
@@ -348,6 +377,25 @@ export class CandidatesService {
     }
 
     const updated = await doc.save();
+
+    const performedBy = currentUser?.id || currentUser?.userId
+      ? new Types.ObjectId((currentUser.id || currentUser.userId).toString())
+      : new Types.ObjectId();
+
+    if (this.notificationsService) {
+      try {
+        await this.notificationsService.createNotification({
+          orgId: new Types.ObjectId(updated.orgId.toString()),
+          userId: performedBy,
+          type: 'candidate_placed',
+          title: 'Candidate Profile Updated',
+          message: `Candidate ${updated.name} (${updated.candidateId}) profile was updated`,
+          entityId: new Types.ObjectId(updated._id.toString()),
+          entityType: 'candidate',
+        });
+      } catch (e) {}
+    }
+
     return this.sanitizeCandidate(updated);
   }
 

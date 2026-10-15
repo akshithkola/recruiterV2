@@ -58,6 +58,18 @@ export class CreateCandidateDto {
   offerInHand?: string;
 
   @IsOptional()
+  @IsString()
+  interviewAvailability?: string;
+
+  @IsOptional()
+  @IsString()
+  reasonForChange?: string;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
+  @IsOptional()
   skills?: string[] | string;
 
   @IsOptional()

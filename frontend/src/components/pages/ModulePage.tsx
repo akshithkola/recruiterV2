@@ -55,20 +55,39 @@ export function ModulePage({
     })
   }
   const [candidateViewMode, setCandidateViewMode] = useState<'add' | 'repository'>('add')
+  const [addOpenedFromRepository, setAddOpenedFromRepository] = useState(false)
 
   React.useEffect(() => {
     setCandidatesList(initialCandidates)
   }, [initialCandidates])
 
   const handleCandidateViewModeChange = (mode: 'add' | 'repository') => {
+    if (mode === 'add' && candidateViewMode === 'repository') {
+      setAddOpenedFromRepository(true)
+    }
+    if (mode === 'repository') {
+      setAddOpenedFromRepository(false)
+    }
     setCandidateViewMode(mode)
   }
 
   React.useEffect(() => {
     if (selectedReqId) {
       setCandidateViewMode('repository')
+      setAddOpenedFromRepository(false)
     }
   }, [selectedReqId, pageKey])
+
+  // Sidebar nav to Candidates resets nested-back state for a clean top-level entry
+  React.useEffect(() => {
+    if (pageKey === 'Candidates' || pageKey === 'Candidate Search') {
+      if (!selectedReqId) {
+        setAddOpenedFromRepository(false)
+      }
+    } else {
+      setAddOpenedFromRepository(false)
+    }
+  }, [pageKey, selectedReqId])
 
   return renderModulePage({
     pageKey,
@@ -92,5 +111,6 @@ export function ModulePage({
     onNavigateToDashboard,
     handleCandidateViewModeChange,
     setCandidatesList: updateCandidatesList,
+    addOpenedFromRepository,
   })
 }

@@ -1,3 +1,4 @@
+import { displayRequirementId } from '../../common/requirement-id';
 const ROUND_MAP: Record<string, string> = {
   Screening: 'Screening',
   'L1 Technical': 'Technical Round 1',
@@ -54,11 +55,64 @@ function relativeTime(value?: Date | string | null): string {
   return `${days}d ago`;
 }
 
+function formatBudgetDisplay(budgetRange?: { min?: number; max?: number; currency?: string } | null, budgetText?: string | null): string | undefined {
+  if (budgetText && budgetText.trim()) {
+    return budgetText.trim();
+  }
+  if (!budgetRange) return undefined;
+  const { min = 0, max = 0, currency = 'INR' } = budgetRange;
+  if (!min && !max) return undefined;
+
+  if (currency === 'INR') {
+    if (min >= 100000 || max >= 100000) {
+      const minL = (min / 100000).toFixed(2).replace(/\.00$/, '').replace(/(\.[1-9])0$/, '$1');
+      const maxL = (max / 100000).toFixed(2).replace(/\.00$/, '').replace(/(\.[1-9])0$/, '$1');
+      if (min > 0 && max > 0 && min !== max) {
+        return `INR ${minL} - ${maxL} LPA`;
+      }
+      if (max > 0 && min === max) {
+        return `INR ${maxL} LPA`;
+      }
+      if (max > 0 && min === 0) {
+        return `Up to INR ${maxL} LPA`;
+      }
+      if (min > 0 && max === 0) {
+        return `INR ${minL} LPA`;
+      }
+    }
+    if (min > 0 && max > 0 && min !== max) {
+      return `₹${min.toLocaleString('en-IN')} - ₹${max.toLocaleString('en-IN')}`;
+    }
+    if (max > 0) {
+      return `₹${max.toLocaleString('en-IN')}`;
+    }
+  }
+
+  const symbol = currency === 'USD' ? '$' : `${currency} `;
+  if (min > 0 && max > 0 && min !== max) {
+    return `${symbol}${min.toLocaleString()} - ${symbol}${max.toLocaleString()}`;
+  }
+  if (max > 0) {
+    return `${symbol}${max.toLocaleString()}`;
+  }
+  return undefined;
+}
+
 export function mapRequirement(r: any) {
-  const status = r.status === 'In Progress' || r.status === 'Assigned' ? 'Active' : r.status;
+  const recruiterNames = r.assignedRecruiterNames || '';
+  const owner = recruiterNames || r.assignedLeadName || 'Unassigned';
+  const assignmentStatus = r.assignmentStatus || (owner !== 'Unassigned' ? 'Assigned' : 'Unassigned');
+  const status = r.status === 'In Progress' ? 'Active' : (r.status || (assignmentStatus === 'Assigned' ? 'Assigned' : 'Open'));
+  // reqCode is the stored application ID; id/displayId add the client's reference in brackets.
+  const code = r.reqCode || idOf(r);
+  const displayId = displayRequirementId(code, r.sourceClientJdId);
+
   return {
-    id: r.reqCode || idOf(r),
+    id: displayId,
+    displayId,
     _id: idOf(r),
+    reqCode: code,
+    sourceClientJdId: r.sourceClientJdId || null,
     title: r.title,
     client: r.clientName || '',
     priority: r.priority === 'Urgent' ? 'High' : r.priority || 'Medium',
@@ -68,17 +122,46 @@ export function mapRequirement(r: any) {
     placed: r.placedCount || 0,
     dueDate: formatDate(r.dueDate),
     openings: r.openings || 1,
-    budget: r.budgetRange
-      ? `${r.budgetRange.currency || 'INR'} ${r.budgetRange.min}-${r.budgetRange.max}`
-      : undefined,
+    budget: formatBudgetDisplay(r.budgetRange, r.budgetText),
+    budgetText: r.budgetText || undefined,
+    budgetRange: r.budgetRange || undefined,
     skills: r.skillsRequired || [],
     location: r.location,
-    assignmentStatus: r.assignmentStatus,
+    assignmentStatus,
     assignedLead: r.assignedLeadName,
+    assignedRecruiterNames: recruiterNames,
     revokeRequested: r.revokeRequested,
     revokeReason: r.revokeReason,
     emailArrivedTime: r.emailArrivedTime ? formatDateTime(r.emailArrivedTime) : undefined,
-    owner: r.assignedLeadName,
+    emailArrivedTimeRaw: r.emailArrivedTime ? new Date(r.emailArrivedTime).toISOString() : undefined,
+    owner,
+    clientEmail: r.clientEmail || (r.toEmails && r.toEmails.length > 0 ? r.toEmails[0] : (r.clientName && r.clientName.includes('@') ? r.clientName : undefined)),
+    toEmails: r.toEmails || [],
+    ccEmails: r.ccEmails || [],
+    description: r.description || '',
+    employmentType: r.employmentType || '',
+    workMode: r.workMode || '',
+    noticePeriod: r.noticePeriod || '',
+    experienceLevel: r.experienceLevel || '',
+    experienceRange: r.experienceRange || { min: 0, max: 0 },
+    experience: r.experienceRange
+      ? (r.experienceRange.min === r.experienceRange.max
+          ? (r.experienceRange.min ? `${r.experienceRange.min} yrs` : '')
+          : `${r.experienceRange.min}-${r.experienceRange.max} yrs`)
+      : '',
+    mandatorySkills: r.mandatorySkills || [],
+    conversationId: r.conversationId || undefined,
+    inReplyTo: r.inReplyTo || undefined,
+    createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : undefined,
+    updatedAt: r.updatedAt ? new Date(r.updatedAt).toISOString() : undefined,
+    firstDetectedAt: r.firstDetectedAt ? new Date(r.firstDetectedAt).toISOString() : (r.createdAt ? new Date(r.createdAt).toISOString() : undefined),
+    first_detected_at: r.firstDetectedAt ? new Date(r.firstDetectedAt).toISOString() : (r.createdAt ? new Date(r.createdAt).toISOString() : undefined),
+    lastUpdatedAt: r.lastUpdatedAt ? new Date(r.lastUpdatedAt).toISOString() : (r.updatedAt ? new Date(r.updatedAt).toISOString() : undefined),
+    last_updated_at: r.lastUpdatedAt ? new Date(r.lastUpdatedAt).toISOString() : (r.updatedAt ? new Date(r.updatedAt).toISOString() : undefined),
+    sourceEmailReceivedAt: r.sourceEmailReceivedAt ? new Date(r.sourceEmailReceivedAt).toISOString() : (r.emailArrivedTime ? new Date(r.emailArrivedTime).toISOString() : undefined),
+    source_email_received_at: r.sourceEmailReceivedAt ? new Date(r.sourceEmailReceivedAt).toISOString() : (r.emailArrivedTime ? new Date(r.emailArrivedTime).toISOString() : undefined),
+    lastSeenAt: r.lastSeenAt ? new Date(r.lastSeenAt).toISOString() : (r.emailArrivedTime ? new Date(r.emailArrivedTime).toISOString() : undefined),
+    last_seen_at: r.lastSeenAt ? new Date(r.lastSeenAt).toISOString() : (r.emailArrivedTime ? new Date(r.emailArrivedTime).toISOString() : undefined),
   };
 }
 
@@ -103,6 +186,9 @@ export function mapSubmission(s: any) {
     email: cand?.email,
     phone: cand?.phone,
     experience: cand?.totalExperienceYears != null ? `${cand.totalExperienceYears} years` : undefined,
+    submittedAt: s.submittedAt ? new Date(s.submittedAt).toISOString() : undefined,
+    createdAt: s.createdAt ? new Date(s.createdAt).toISOString() : undefined,
+    updatedAt: s.updatedAt ? new Date(s.updatedAt).toISOString() : undefined,
   };
 }
 

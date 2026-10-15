@@ -1,11 +1,10 @@
 import React, { useState } from 'react'
-import { createOrUpdateForwardRequest, approveForwardRequest, rejectForwardRequest } from '../../../data/forwardRequestsStore'
-import { checkDuplicateSubmission } from '../../../data/submissionsStore'
+import { buildTrackerRow } from './trackerPresets.data'
 import type { SubmitToLeadVmState } from './useSubmitToLeadPageState'
 
 export function useSubmitToLeadPageHandlers1(s: SubmitToLeadVmState) {
   const {
-    selectedCandidates, requirement, columnList, setColumnList,
+    selectedCandidates, requirement, recruiterName, columnList, setColumnList,
     setDraggedColIndex, dragOverColIndex, setDragOverColIndex, selectedColIndex,
     setSelectedColIndex, isDraggingRef, draggedColIndexRef, showToast
   } = s
@@ -47,7 +46,7 @@ export function useSubmitToLeadPageHandlers1(s: SubmitToLeadVmState) {
 
     if (fromIndex !== null && !isNaN(fromIndex) && fromIndex !== dropIndex) {
       const colName = columnList[fromIndex]
-      setColumnList(prev => {
+      setColumnList((prev: string[]) => {
         const next = [...prev]
         const [movedItem] = next.splice(fromIndex!, 1)
         next.splice(dropIndex, 0, movedItem)
@@ -79,7 +78,7 @@ export function useSubmitToLeadPageHandlers1(s: SubmitToLeadVmState) {
     } else if (selectedColIndex === index) {
       setSelectedColIndex(null)
     } else {
-      setColumnList(prev => {
+      setColumnList((prev: string[]) => {
         const next = [...prev]
         const [moved] = next.splice(selectedColIndex, 1)
         next.splice(index, 0, moved)
@@ -92,7 +91,7 @@ export function useSubmitToLeadPageHandlers1(s: SubmitToLeadVmState) {
 
   const moveColumnLeft = (index: number) => {
     if (index <= 0) return
-    setColumnList(prev => {
+    setColumnList((prev: string[]) => {
       const next = [...prev]
       const [col] = next.splice(index, 1)
       next.splice(index - 1, 0, col)
@@ -102,7 +101,7 @@ export function useSubmitToLeadPageHandlers1(s: SubmitToLeadVmState) {
 
   const moveColumnRight = (index: number) => {
     if (index >= columnList.length - 1) return
-    setColumnList(prev => {
+    setColumnList((prev: string[]) => {
       const next = [...prev]
       const [col] = next.splice(index, 1)
       next.splice(index + 1, 0, col)
@@ -111,52 +110,11 @@ export function useSubmitToLeadPageHandlers1(s: SubmitToLeadVmState) {
   }
 
   // Tracker Table Rows (100% Manually Editable)
-  const [trackerRows, setTrackerRows] = useState<Record<string, string>[]>(() => {
-    if (selectedCandidates && selectedCandidates.length > 0) {
-      return selectedCandidates.map((c, idx) => ({
-        'Sl No': String(idx + 1),
-        'Submission Date': '19/08/2026',
-        'Skillset': requirement?.skills?.join(', ') || 'QA Lead, Selenium, Automation Frameworks',
-        'Candidate Name': c.name || 'Priyanka Sharma',
-        'Contact Number': c.phone || '+91 98210 44905',
-        'Email id': c.email || 'priyanka.sharma@gmail.com',
-        'Total Yrs of Exp': c.totalExperience || '11 Years 3 Months',
-        'Relevant Exp': c.relevantExperience || '9 Years',
-        'Current Company': c.currentCompany || 'Cognizant Technology Solutions',
-        'Current CTC': c.currentCtc || '18.5 LPA',
-        'Expected CTC/Rate card': c.expectedCtc || '25 LPA',
-        'Notice period': c.noticePeriod || '30 Days',
-        'Current Location': c.currentLocation || 'Bangalore',
-        'Preferred Location': c.preferredLocation || 'Bangalore / Hybrid',
-        'Availability for Interview': c.interviewAvailability || 'Available weekdays after 4 PM',
-        'Reason': c.reasonForChange || 'Career Advancement & Technical Leadership',
-        'Offer in Hand': c.offerInHand || 'Yes (28 LPA from Capgemini)',
-        'Linkedin URL': 'https://linkedin.com/in/priyanka-sharma',
-      }))
-    }
-    return [
-      {
-        'Sl No': '1',
-        'Submission Date': '19/08/2026',
-        'Skillset': requirement?.skills?.join(', ') || 'QA Lead, Selenium, Test Management',
-        'Candidate Name': 'Priyanka Sharma',
-        'Contact Number': '+91 98210 44905',
-        'Email id': 'priyanka.sharma@gmail.com',
-        'Total Yrs of Exp': '11 Years 3 Months',
-        'Relevant Exp': '9 Years',
-        'Current Company': 'Cognizant Technology Solutions',
-        'Current CTC': '18.5 LPA',
-        'Expected CTC/Rate card': '25 LPA',
-        'Notice period': '30 Days',
-        'Current Location': 'Bangalore',
-        'Preferred Location': 'Bangalore / Hybrid',
-        'Availability for Interview': 'Available weekdays after 4 PM',
-        'Reason': 'Career Advancement',
-        'Offer in Hand': 'Yes (28 LPA from Capgemini)',
-        'Linkedin URL': 'https://linkedin.com/in/priyanka-sharma',
-      },
-    ]
-  })
+  const [trackerRows, setTrackerRows] = useState<Record<string, string>[]>(() =>
+    (selectedCandidates || []).map((candidate, index) =>
+      buildTrackerRow(columnList, candidate, index, { requirement, recruiterName })
+    )
+  )
 
   return {
     handleDragStart, handleDragEnter, handleDragOver, handleDrop,

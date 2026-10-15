@@ -14,11 +14,15 @@ export class UpdateRequirementDto {
   clientName?: string;
 
   @IsOptional()
+  @IsString()
+  client?: string;
+
+  @IsOptional()
   @IsEnum(['High', 'Medium', 'Low', 'Urgent'])
   priority?: string;
 
   @IsOptional()
-  @IsEnum(['Open', 'Assigned', 'In Progress', 'On Hold', 'Reopen', 'Closed'])
+  @IsString()
   status?: string;
 
   @IsOptional()
@@ -44,9 +48,18 @@ export class UpdateRequirementDto {
   };
 
   @IsOptional()
+  @IsString()
+  budget?: string;
+
+  @IsOptional()
   @IsArray()
   @IsString({ each: true })
   skillsRequired?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  skills?: string[];
 
   @IsOptional()
   @IsObject()
@@ -67,4 +80,22 @@ export class UpdateRequirementDto {
   @IsArray()
   @IsString({ each: true })
   assignedRecruiterIds?: string[];
+
+  @IsOptional()
+  @IsString()
+  clientEmail?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  toEmails?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  ccEmails?: string[];
+
+  @IsOptional()
+  @IsString()
+  dueDate?: string;
 }

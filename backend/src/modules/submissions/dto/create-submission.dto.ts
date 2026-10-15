@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsOptional, IsString, IsNumber, ValidateIf } from 'class-validator';
+import { IsArray, IsEmail, IsNotEmpty, IsOptional, IsString, IsNumber, ValidateIf } from 'class-validator';
 
 export class CreateSubmissionDto {
   @ValidateIf((o) => !o.email && !o.candidate)
@@ -62,4 +62,61 @@ export class CreateSubmissionDto {
   @IsOptional()
   @IsNumber()
   matchScore?: number;
+
+  @IsOptional()
+  @IsArray()
+  @IsEmail({}, { each: true })
+  clientEmails?: string[];
+
+  @IsOptional()
+  @IsString()
+  leadEmail?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsEmail({}, { each: true })
+  leadEmails?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  candidateIds?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsEmail({}, { each: true })
+  ccEmails?: string[];
+
+  @IsOptional()
+  @IsString()
+  emailSubject?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  trackerColumns?: string[];
+
+  @IsOptional()
+  @IsArray()
+  trackerRows?: Record<string, string>[];
+
+  @IsOptional()
+  @IsString()
+  trackerHeaderColor?: string;
+
+  @IsOptional()
+  @IsString()
+  emailGreeting?: string;
+
+  @IsOptional()
+  @IsString()
+  emailIntroduction?: string;
+
+  @IsOptional()
+  @IsString()
+  recruiterName?: string;
+
+  @IsOptional()
+  @IsString()
+  recruiterEmail?: string;
 }

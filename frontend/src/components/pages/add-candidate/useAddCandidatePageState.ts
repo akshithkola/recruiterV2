@@ -8,17 +8,23 @@ export function useAddCandidatePageState(props: AddCandidatePageProps) {
   const {
   requirements = [],
   selectedReqId = null,
+  showBack = false,
   onOpenRepository,
   onAddCandidate,
 }: AddCandidatePageProps = props as AddCandidatePageProps & Record<string, never>
   // Mode selection: 'single' | 'bulk' | 'drafts'
   const [importMode, setImportMode] = useState<'single' | 'bulk' | 'drafts'>('single')
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [isParsing, setIsParsing] = useState(false)
   const [parsedFileName, setParsedFileName] = useState<string | null>(null)
   const [showSuccessToast, setShowSuccessToast] = useState(false)
   const [showSaveDraftToast, setShowSaveDraftToast] = useState(false)
   const [toastMsg, setToastMsg] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+
+  // Bulk import queue: every dropped resume stays here until it is submitted or removed.
+  const [bulkQueue, setBulkQueue] = useState<BulkQueueItem[]>([])
+  const [activeQueueId, setActiveQueueId] = useState<string | null>(null)
 
   // Saved Drafts state
   const [draftsList, setDraftsList] = useState<SavedDraftItem[]>(() => getSavedDrafts())
@@ -54,7 +60,7 @@ export function useAddCandidatePageState(props: AddCandidatePageProps) {
   const [reasonForChange, setReasonForChange] = useState('')
   const [notes, setNotes] = useState('')
 
-  const [targetReqId, setTargetReqId] = useState<string>(selectedReqId || (requirements[0]?.id ?? 'REQ-001'))
+  const [targetReqId, setTargetReqId] = useState<string>(selectedReqId || '')
 
   // Real-time Duplicate Submission Check
   const dupCheckResult = useMemo(() => {
@@ -72,10 +78,13 @@ export function useAddCandidatePageState(props: AddCandidatePageProps) {
   return {
     requirements,
     selectedReqId,
+    showBack,
     onOpenRepository,
     onAddCandidate,
     importMode,
     setImportMode,
+    selectedFile,
+    setSelectedFile,
     isParsing,
     setIsParsing,
     parsedFileName,
@@ -135,6 +144,20 @@ export function useAddCandidatePageState(props: AddCandidatePageProps) {
     targetReqId,
     setTargetReqId,
     dupCheckResult,
+    bulkQueue,
+    setBulkQueue,
+    activeQueueId,
+    setActiveQueueId,
   }
+}
+
+export type BulkQueueStatus = 'queued' | 'parsing' | 'parsed' | 'failed' | 'submitted'
+
+export interface BulkQueueItem {
+  id: string
+  file: File
+  status: BulkQueueStatus
+  data?: import('../../../services/workspace.service').ParsedResume
+  error?: string
 }
 export type AddCandidateVmState = ReturnType<typeof useAddCandidatePageState>

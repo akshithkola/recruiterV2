@@ -22,11 +22,13 @@ import { AIModule } from './modules/ai/ai.module';
 import { BlacklistModule } from './modules/candidate-blacklist/candidate-blacklist.module';
 import { SavedSearchesModule } from './modules/saved-searches/saved-searches.module';
 import { EmailTemplatesModule } from './modules/email-templates/email-templates.module';
+import { MailModule } from './modules/mail/mail.module';
 import { RedisModule } from './modules/redis/redis.module';
 import { SeedModule } from './modules/seed/seed.module';
 import { RolesGuard } from './common/guards/roles.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
 import { WorkspaceModule } from './modules/workspace/workspace.module';
+import { ResumeParserModule } from './modules/resume-parser/resume-parser.module';
 
 // AI
 import {
@@ -261,6 +263,7 @@ import {
     ]),
 
     RedisModule,
+    ResumeParserModule,
     OrganizationModule,
     AuthModule,
     UsersModule,
@@ -279,6 +282,7 @@ import {
     BlacklistModule,
     SavedSearchesModule,
     EmailTemplatesModule,
+    MailModule,
     WorkspaceModule,
     SeedModule,
   ],

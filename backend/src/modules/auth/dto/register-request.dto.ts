@@ -5,10 +5,10 @@ export class RegisterRequestDto {
   @IsNotEmpty({ message: 'Work email address is required' })
   email: string;
 
+  @IsOptional()
   @IsString()
   @MinLength(8, { message: 'Password must be at least 8 characters long' })
-  @IsNotEmpty({ message: 'Password is required' })
-  password: string;
+  password?: string;
 
   @IsString()
   @IsNotEmpty({ message: 'Name is required' })

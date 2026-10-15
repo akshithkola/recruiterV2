@@ -1,16 +1,18 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Requirement } from '../../../types'
 import { INITIAL_REQUIREMENTS } from '../../../data/mockData'
-import { checkDuplicateSubmission } from '../../../data/submissionsStore'
-import { uiCandidateToRepo, UiCandidate } from '../../../services/candidatePayload'
+import { uiCandidateToRepo, UiCandidate, apiCandidateToUi } from '../../../services/candidatePayload'
+import { candidatesService } from '../../../services/workspace.service'
 import { CandidateRepoItem, CandidateRepositoryPageProps } from './types'
 import { useCandidateRepoEdit } from './useCandidateRepoEdit'
 import { useCandidateRepoFilters } from './useCandidateRepoFilters'
 import { useCandidateRepoMasking } from './useCandidateRepoMasking'
 import { getSessionUser } from '../../../store/session'
 
+const STABLE_DEFAULT_CANDIDATES: UiCandidate[] = []
+
 export function useCandidateRepository({
-  candidates = [],
+  candidates = STABLE_DEFAULT_CANDIDATES,
   requirements = INITIAL_REQUIREMENTS,
   selectedReqId = null,
   role = 'recruiter',
@@ -26,8 +28,34 @@ export function useCandidateRepository({
   const [repoList, setRepoList] = useState<CandidateRepoItem[]>(() =>
     candidates.map(candidate => uiCandidateToRepo(candidate as UiCandidate)),
   )
+
+  const prevCandidatesRef = React.useRef(candidates)
+
   useEffect(() => {
-    setRepoList(candidates.map(candidate => uiCandidateToRepo(candidate as UiCandidate)))
+    let active = true
+    candidatesService.list()
+      .then(res => {
+        const raw = Array.isArray(res) ? res : (res?.items || res?.candidates || res?.data || [])
+        if (active && Array.isArray(raw)) {
+          setRepoList(raw.map((c: any) => uiCandidateToRepo(apiCandidateToUi(c))))
+        }
+      })
+      .catch(() => undefined)
+    return () => { active = false }
+  }, [])
+
+  useEffect(() => {
+    if (prevCandidatesRef.current === candidates) return
+    const prevIds = (prevCandidatesRef.current || []).map((c: any) => c.id || c.candidateId || '').join(',')
+    const currentIds = (candidates || []).map((c: any) => c.id || c.candidateId || '').join(',')
+    if (prevIds === currentIds) {
+      prevCandidatesRef.current = candidates
+      return
+    }
+    prevCandidatesRef.current = candidates
+    if (candidates && candidates.length > 0) {
+      setRepoList(candidates.map(candidate => uiCandidateToRepo(candidate as UiCandidate)))
+    }
   }, [candidates])
   const [viewMode, setViewMode] = useState<string>('list')
   const filters = useCandidateRepoFilters(repoList)
@@ -101,22 +129,6 @@ export function useCandidateRepository({
 
   const handleSubmitSingleToLead = (item: CandidateRepoItem, e?: React.MouseEvent) => {
     e?.stopPropagation()
-
-    if (activeReqId) {
-      const dupCheck = checkDuplicateSubmission(activeReqId, {
-        email: item.email,
-        phone: item.phone,
-        candidateId: item.candidateId,
-        name: item.name,
-      })
-
-      if (dupCheck.isDuplicate) {
-        showToast(
-          `⚠️ Duplicate Submission: Candidate "${item.name}" has already been submitted for requirement "${activeRequirement?.title || activeReqId}" by ${dupCheck.existingSubmission?.recruiter || 'another recruiter'}. Cannot submit!`
-        )
-        return
-      }
-    }
 
     setViewingCandidateDetail(null)
     if (!activeReqId) {

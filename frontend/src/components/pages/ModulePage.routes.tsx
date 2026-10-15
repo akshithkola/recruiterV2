@@ -17,6 +17,7 @@ import { ActivityLogsPage } from './ActivityLogsPage'
 import { MyTeamPage } from './MyTeamPage'
 import { TeamsRecruitersPage } from './TeamsRecruitersPage'
 import { HistoryPage } from './HistoryPage'
+import { NotificationsPage } from './NotificationsPage'
 
 export interface ModulePageRouteProps {
   pageKey: string
@@ -40,6 +41,8 @@ export interface ModulePageRouteProps {
   onNavigateToDashboard?: () => void
   handleCandidateViewModeChange: (mode: 'add' | 'repository') => void
   setCandidatesList: React.Dispatch<React.SetStateAction<Candidate[]>>
+  /** True when Add Candidate was opened from Repository (nested), not from sidebar */
+  addOpenedFromRepository?: boolean
 }
 
 export function renderModulePage(props: ModulePageRouteProps) {
@@ -61,9 +64,15 @@ export function renderModulePage(props: ModulePageRouteProps) {
     onUpdateRequirements,
     onSelectRequirement,
     onAddActivityLog,
+    onNavigateToDashboard,
     handleCandidateViewModeChange,
     setCandidatesList,
+    addOpenedFromRepository = false,
   } = props
+
+  if (pageKey === 'Notifications') {
+    return <NotificationsPage />
+  }
 
   if (pageKey === 'My Profile' || pageKey === 'Profile') {
     return <MyProfilePage role={role as any} />
@@ -173,7 +182,7 @@ export function renderModulePage(props: ModulePageRouteProps) {
             setCandidatesList(prev => upsertCandidate(prev as UiCandidate[], saved))
           }}
           onSelectRequirement={onSelectRequirement}
-          onBackToDashboard={() => handleCandidateViewModeChange('add')}
+          onBackToDashboard={selectedReqId ? onNavigateToDashboard : undefined}
         />
       )
     }
@@ -182,6 +191,7 @@ export function renderModulePage(props: ModulePageRouteProps) {
       <AddCandidatePage
         requirements={requirements}
         selectedReqId={selectedReqId}
+        showBack={addOpenedFromRepository}
         onOpenRepository={() => handleCandidateViewModeChange('repository')}
         onAddCandidate={saved => {
           setCandidatesList(prev => upsertCandidate(prev as UiCandidate[], saved as UiCandidate))

@@ -1,4 +1,6 @@
+import { useEffect, useMemo, useState } from 'react'
 import { Search, XCircle, Lock, AlertCircle, Building2, RotateCcw, Trash2 } from 'lucide-react'
+import { PaginationFooter } from '../../ui/PaginationFooter'
 import type { UserManagementVM } from './useUserManagement'
 
 export function DeletedUsersPanel({
@@ -6,6 +8,28 @@ export function DeletedUsersPanel({
     deletedUsers, handleRestoreUser, promptPermanentDeleteUser, handleRestoreAllDeleted,
     handleEmptyTrash
 }: UserManagementVM) {
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(5)
+  const filteredDeleted = useMemo(
+    () =>
+      deletedUsers.filter(u =>
+        searchQuery.trim()
+          ? u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            u.email.toLowerCase().includes(searchQuery.toLowerCase())
+          : true
+      ),
+    [deletedUsers, searchQuery],
+  )
+  const totalPages = Math.ceil(filteredDeleted.length / pageSize) || 1
+  const paginatedDeleted = useMemo(() => {
+    const start = (currentPage - 1) * pageSize
+    return filteredDeleted.slice(start, start + pageSize)
+  }, [filteredDeleted, currentPage, pageSize])
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, pageSize, deletedUsers.length])
+
   return (
             <div className="space-y-6">
               {/* DELETED USERS HEADER & BULK ACTIONS BANNER */}
@@ -101,14 +125,7 @@ export function DeletedUsersPanel({
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 text-xs text-slate-700 font-medium">
-                        {deletedUsers
-                          .filter(u =>
-                            searchQuery.trim()
-                              ? u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                                u.email.toLowerCase().includes(searchQuery.toLowerCase())
-                              : true
-                          )
-                          .map(user => (
+                        {paginatedDeleted.map(user => (
                             <tr key={user.id} className="hover:bg-rose-50/20 transition-colors">
                               <td className="py-4 px-4 font-bold text-slate-900">
                                 <div className="flex items-center gap-3">
@@ -191,6 +208,15 @@ export function DeletedUsersPanel({
                       </tbody>
                     </table>
                   </div>
+                  <PaginationFooter
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    totalItems={filteredDeleted.length}
+                    pageSize={pageSize}
+                    onPageChange={setCurrentPage}
+                    onPageSizeChange={setPageSize}
+                    itemLabel="users"
+                  />
                 </div>
               )}
             </div>

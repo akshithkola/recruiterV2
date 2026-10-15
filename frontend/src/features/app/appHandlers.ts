@@ -12,8 +12,23 @@ export function createSubmitCandidateHandler(args: {
   role: Role
 }) {
   return (newSub: Submission) => {
-    args.setSubmissions([newSub, ...args.submissions])
-    void workspaceService.createSubmission(newSub).catch(() => undefined)
+    const nowIso = new Date().toISOString()
+    const enrichedSub: Submission = {
+      ...newSub,
+      date: newSub.date || 'Today',
+      submittedAt: (newSub as any).submittedAt || nowIso,
+      updatedAt: (newSub as any).updatedAt || nowIso,
+      createdAt: (newSub as any).createdAt || nowIso,
+    }
+    args.setSubmissions(prev => [enrichedSub, ...prev])
+    void workspaceService.createSubmission(enrichedSub).then(() => {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('submissions_updated'))
+      }
+    }).catch(() => undefined)
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('submissions_updated'))
+    }
     args.setRequirements(prev =>
       prev.map(r => (r.id === newSub.req ? { ...r, submissions: r.submissions + 1 } : r))
     )

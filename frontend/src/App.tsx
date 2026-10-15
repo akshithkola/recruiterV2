@@ -10,15 +10,13 @@ import { workspaceService } from './services/workspace.service'
 import { saveSubmissionsStore } from './data/submissionsStore'
 
 import { Sidebar } from './components/layout/Sidebar'
+import { Topbar } from './components/layout/Topbar'
 import { PageContainer } from './components/layout/PageContainer'
 
 import { RecruiterDashboard } from './components/dashboards/RecruiterDashboard'
 import { DevTeamDashboard } from './components/dashboards/DevTeamDashboard'
 import { ModulePage } from './components/pages/ModulePage'
 
-import { RoleSelectPage } from './components/auth/RoleSelectPage'
-import { RoleLoginPage } from './components/auth/RoleLoginPage'
-import { ForgotPasswordPage } from './components/auth/ForgotPasswordPage'
 import { LandingPage } from './components/landing/LandingPage'
 import { SignInPage } from './components/auth/SignInPage'
 import { SignUpPage } from './components/auth/SignUpRequestPage'
@@ -30,10 +28,44 @@ import { InterviewFeedbackModal } from './components/modals/InterviewFeedbackMod
 import { CandidateDetailModal } from './components/modals/CandidateDetailModal'
 
 const emptyUser = { email: '', name: '', password: '', title: '' }
+const NAV_STORAGE_KEY = 'mrap_active_nav'
+
+function getSavedNav(): string | null {
+  if (typeof window !== 'undefined') {
+    try {
+      return localStorage.getItem(NAV_STORAGE_KEY)
+    } catch {
+      return null
+    }
+  }
+  return null
+}
+
+function saveNav(nav: string): void {
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem(NAV_STORAGE_KEY, nav)
+    } catch {
+      // ignore
+    }
+  }
+}
+
+function clearSavedNav(): void {
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.removeItem(NAV_STORAGE_KEY)
+    } catch {
+      // ignore
+    }
+  }
+}
 
 export default function App() {
+  // Keep SSR and the first client render identical — never read localStorage here.
   const [role, setRole] = useState<Role>('recruiter')
   const [screen, setScreen] = useState<AuthScreen>('landing')
+  const [bootstrapped, setBootstrapped] = useState(false)
   const [loginRole, setLoginRole] = useState<Role>('recruiter')
   const [recoveryEmail, setRecoveryEmail] = useState('')
   const [activeNav, setActiveNav] = useState<string>('Dashboard')
@@ -84,7 +116,11 @@ export default function App() {
     let cancelled = false
     restoreSession()
       .then(async user => {
-        if (cancelled || !user) return
+        if (cancelled) return
+        if (!user) {
+          setBootstrapped(true)
+          return
+        }
         const r = user.role as Role
         setRole(r)
         setCurrentUser({
@@ -93,15 +129,23 @@ export default function App() {
           password: '',
           title: user.title || titleForRole(r),
         })
-        setActiveNav((r === 'superadmin' || r === 'devteam' || r === 'admin' || r === 'lead') ? 'Requirements' : 'Dashboard')
+        const saved = getSavedNav()
+        const normalizedSaved = (saved === 'Submissions' || saved === 'Interviews' || saved === 'Submission to Client') ? 'Reports' : saved
+        const defaultNav = (r === 'superadmin' || r === 'devteam' || r === 'admin' || r === 'lead') ? 'Requirements' : 'Dashboard'
+        const targetNav = normalizedSaved || defaultNav
+        setActiveNav(targetNav)
+        saveNav(targetNav)
         setScreen('app')
         try {
           await loadWorkspace()
         } catch {
           // Empty workspace until API recovers
         }
+        if (!cancelled) setBootstrapped(true)
       })
-      .catch(() => undefined)
+      .catch(() => {
+        if (!cancelled) setBootstrapped(true)
+      })
     return () => {
       cancelled = true
     }
@@ -110,6 +154,7 @@ export default function App() {
   const handleLogout = () => {
     void logoutRemote()
     clearSession()
+    clearSavedNav()
     setScreen('landing')
     setActiveNav('Requirements')
     setRequirements([])
@@ -132,35 +177,66 @@ export default function App() {
       password: '',
       title: session?.title || titleForRole(r),
     })
+    const saved = getSavedNav()
+    const normalizedSaved = (saved === 'Submissions' || saved === 'Interviews' || saved === 'Submission to Client') ? 'Reports' : saved
     const defaultNav = (r === 'superadmin' || r === 'devteam' || r === 'admin' || r === 'lead') ? 'Requirements' : 'Dashboard'
-    setActiveNav(defaultNav)
+    const targetNav = normalizedSaved || defaultNav
+    setActiveNav(targetNav)
+    saveNav(targetNav)
     setScreen('app')
     void loadWorkspace().catch(() => undefined)
   }
 
   const handleNavSelect = (nav: string) => {
-    if (nav === 'Candidates' || nav === 'Candidate Search') {
+    if (nav !== 'Candidates' && nav !== 'Candidate Search') {
       setSelectedReqIdForSubmit(null)
     }
     setActiveNav(nav)
+    saveNav(nav)
+    if (nav === 'Requirements') {
+      void loadWorkspace().catch(() => undefined)
+    }
   }
 
   const handleOpenSubmitCandidateFromDashboard = (reqId?: string) => {
     setSelectedReqIdForSubmit(reqId || null)
     if (role !== 'recruiter') {
-      handleNavSelect('Candidates')
+      setActiveNav('Candidates')
+      saveNav('Candidates')
     }
   }
 
   const handleAddRequirement = (newReq: Requirement) => {
-    setRequirements([newReq, ...requirements])
-    void workspaceService.createRequirement(newReq).catch(() => undefined)
+    const nowIso = new Date().toISOString()
+    const enrichedReq: Requirement = {
+      ...newReq,
+      emailArrivedTime: newReq.emailArrivedTime || new Date().toLocaleString(),
+      createdAt: (newReq as any).createdAt || nowIso,
+      updatedAt: (newReq as any).updatedAt || nowIso,
+    }
+    setRequirements([enrichedReq, ...requirements])
+    void workspaceService.createRequirement(enrichedReq).catch(() => undefined)
   }
 
   const handleSubmitCandidate = (newSub: Submission) => {
-    setSubmissions([newSub, ...submissions])
-    saveSubmissionsStore([newSub, ...submissions])
-    void workspaceService.createSubmission(newSub).catch(() => undefined)
+    const nowIso = new Date().toISOString()
+    const enrichedSub: Submission = {
+      ...newSub,
+      date: newSub.date || 'Today',
+      submittedAt: (newSub as any).submittedAt || nowIso,
+      updatedAt: (newSub as any).updatedAt || nowIso,
+      createdAt: (newSub as any).createdAt || nowIso,
+    }
+    setSubmissions([enrichedSub, ...submissions])
+    saveSubmissionsStore([enrichedSub, ...submissions])
+    void workspaceService.createSubmission(enrichedSub).then(() => {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('submissions_updated'))
+      }
+    }).catch(() => undefined)
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('submissions_updated'))
+    }
     setRequirements(prev =>
       prev.map(r => (r.id === newSub.req ? { ...r, submissions: r.submissions + 1 } : r))
     )
@@ -213,7 +289,7 @@ export default function App() {
 
   const handleOpenSubmitForReq = (reqId?: string) => {
     setSelectedReqIdForSubmit(reqId || null)
-    handleNavSelect('Candidates')
+    setActiveNav('Candidates')
   }
 
   const handleOpenFeedbackForInterview = (iv: Interview) => {
@@ -224,6 +300,18 @@ export default function App() {
   const handleOpenCandidateDetail = (sub: Submission) => {
     setSelectedSubmissionForDetail(sub)
     setIsCandidateDetailOpen(true)
+  }
+
+  if (!bootstrapped) {
+    return (
+      <div
+        className="flex h-screen items-center justify-center font-body"
+        style={{ background: brand.background }}
+        aria-busy="true"
+      >
+        <div className="text-sm text-slate-500">Loading workspace…</div>
+      </div>
+    )
   }
 
   if (screen === 'landing') {
@@ -245,7 +333,6 @@ export default function App() {
         }}
         onSignup={() => setScreen('signup')}
         onBack={() => setScreen('landing')}
-        onRolePortals={() => setScreen('role-select')}
       />
     )
   }
@@ -256,38 +343,6 @@ export default function App() {
 
   if (screen === 'password-recovery') {
     return <PasswordRecoveryFlow initialEmail={recoveryEmail} onExit={() => setScreen('signin')} />
-  }
-
-  if (screen === 'role-select') {
-    return (
-      <RoleSelectPage
-        onSelectRole={r => {
-          setLoginRole(r)
-          setScreen('role-login')
-        }}
-        onBack={() => setScreen('signin')}
-      />
-    )
-  }
-
-  if (screen === 'role-login') {
-    return (
-      <RoleLoginPage
-        role={loginRole}
-        onLogin={handleAuthenticated}
-        onBack={() => setScreen('role-select')}
-        onForgot={() => setScreen('forgot')}
-      />
-    )
-  }
-
-  if (screen === 'forgot') {
-    return (
-      <ForgotPasswordPage
-        onBack={() => setScreen('role-login')}
-        onSent={() => setScreen('role-login')}
-      />
-    )
   }
 
   const renderContent = () => {
@@ -312,6 +367,7 @@ export default function App() {
         default:
           return (
             <RecruiterDashboard
+              candidates={candidates}
               submissions={submissions}
               interviews={interviews}
               requirements={requirements}
@@ -323,6 +379,7 @@ export default function App() {
               onOpenFeedbackModal={handleOpenFeedbackForInterview}
               onOpenCandidateDetail={handleOpenCandidateDetail}
               onAddActivityLog={handleAddActivityLog}
+              onUpdateRequirements={persistRequirements}
             />
           )
       }
@@ -365,6 +422,13 @@ export default function App() {
       />
 
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+        <Topbar
+          title={activeNav}
+          role={role}
+          searchValue=""
+          onSearchChange={() => {}}
+          onSignOut={handleLogout}
+        />
         <main className="flex-1 overflow-y-auto w-full min-w-0 px-4 py-5 lg:px-6 xl:px-8 app-main-content">
           <PageContainer>{renderContent()}</PageContainer>
         </main>

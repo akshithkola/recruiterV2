@@ -23,7 +23,7 @@ export class CreateRequirementDto {
   priority?: string;
 
   @IsOptional()
-  @IsEnum(['Open', 'Assigned', 'In Progress', 'On Hold', 'Reopen', 'Closed'])
+  @IsEnum(['Open', 'Assigned', 'In Progress', 'Hold', 'On Hold', 'Reopen', 'Closed'])
   status?: string;
 
   @IsOptional()
@@ -68,4 +68,18 @@ export class CreateRequirementDto {
   @IsArray()
   @IsString({ each: true })
   assignedRecruiterIds?: string[];
+
+  @IsOptional()
+  @IsString()
+  clientEmail?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  toEmails?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  ccEmails?: string[];
 }

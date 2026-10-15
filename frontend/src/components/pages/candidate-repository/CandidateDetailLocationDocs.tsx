@@ -17,22 +17,22 @@ export function CandidateDetailLocationDocs({ vm, viewingCandidateDetail }: { vm
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                   <div>
                     <span className="text-slate-400 block text-[11px] font-medium">Current Location</span>
-                    <span className="font-bold text-slate-900">{viewingCandidateDetail.currentLocation || 'Bangalore'}</span>
+                    <span className="font-bold text-slate-900">{viewingCandidateDetail.currentLocation || '—'}</span>
                   </div>
 
                   <div>
                     <span className="text-slate-400 block text-[11px] font-medium">Preferred Work Location</span>
-                    <span className="font-bold text-slate-900">{viewingCandidateDetail.preferredLocation || 'Bangalore / Remote'}</span>
+                    <span className="font-bold text-slate-900">{viewingCandidateDetail.preferredLocation || '—'}</span>
                   </div>
 
                   <div>
                     <span className="text-slate-400 block text-[11px] font-medium">Interview Availability</span>
-                    <span className="font-semibold text-slate-800">{viewingCandidateDetail.interviewAvailability || 'Immediate'}</span>
+                    <span className="font-semibold text-slate-800">{viewingCandidateDetail.interviewAvailability || '—'}</span>
                   </div>
 
                   <div>
                     <span className="text-slate-400 block text-[11px] font-medium">Reason for Job Change</span>
-                    <span className="font-semibold text-slate-800">{viewingCandidateDetail.reasonForChange || 'Career Growth & Better Opportunity'}</span>
+                    <span className="font-semibold text-slate-800">{viewingCandidateDetail.reasonForChange || '—'}</span>
                   </div>
                 </div>
               </div>
@@ -50,7 +50,7 @@ export function CandidateDetailLocationDocs({ vm, viewingCandidateDetail }: { vm
                     <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl p-2.5 w-fit">
                       <FileText className="w-4 h-4 text-red-500" />
                       <span className="font-bold text-slate-800 text-xs">
-                        {viewingCandidateDetail.resumeReference || `${viewingCandidateDetail.name.replace(/\s+/g, '_')}_Resume.pdf`}
+                        {viewingCandidateDetail.resumeReference || 'No resume attached'}
                       </span>
                       <button
                         onClick={() => showToast('Downloading resume PDF...')}
@@ -64,7 +64,7 @@ export function CandidateDetailLocationDocs({ vm, viewingCandidateDetail }: { vm
                   <div>
                     <span className="text-slate-400 block text-[11px] font-medium">Recruiter Internal Notes</span>
                     <p className="text-slate-700 bg-white border border-slate-200 rounded-xl p-3 mt-1 leading-relaxed text-xs">
-                      {viewingCandidateDetail.notes || 'Verified profile in candidate repository. Profile matches active client demands.'}
+                      {viewingCandidateDetail.notes || '—'}
                     </p>
                   </div>
                 </div>

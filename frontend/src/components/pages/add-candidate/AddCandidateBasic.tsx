@@ -5,48 +5,22 @@ import { AddCandidateVm } from './useAddCandidatePage'
 
 export function AddCandidateBasic({ vm }: { vm: AddCandidateVm }) {
   const {
-    requirements,
     candidateName,
     contactNumber,
     email,
     targetReqId,
-    setTargetReqId,
     dupCheckResult,
   } = vm
   return (
     <>
-        {/* SECTION 2: BASIC INFO CARD (MATCHING SCREENSHOT 1) */}
+        {/* SECTION 2: BASIC INFO CARD */}
         <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
             <div>
               <h2 className="text-sm font-bold text-slate-900">Basic Info</h2>
               <p className="text-xs text-slate-400 mt-0.5">
-                Target requirement & candidate contact details for submission validation.
+                Candidate contact details and personal information for talent pool registration.
               </p>
-            </div>
-            {/* Requirement Selector for Submission Check */}
-            <div className="flex items-center gap-2 bg-purple-50/70 p-2 rounded-xl border border-purple-200">
-              <label className="text-xs font-bold text-purple-900 whitespace-nowrap">Target Requirement:</label>
-              <select
-                value={targetReqId}
-                onChange={e => setTargetReqId(e.target.value)}
-                className="px-3 py-1 text-xs font-bold bg-white border border-purple-300 rounded-lg text-purple-950 focus:outline-none cursor-pointer"
-              >
-                {requirements.map(r => (
-                  <option key={r.id} value={r.id}>
-                    {r.id} — {r.title} ({r.client})
-                  </option>
-                ))}
-                {!requirements.some(r => r.id === 'REQ-001') && (
-                  <option value="REQ-001">REQ-001 — Senior React Developer (Accenture)</option>
-                )}
-                {!requirements.some(r => r.id === 'REQ-002') && (
-                  <option value="REQ-002">REQ-002 — Java Architect (Goldman Sachs)</option>
-                )}
-                {!requirements.some(r => r.id === 'REQ-006') && (
-                  <option value="REQ-006">REQ-006 — Python ML Engineer (Tesla)</option>
-                )}
-              </select>
             </div>
           </div>
 

@@ -54,6 +54,19 @@ export const workspaceService = {
       status: body.status === 'Active' ? 'In Progress' : body.status,
     }),
   updateRequirements: (body: Requirement[]) => api.put('/requirements/bulk', body),
+  updateRequirement: (id: string, body: Partial<Requirement> & Record<string, any>) => {
+    const payload = {
+      ...body,
+      clientName: body.clientName || body.client,
+      skillsRequired: body.skillsRequired || body.skills,
+      status: body.status === 'Active' ? 'In Progress' : body.status,
+    }
+    return api.put<any>(`/requirements/${encodeURIComponent(id)}`, payload)
+  },
+  assignRequirement: (id: string, body: { recruiterIds?: string[]; leadId?: string }) =>
+    api.post(`/requirements/${encodeURIComponent(id)}/assign`, body),
+  revokeRequirement: (id: string, body: { reason: string }) =>
+    api.post(`/requirements/${encodeURIComponent(id)}/revoke`, body),
   createSubmission: (body: Submission) => api.post('/submissions', body),
   saveInterviewFeedback: (id: string, status: string, notes: string) =>
     api.post(`/interviews/${encodeURIComponent(id)}/feedback`, {
@@ -62,6 +75,18 @@ export const workspaceService = {
       feedbackNotes: notes,
     }),
   addActivityLog: (body: ActivityLogItem) => api.post('/audit/logs', body),
+  syncRequirementsFromEmail: (limit = 25) =>
+    api.post<{ status: string; message: string }>('/requirements/sync-emails', { limit }),
+  getRequirementsSyncStatus: () =>
+    api.get<{
+      status: 'idle' | 'running' | 'completed' | 'failed'
+      lastSyncedAt?: string
+      totalProcessed: number
+      totalSynced: number
+      totalDeduped: number
+      message: string
+      error?: string | null
+    }>('/requirements/sync-status'),
 }
 
 export const usersService = {
@@ -71,6 +96,7 @@ export const usersService = {
   create: (body: unknown) => api.post('/users', body),
   update: (id: string, body: unknown) => api.put(`/users/${encodeURIComponent(id)}`, body),
   remove: (id: string) => api.delete(`/users/${encodeURIComponent(id)}`),
+  restore: (id: string) => api.post(`/users/restore/${encodeURIComponent(id)}`),
   screenTime: (body: unknown) => api.post('/users/screen-time', body),
 }
 
@@ -123,6 +149,12 @@ export const interviewsService = {
     meetingUrl?: string
     interviewerName?: string
     interviewerEmail?: string
+    status?: string
+    notes?: string
+    candidateEmail?: string
+    candidatePhone?: string
+    sendEmail?: boolean
+    sendWhatsApp?: boolean
   }) => api.post<any>('/interviews', body),
   reschedule: (id: string, body: { dateTime: string; durationMinutes?: number; reason?: string }) =>
     api.put<any>(`/interviews/${encodeURIComponent(id)}/reschedule`, body),
@@ -247,6 +279,47 @@ export interface AISearchPayload {
   minExperience?: number
   maxExperience?: number
   limit?: number
+}
+
+/** Candidate fields extracted from a resume by the integrated resume-parser module. */
+export interface ParsedResume {
+  candidateName: string | null
+  email: string | null
+  contactNumber: string | null
+  linkedInUrl: string | null
+  qualification: string | null
+  skills: string | null
+  technologies: string | null
+  totalExperience: string | null
+  relevantExperience: string | null
+  currentCompany: string | null
+  currentLocation: string | null
+  sourceFile: string
+  parser: string
+}
+
+export interface BulkParseResult {
+  sourceFile: string
+  status: 'done' | 'error'
+  data?: ParsedResume
+  error?: string
+}
+
+/** Max resumes per bulk request (the backend parses them one by one). */
+export const RESUME_BULK_BATCH = 5
+
+export const resumeParserService = {
+  health: () => api.get<{ status: string; mode: string; aiParserAvailable?: boolean; aiSuspendedNotice?: string | null }>('/resume-parser/health'),
+  parse: (file: File) => {
+    const form = new FormData()
+    form.append('resume', file)
+    return api.upload<{ success: boolean; data: ParsedResume }>('/resume-parser/parse', form)
+  },
+  parseBulk: (files: File[]) => {
+    const form = new FormData()
+    files.forEach((f) => form.append('resumes', f))
+    return api.upload<{ success: boolean; results: BulkParseResult[]; notice?: string | null }>('/resume-parser/parse/bulk', form)
+  },
 }
 
 export const aiService = {

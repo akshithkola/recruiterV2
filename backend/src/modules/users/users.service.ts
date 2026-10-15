@@ -170,13 +170,13 @@ export class UsersService {
   }
 
   /** PUT /api/v1/users/:id */
-  async update(id: string, dto: UpdateUserDto, currentUser: any) {
+  async update(id: string, dto: UpdateUserDto & { restore?: boolean }, currentUser: any) {
     let user: UserDocument | null = null;
     if (Types.ObjectId.isValid(id)) {
-      user = await this.userModel.findOne({ _id: id, deletedAt: null }).exec();
+      user = await this.userModel.findOne({ _id: id }, null, { includeDeleted: true }).exec();
     }
     if (!user) {
-      user = await this.userModel.findOne({ userId: id, deletedAt: null }).exec();
+      user = await this.userModel.findOne({ userId: id }, null, { includeDeleted: true }).exec();
     }
 
     if (!user) {
@@ -196,9 +196,12 @@ export class UsersService {
     if (dto.clientId !== undefined) {
       user.clientId = dto.clientId && Types.ObjectId.isValid(dto.clientId) ? (new Types.ObjectId(dto.clientId) as any) : null;
     }
-
     if (dto.password) {
       user.passwordHash = await bcrypt.hash(dto.password, 10);
+    }
+    if (dto.active === true || dto.restore === true) {
+      user.deletedAt = null as any;
+      user.active = true;
     }
 
     const updated = await user.save();
@@ -224,6 +227,26 @@ export class UsersService {
     await user.save();
 
     return { message: `User '${user.name}' has been soft-deleted successfully` };
+  }
+
+  /** POST /api/v1/users/restore/:id */
+  async restore(id: string, currentUser: any) {
+    return this.update(id, { active: true, restore: true }, currentUser);
+  }
+
+  /** DELETE /api/v1/users/:id?permanent=true */
+  async hardDelete(id: string, currentUser: any) {
+    let res = null;
+    if (Types.ObjectId.isValid(id)) {
+      res = await this.userModel.deleteOne({ _id: id }).exec();
+    }
+    if (!res || res.deletedCount === 0) {
+      res = await this.userModel.deleteOne({ userId: id }).exec();
+    }
+    if (!res || res.deletedCount === 0) {
+      throw new NotFoundException(`User '${id}' not found for permanent deletion`);
+    }
+    return { message: `User '${id}' has been permanently deleted from database` };
   }
 
   /** GET /api/v1/users/me */

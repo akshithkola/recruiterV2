@@ -1,5 +1,6 @@
 import React from 'react'
 import { Building2, X, ArrowUpRight } from 'lucide-react'
+import { Requirement } from '../../../types'
 import { ClientPerformanceData } from '../ClientDetailAnalyticsPage'
 
 type Metric = 'reqSent' | 'reqAssigned' | 'submissions' | 'openReqs' | 'closedReqs'
@@ -8,12 +9,14 @@ interface Props {
   drillDownModal: { client: ClientPerformanceData; metric: Metric }
   setDrillDownModal: (v: { client: ClientPerformanceData; metric: Metric } | null) => void
   onSelectClient: (client: ClientPerformanceData) => void
+  onSelectRequirement?: (req: Requirement) => void
 }
 
 export function ClientPerformanceDrilldownModal({
   drillDownModal,
   setDrillDownModal,
   onSelectClient,
+  onSelectRequirement,
 }: Props) {
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
@@ -63,8 +66,36 @@ export function ClientPerformanceDrilldownModal({
                 {drillDownModal.client.requirementsList.map(req => (
                   <tr key={req.id} className="hover:bg-purple-50/30 transition-colors">
                     <td className="py-3 px-4">
-                      <div className="font-extrabold text-slate-900 text-xs">{req.title}</div>
-                      <div className="text-[10px] text-slate-400 font-mono mt-0.5">{req.id}</div>
+                      {onSelectRequirement ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onSelectRequirement({
+                              id: req.id,
+                              title: req.title,
+                              client: drillDownModal.client.clientName,
+                              priority: 'Medium',
+                              status: req.status === 'Open' ? 'Open' : 'Active',
+                              submissions: req.submissions || 0,
+                              interviews: 0,
+                              placed: 0,
+                              dueDate: new Date().toISOString().split('T')[0],
+                              openings: 1,
+                              skills: ['Java', 'React'],
+                            })
+                            setDrillDownModal(null)
+                          }}
+                          className="text-left cursor-pointer group"
+                        >
+                          <div className="font-extrabold text-slate-900 text-xs group-hover:text-[#6B3BF6] group-hover:underline">{req.title}</div>
+                          <div className="text-[10px] text-[#6B3BF6] font-mono mt-0.5">{req.id}</div>
+                        </button>
+                      ) : (
+                        <>
+                          <div className="font-extrabold text-slate-900 text-xs">{req.title}</div>
+                          <div className="text-[10px] text-slate-400 font-mono mt-0.5">{req.id}</div>
+                        </>
+                      )}
                     </td>
                     <td className="py-3 px-4">
                       <div className="font-extrabold text-slate-900 text-xs">

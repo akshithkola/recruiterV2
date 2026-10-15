@@ -8,7 +8,7 @@ export function SubmitToLeadTrackerCustomize({ vm }: { vm: SubmitToLeadVm }) {
     customColPosition, setCustomColPosition, headerColor, setHeaderColor,
     draggedColIndex, dragOverColIndex, selectedColIndex,
     handleDragStart, handleDragEnter, handleDragOver, handleDrop, handleDragEnd,
-    handleChipClick, moveColumnLeft, moveColumnRight, showToast,
+    handleChipClick, moveColumnLeft, moveColumnRight, handleSaveLayout,
     toggleColumnVisibility, handleInsertCustomColumn, visibleColumns,
   } = vm
   return (
@@ -61,7 +61,7 @@ export function SubmitToLeadTrackerCustomize({ vm }: { vm: SubmitToLeadVm }) {
             </div>
 
             <div className="flex flex-wrap gap-2 text-xs">
-              {columnList.map((col, index) => {
+              {columnList.map((col: string, index: number) => {
                 const isHidden = hiddenColumns.has(col)
                 const isDragging = draggedColIndex === index
                 const isDragOver = dragOverColIndex === index
@@ -111,7 +111,7 @@ export function SubmitToLeadTrackerCustomize({ vm }: { vm: SubmitToLeadVm }) {
                         </button>
                       )}
 
-                      <span className="whitespace-nowrap">{col}</span>
+                      <span className="whitespace-nowrap">{col.replace(/\u200b/g, '')}</span>
 
                       {/* Right Move Button */}
                       {index < columnList.length - 1 && (
@@ -175,7 +175,7 @@ export function SubmitToLeadTrackerCustomize({ vm }: { vm: SubmitToLeadVm }) {
 
           <div className="flex justify-between items-center pt-2">
             <button
-              onClick={() => showToast('Column layout & color preferences saved!')}
+              onClick={handleSaveLayout}
               className="px-5 py-2.5 bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-extrabold text-xs rounded-xl shadow-md cursor-pointer"
             >
               Save layout

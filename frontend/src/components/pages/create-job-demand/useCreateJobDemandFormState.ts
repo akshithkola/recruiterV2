@@ -1,6 +1,7 @@
 import type { CreateJobDemandFormProps } from './preamble'
 import { useState, useMemo, useEffect, useRef } from 'react'
 import React from 'react'
+import { getClientEmailDefaults, isAccentureClient, sanitizeEmailList } from '../../../config/clientEmailDefaults'
 
 export function useCreateJobDemandFormState(props: CreateJobDemandFormProps) {
   const {
@@ -29,12 +30,52 @@ export function useCreateJobDemandFormState(props: CreateJobDemandFormProps) {
     initialData?.client || 'LTTS'
   )
   
+  const [toEmails, setToEmails] = useState<string[]>(initialData?.toEmails || [])
+  const [ccEmails, setCcEmails] = useState<string[]>(initialData?.ccEmails || [])
+  const [toEmailInput, setToEmailInput] = useState('')
+  const [ccEmailInput, setCcEmailInput] = useState('')
   const [clientLeadPoc, setClientLeadPoc] = useState(
     initialData?.clientEmail || 'Kallol.Chakraborty@Ltts.com'
   )
-  const [clientPoc, setClientPoc] = useState(
-    initialData?.clientEmail || 'Kallol.Chakraborty@Ltts.com'
-  )
+  const [clientPoc, setClientPoc] = useState(initialData?.clientEmail || 'Kallol.Chakraborty@Ltts.com')
+  useEffect(() => {
+    const finalClient = requirementFrom === 'Other' ? customCompany : requirementFrom
+    const defaults = getClientEmailDefaults(finalClient)
+    if (defaults) {
+      if (defaults.requirement.from) {
+        setClientLeadPoc(defaults.requirement.from)
+      }
+      setToEmails(sanitizeEmailList(defaults.requirement.to))
+      setCcEmails(sanitizeEmailList(defaults.requirement.cc))
+    } else if (isAccentureClient(initialData?.client) && !isAccentureClient(finalClient)) {
+      setToEmails([])
+      setCcEmails([])
+    }
+  }, [requirementFrom, customCompany])
+
+  const handleAddToEmail = () => {
+    if (toEmailInput.trim() && toEmailInput.includes('@')) {
+      setToEmails(prev => sanitizeEmailList([...prev, toEmailInput.trim()]))
+      setToEmailInput('')
+    }
+  }
+
+  const handleRemoveToEmail = (email: string) => {
+    setToEmails(prev => prev.filter(e => e.toLowerCase() !== email.trim().toLowerCase()))
+  }
+
+  const handleAddCcEmail = () => {
+    if (ccEmailInput.trim() && ccEmailInput.includes('@')) {
+      setCcEmails(prev => sanitizeEmailList([...prev, ccEmailInput.trim()]))
+      setCcEmailInput('')
+    }
+  }
+
+  const handleRemoveCcEmail = (email: string) => {
+    setCcEmails(prev => prev.filter(e => e.toLowerCase() !== email.trim().toLowerCase()))
+  }
+
+
   const [jobTitle, setJobTitle] = useState(
     initialData?.title || 'Senior Engineer (Catia V6) for'
   )
@@ -125,6 +166,18 @@ export function useCreateJobDemandFormState(props: CreateJobDemandFormProps) {
     setClientLeadPoc,
     clientPoc,
     setClientPoc,
+    toEmails,
+    setToEmails,
+    ccEmails,
+    setCcEmails,
+    toEmailInput,
+    setToEmailInput,
+    ccEmailInput,
+    setCcEmailInput,
+    handleAddToEmail,
+    handleRemoveToEmail,
+    handleAddCcEmail,
+    handleRemoveCcEmail,
     jobTitle,
     setJobTitle,
     jobStatus,

@@ -1,4 +1,6 @@
+import { useEffect, useMemo, useState } from 'react'
 import { Search, Sliders } from 'lucide-react'
+import { PaginationFooter } from '../../ui/PaginationFooter'
 import type { RolesPermissionsVM } from './useRolesPermissions'
 
 export function RecruiterMatrixTab(vm: RolesPermissionsVM) {
@@ -10,6 +12,18 @@ export function RecruiterMatrixTab(vm: RolesPermissionsVM) {
     selectedUserForManage, setSelectedUserForManage, tempUserRoleName, setTempUserRoleName, tempUserPermissions,
     setTempUserPermissions, handleSaveUserPermissions, toastMsg, activeTab, setActiveTab
   } = vm
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(5)
+  const totalPages = Math.ceil(filteredRecruiterUsers.length / pageSize) || 1
+  const paginatedUsers = useMemo(() => {
+    const start = (currentPage - 1) * pageSize
+    return filteredRecruiterUsers.slice(start, start + pageSize)
+  }, [filteredRecruiterUsers, currentPage, pageSize])
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, roleFilter, pageSize, filteredRecruiterUsers.length])
+
   return (
         <div className="space-y-4 animate-in fade-in duration-150">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs">
@@ -61,7 +75,7 @@ export function RecruiterMatrixTab(vm: RolesPermissionsVM) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
-                {filteredRecruiterUsers.map(user => (
+                {paginatedUsers.map(user => (
                   <tr key={user.id} className="hover:bg-purple-50/40 transition-colors">
                     <td className="py-3.5 px-4">
                       <div className="flex items-center gap-2.5">
@@ -134,6 +148,15 @@ export function RecruiterMatrixTab(vm: RolesPermissionsVM) {
                 ))}
               </tbody>
             </table>
+            <PaginationFooter
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={filteredRecruiterUsers.length}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={setPageSize}
+              itemLabel="users"
+            />
           </div>
         </div>
   )

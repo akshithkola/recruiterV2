@@ -8,10 +8,11 @@ import { ClientPerformanceDrilldownModal } from './ClientPerformanceDrilldownMod
 export function ClientPerformanceTabContent({
   clientPerformanceList,
   onSelectClient,
+  onSelectRequirement,
 }: ClientPerformanceTabContentProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize, setPageSize] = useState(10)
+  const [pageSize, setPageSize] = useState(5)
   const [drillDownModal, setDrillDownModal] = useState<{
     client: ClientPerformanceData
     metric: 'reqSent' | 'reqAssigned' | 'submissions' | 'openReqs' | 'closedReqs'
@@ -78,6 +79,7 @@ export function ClientPerformanceTabContent({
           drillDownModal={drillDownModal}
           setDrillDownModal={setDrillDownModal}
           onSelectClient={onSelectClient}
+          onSelectRequirement={onSelectRequirement}
         />
       )}
     </div>

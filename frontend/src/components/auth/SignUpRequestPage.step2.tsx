@@ -79,11 +79,11 @@ export function SignUpRequestStep2({
   return (
     <form onSubmit={onSubmit} className="space-y-5" noValidate>
       <PasswordField
-        label="Account Password"
+        label="Account Password (Optional)"
         icon={Lock}
         value={form.password}
         onChange={v => set('password', v)}
-        placeholder="Create a strong password"
+        placeholder="Create a password (optional)"
         autoComplete="new-password"
         error={errors.password}
         disabled={submitting}

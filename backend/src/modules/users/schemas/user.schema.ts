@@ -45,6 +45,18 @@ export class User {
   @Prop({ default: null })
   lastLoginAt: Date;
 
+  @Prop({ default: null })
+  loginOtpHash: string;
+
+  @Prop({ type: Date, default: null })
+  loginOtpExpires: Date;
+
+  @Prop({ default: 0 })
+  loginOtpAttempts: number;
+
+  @Prop({ type: Date, default: null })
+  loginOtpLastSentAt: Date;
+
   @Prop({ type: Date, default: null })
   deletedAt: Date;
 

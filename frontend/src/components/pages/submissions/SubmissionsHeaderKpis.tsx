@@ -31,7 +31,7 @@ export function SubmissionsHeaderKpis({ vm }: { vm: SubmissionsVm }) {
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Track candidate submissions sent to internal leads and client partners.
+            Track candidate profiles submitted to client organizations by your recruitment desk.
           </p>
         </div>
 
@@ -43,7 +43,7 @@ export function SubmissionsHeaderKpis({ vm }: { vm: SubmissionsVm }) {
         <div className="bg-white rounded-2xl p-4 shadow-2xs border border-slate-200/80 flex items-center justify-between">
           <div>
             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-              {dateFilter === 'Today' ? 'Submissions Today' : dateFilter === 'Yesterday' ? 'Submissions Yesterday' : dateFilter === 'This week' ? 'Submissions This Week' : dateFilter === 'This month' ? 'Submissions This Month' : 'Total Submissions'}
+              {dateFilter === 'Today' ? 'Submitted to Client Today' : dateFilter === 'Yesterday' ? 'Submitted to Client Yesterday' : dateFilter === 'This week' ? 'Submitted to Client This Week' : dateFilter === 'This month' ? 'Submitted to Client This Month' : 'Total Client Submissions'}
             </span>
             <p className="text-2xl font-extrabold text-slate-900 mt-1 tabular-nums">
               {filteredData.length}

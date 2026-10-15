@@ -5,6 +5,7 @@ import { RecruiterDashboardVm } from './useRecruiterDashboard'
 
 export function RecruiterDashSubmissions({ vm }: { vm: RecruiterDashboardVm }) {
   const {
+    currentUserName,
     submissions,
     requirements,
     onOpenSubmitCandidate,
@@ -31,6 +32,7 @@ export function RecruiterDashSubmissions({ vm }: { vm: RecruiterDashboardVm }) {
 
       <SubmissionsPage
         role="recruiter"
+        currentUserName={currentUserName}
         submissions={submissions}
         requirements={requirements}
         onOpenSubmitCandidate={onOpenSubmitCandidate}

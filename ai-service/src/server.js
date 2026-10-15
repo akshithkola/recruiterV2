@@ -47,16 +47,27 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'POST' && url === '/parse-resume') {
     const body = await readBody(req).catch(() => ({}))
     const text = body.resumeText || ''
+    const expNum = Number(extract(text, /(\d+(?:\.\d+)?)\s*(?:years?|yrs?)/i) || 0)
     return send(res, 200, {
       extractedData: {
-        candidateName: extract(text, /name[:\s]+([A-Za-z .]+)/i) || 'Unknown Candidate',
-        email: extract(text, /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i),
-        contactNumber: extract(text, /(\+?\d[\d\s-]{8,}\d)/),
-        primarySkill: extract(text, /skills?[:\s]+([A-Za-z0-9, /+]+)/i) || 'General',
-        totalExperienceYears: Number(extract(text, /(\d+(?:\.\d+)?)\s+years/i) || 0),
+        candidateName: extract(text, /(?:name|candidate name|full name)[:\s]+([A-Za-z .'-]+)/i) || extract(text, /^([A-Z][a-z]+\s+[A-Z][a-z]+)/m) || 'Unknown Candidate',
+        email: extract(text, /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/i),
+        contactNumber: extract(text, /(?:phone|contact|mobile|tel)?[:\s]*(\+?\d[\d\s-]{8,}\d)/i) || extract(text, /(\+?\d[\d\s-]{8,}\d)/),
+        primarySkill: extract(text, /(?:primary skill|technologies|tech stack|skills)[:\s]+([A-Za-z0-9, /+#.-]+)/i) || 'General',
+        skills: extract(text, /(?:skills|key skills|core competencies)[:\s]+([A-Za-z0-9, /+#.-]+)/i) || extract(text, /(?:primary skill|technologies)[:\s]+([A-Za-z0-9, /+#.-]+)/i),
+        technologies: extract(text, /(?:technologies|tech stack|tools)[:\s]+([A-Za-z0-9, /+#.-]+)/i) || extract(text, /(?:skills)[:\s]+([A-Za-z0-9, /+#.-]+)/i),
+        totalExperienceYears: expNum,
+        totalExperience: extract(text, /(?:total experience|experience|exp)[:\s]+([\d.]+\s*(?:years?|yrs?|months?)?)/i) || (expNum ? `${expNum} Years` : ''),
+        relevantExperience: extract(text, /(?:relevant experience|rel exp)[:\s]+([\d.]+\s*(?:years?|yrs?|months?)?)/i),
+        currentCompany: extract(text, /(?:current company|company|organization|employer|present company)[:\s]+([A-Za-z0-9 .&,-]+)/i),
+        qualification: extract(text, /(?:qualification|education|degree)[:\s]+([A-Za-z0-9 .&,-]+)/i) || extract(text, /(B\.?Tech|M\.?Tech|B\.?E\.?|M\.?C\.?A\.?|B\.?S\.?c|M\.?S\.?c|MBA|Bachelor|Master)/i),
+        currentCtc: extract(text, /(?:current ctc|cctc|present ctc)[:\s]+([A-Za-z0-9 .$/-]+)/i),
+        expectedCtc: extract(text, /(?:expected ctc|ectc)[:\s]+([A-Za-z0-9 .$/-]+)/i),
+        currentLocation: extract(text, /(?:location|current location|city)[:\s]+([A-Za-z .-]+)/i),
+        noticePeriod: extract(text, /(?:notice period|notice)[:\s]+([A-Za-z0-9 .-]+)/i),
         summary: String(text).slice(0, 280),
       },
-      confidenceScore: text ? 0.82 : 0.4,
+      confidenceScore: text ? 0.85 : 0.4,
     })
   }
 

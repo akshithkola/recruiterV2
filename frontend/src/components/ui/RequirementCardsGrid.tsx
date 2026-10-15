@@ -1,4 +1,5 @@
 import React from 'react'
+import { RefreshCw } from 'lucide-react'
 import { Requirement, Submission, Interview } from '../../types'
 import { buildRequirementCards, CardFilterType } from './RequirementCardsGrid.cards'
 
@@ -11,6 +12,17 @@ interface RequirementCardsGridProps {
   activeCardFilter?: CardFilterType
   onSelectFilter?: (filter: CardFilterType) => void
   onCreateNewJobDemand?: () => void
+  onSyncEmails?: () => void
+  isSyncingMail?: boolean
+  mailSyncStatus?: {
+    status: string
+    message: string
+    lastSyncedAt?: string
+    totalProcessed?: number
+    totalSynced?: number
+    totalDeduped?: number
+    error?: string | null
+  } | null
   title?: string
   badgeLabel?: string
   hideCards?: boolean
@@ -23,6 +35,9 @@ export function RequirementCardsGrid({
   activeCardFilter = 'ALL',
   onSelectFilter,
   onCreateNewJobDemand,
+  onSyncEmails,
+  isSyncingMail = false,
+  mailSyncStatus,
   title = 'Requirements Dashboard',
   badgeLabel,
   hideCards = false,
@@ -46,15 +61,41 @@ export function RequirementCardsGrid({
           </p>
         </div>
 
-        {onCreateNewJobDemand && (
-          <button
-            onClick={onCreateNewJobDemand}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-xs hover:shadow transition-all cursor-pointer flex items-center gap-1.5 w-fit shrink-0"
-          >
-            <span className="text-sm leading-none font-extrabold">+</span>
-            <span>Create New Job Demand</span>
-          </button>
-        )}
+        <div className="flex items-center gap-2.5 flex-wrap shrink-0">
+          {onSyncEmails && (
+            <button
+              type="button"
+              onClick={onSyncEmails}
+              disabled={isSyncingMail}
+              className={`relative px-3.5 py-2.5 rounded-xl font-bold text-xs shadow-xs transition-all flex items-center gap-2 cursor-pointer border ${
+                isSyncingMail
+                  ? 'bg-indigo-50 border-indigo-200 text-indigo-700 cursor-not-allowed opacity-90'
+                  : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-700 hover:text-slate-900 active:scale-98 shadow-xs'
+              }`}
+              title={
+                mailSyncStatus?.lastSyncedAt
+                  ? `Last synced: ${new Date(mailSyncStatus.lastSyncedAt).toLocaleTimeString()}`
+                  : 'Sync requirements from Microsoft 365 Outlook emails'
+              }
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-indigo-600 ${isSyncingMail ? 'animate-spin' : ''}`} />
+              <span>{isSyncingMail ? 'Syncing Outlook...' : 'Sync Mail'}</span>
+              {mailSyncStatus?.status === 'completed' && mailSyncStatus.lastSyncedAt && !isSyncingMail && (
+                <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" title="Ready & synced" />
+              )}
+            </button>
+          )}
+
+          {onCreateNewJobDemand && (
+            <button
+              onClick={onCreateNewJobDemand}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-xs hover:shadow transition-all cursor-pointer flex items-center gap-1.5 w-fit shrink-0"
+            >
+              <span className="text-sm leading-none font-extrabold">+</span>
+              <span>Create New Job Demand</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {!hideCards && (

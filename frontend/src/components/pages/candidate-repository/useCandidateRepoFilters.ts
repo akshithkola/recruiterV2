@@ -5,6 +5,8 @@ import { getCandidateSubmissionsHistory } from './history'
 export function useCandidateRepoFilters(repoList: CandidateRepoItem[]) {
   const [searchQuery, setSearchQuery] = useState('')
   const [submittedPeriod, setSubmittedPeriod] = useState('All time')
+  const [customStartDate, setCustomStartDate] = useState('')
+  const [customEndDate, setCustomEndDate] = useState('')
   const [totalExpFilter, setTotalExpFilter] = useState('All experience')
   const [submissionCountFilter, setSubmissionCountFilter] = useState('All Submissions')
   const [submittedClientFilter, setSubmittedClientFilter] = useState('All Clients')
@@ -33,6 +35,42 @@ export function useCandidateRepoFilters(repoList: CandidateRepoItem[]) {
         const matchSkills = (item.skills || '').toLowerCase().includes(q)
         const matchCompany = (item.currentCompany || '').toLowerCase().includes(q)
         if (!matchName && !matchId && !matchTech && !matchCreator && !matchSkills && !matchCompany) return false
+      }
+
+      // Date / Submitted Period Filter
+      if (submittedPeriod && submittedPeriod !== 'All time') {
+        const rawDate = item.createdDate || ''
+        if (!rawDate) return false
+        const d = new Date(rawDate)
+        if (isNaN(d.getTime())) return false
+
+        const now = new Date()
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+        const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
+
+        if (submittedPeriod === 'Today') {
+          if (d < startOfToday || d > endOfToday) return false
+        } else if (submittedPeriod === 'Yesterday') {
+          const startOfYesterday = new Date(startOfToday.getTime() - 86400000)
+          const endOfYesterday = new Date(endOfToday.getTime() - 86400000)
+          if (d < startOfYesterday || d > endOfYesterday) return false
+        } else if (submittedPeriod === 'This week') {
+          const day = (now.getDay() + 6) % 7
+          const startOfWeek = new Date(startOfToday.getTime() - day * 86400000)
+          if (d < startOfWeek || d > endOfToday) return false
+        } else if (submittedPeriod === 'This month') {
+          const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+          if (d < startOfMonth || d > endOfToday) return false
+        } else if (submittedPeriod === 'Custom range') {
+          if (customStartDate) {
+            const start = new Date(`${customStartDate}T00:00:00`)
+            if (d < start) return false
+          }
+          if (customEndDate) {
+            const end = new Date(`${customEndDate}T23:59:59.999`)
+            if (d > end) return false
+          }
+        }
       }
 
       const subHistory = getCandidateSubmissionsHistory(item)
@@ -65,7 +103,7 @@ export function useCandidateRepoFilters(repoList: CandidateRepoItem[]) {
 
       return true
     })
-  }, [repoList, searchQuery, submissionCountFilter, submittedClientFilter, totalExpFilter])
+  }, [repoList, searchQuery, submittedPeriod, customStartDate, customEndDate, submissionCountFilter, submittedClientFilter, totalExpFilter])
 
   const paginatedRepoList = useMemo(() => {
     const start = (currentPage - 1) * pageSize
@@ -77,6 +115,10 @@ export function useCandidateRepoFilters(repoList: CandidateRepoItem[]) {
     setSearchQuery,
     submittedPeriod,
     setSubmittedPeriod,
+    customStartDate,
+    setCustomStartDate,
+    customEndDate,
+    setCustomEndDate,
     totalExpFilter,
     setTotalExpFilter,
     submissionCountFilter,

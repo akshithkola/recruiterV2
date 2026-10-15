@@ -1,11 +1,12 @@
 import React, { useState } from 'react'
-import { KeyRound, Lock, Mail, ShieldCheck } from 'lucide-react'
+import { KeyRound, Lock, Mail, ShieldCheck, ArrowLeft } from 'lucide-react'
 import { Role } from '../../types'
 import { SEED_ACCOUNTS } from '../../data/seedCredentials'
-import { authenticate } from '../../data/authService'
+import { authenticate, requestLoginOtp, verifyLoginOtp } from '../../data/authService'
 import { roleTheme } from '../../theme'
 import { AuthCard, AuthShell } from './AuthShell'
 import { AuthAlert, PasswordField, SubmitButton, TextField } from './AuthFormControls'
+import { VerifyCodePage } from './VerifyCodePage'
 
 interface SignInPageProps {
   /** Called with the authenticated role — wires into the existing App session flow. */
@@ -14,20 +15,50 @@ interface SignInPageProps {
   onSignup: () => void
   /** Back to the landing page */
   onBack: () => void
-  /** Jump into the existing role-scoped portal selector */
-  onRolePortals: () => void
 }
 
-const REMEMBER_KEY = 'metaforge_remembered_email'
+type AuthMode = 'otp-email' | 'otp-verify' | 'password'
 
-export function SignInPage({ onLogin, onForgot, onSignup, onBack, onRolePortals }: SignInPageProps) {
+export function SignInPage({ onLogin, onForgot, onSignup, onBack }: SignInPageProps) {
+  const [mode, setMode] = useState<AuthMode>('otp-email')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [remember, setRemember] = useState(false)
   const [errors, setErrors] = useState<{ email?: string; password?: string; general?: string }>({})
   const [loading, setLoading] = useState(false)
+  const [otpInfoMessage, setOtpInfoMessage] = useState('')
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleRequestOtp = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setErrors({})
+    setLoading(true)
+
+    try {
+      const res = await requestLoginOtp(email)
+      setOtpInfoMessage(res.message || 'OTP sent to registered email')
+      setMode('otp-verify')
+    } catch (err) {
+      setErrors({ general: err instanceof Error ? err.message : 'Failed to request OTP code.' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleVerifyOtp = async (code: string) => {
+    setErrors({})
+    const result = await verifyLoginOtp(email, code)
+    if (!result.ok) {
+      throw new Error(result.message)
+    }
+    onLogin(result.account.role)
+  }
+
+  const handleResendOtp = async () => {
+    const res = await requestLoginOtp(email)
+    setOtpInfoMessage(res.message || 'OTP code resent to registered email.')
+  }
+
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setErrors({})
     setLoading(true)
@@ -43,6 +74,17 @@ export function SignInPage({ onLogin, onForgot, onSignup, onBack, onRolePortals 
     window.setTimeout(() => {
       onLogin(role)
     }, 600)
+  }
+
+  if (mode === 'otp-verify') {
+    return (
+      <VerifyCodePage
+        email={email}
+        onVerified={handleVerifyOtp}
+        onResend={handleResendOtp}
+        onBack={() => setMode('otp-email')}
+      />
+    )
   }
 
   return (
@@ -61,11 +103,11 @@ export function SignInPage({ onLogin, onForgot, onSignup, onBack, onRolePortals 
       }
       description="One sign-in for requirements, candidates, submissions, interviews and recruiter performance — scoped to your role the moment you land."
       bullets={[
+        'Secure 4-digit corporate Email OTP verification',
         'Role-based access for Super Admin, Admin, Lead and Recruiter',
-        'AI resume & JD parsing with live match scoring',
         'Every action captured in the platform audit trail',
       ]}
-      aside={<DemoCredentialsPanel onPick={(e, p) => { setEmail(e); setPassword(p); setErrors({}) }} />}
+      aside={<DemoCredentialsPanel onPick={(e, p) => { setEmail(e); setPassword(p); setErrors({}); setMode('otp-email') }} />}
     >
       <AuthCard>
         <div className="flex items-center justify-between mb-4">
@@ -73,80 +115,112 @@ export function SignInPage({ onLogin, onForgot, onSignup, onBack, onRolePortals 
             <ShieldCheck className="w-3.5 h-3.5" />
             MRAP Console
           </div>
-          <span className="text-[11px] font-mono text-slate-400">Secure Sign In</span>
+          <span className="text-[11px] font-mono text-slate-400">
+            {mode === 'password' ? 'Password Auth' : 'Email OTP Auth'}
+          </span>
         </div>
 
         <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight mb-1 font-sans">
-          Welcome back
+          {mode === 'password' ? 'Password Sign In' : 'Welcome back'}
         </h2>
         <p className="text-xs text-slate-500 mb-5 font-normal leading-relaxed">
-          Enter your work credentials to access your MetaForge recruitment workspace.
+          {mode === 'password'
+            ? 'Enter your work email and password to sign in.'
+            : 'Enter your registered corporate email to receive a 4-digit login OTP.'}
         </p>
 
-        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-          <TextField
-            label="Work Email Address"
-            type="email"
-            icon={Mail}
-            value={email}
-            onChange={v => {
-              setEmail(v)
-              setErrors(prev => ({ ...prev, email: undefined, general: undefined }))
-            }}
-            placeholder="you@company.com"
-            autoComplete="username"
-            error={errors.email}
-            disabled={loading}
-          />
+        {mode === 'otp-email' ? (
+          <form onSubmit={handleRequestOtp} className="space-y-4" noValidate>
+            <TextField
+              label="Work Email Address"
+              type="email"
+              icon={Mail}
+              value={email}
+              onChange={v => {
+                setEmail(v)
+                setErrors(prev => ({ ...prev, email: undefined, general: undefined }))
+              }}
+              placeholder="registered@email.com"
+              autoComplete="username"
+              error={errors.email}
+              disabled={loading}
+            />
 
-          <PasswordField
-            label="Account Password"
-            icon={Lock}
-            value={password}
-            onChange={v => {
-              setPassword(v)
-              setErrors(prev => ({ ...prev, password: undefined, general: undefined }))
-            }}
-            placeholder="Enter your password"
-            autoComplete="current-password"
-            error={errors.password}
-            disabled={loading}
-            action={
+            {errors.general && <AuthAlert tone="error">{errors.general}</AuthAlert>}
+
+            <SubmitButton loading={loading} loadingLabel="Sending 4-digit OTP via Graph…">
+              Request Login OTP
+            </SubmitButton>
+
+            <div className="pt-2 text-center">
               <button
                 type="button"
-                onClick={() => onForgot(email)}
+                onClick={() => setMode('password')}
                 className="text-xs text-blue-600 font-semibold hover:underline cursor-pointer"
               >
-                Forgot password?
+                Sign in with password instead →
               </button>
-            }
-          />
-
-          {errors.general && <AuthAlert tone="error">{errors.general}</AuthAlert>}
-
-          <label className="flex items-center gap-2 cursor-pointer w-max">
-            <input
-              type="checkbox"
-              checked={remember}
-              onChange={e => setRemember(e.target.checked)}
-              className="rounded border-slate-300 accent-blue-600 w-3.5 h-3.5 cursor-pointer"
+            </div>
+          </form>
+        ) : (
+          <form onSubmit={handlePasswordSubmit} className="space-y-4" noValidate>
+            <TextField
+              label="Work Email Address"
+              type="email"
+              icon={Mail}
+              value={email}
+              onChange={v => {
+                setEmail(v)
+                setErrors(prev => ({ ...prev, email: undefined, general: undefined }))
+              }}
+              placeholder="you@company.com"
+              autoComplete="username"
+              error={errors.email}
+              disabled={loading}
             />
-            <span className="text-xs text-slate-600 font-medium">Remember me on this device</span>
-          </label>
 
-          <SubmitButton loading={loading} loadingLabel="Authenticating & loading workspace…">
-            Sign In to Workspace
-          </SubmitButton>
-        </form>
+            <PasswordField
+              label="Account Password"
+              icon={Lock}
+              value={password}
+              onChange={v => {
+                setPassword(v)
+                setErrors(prev => ({ ...prev, password: undefined, general: undefined }))
+              }}
+              placeholder="Enter your password"
+              autoComplete="current-password"
+              error={errors.password}
+              disabled={loading}
+              action={
+                <button
+                  type="button"
+                  onClick={() => onForgot(email)}
+                  className="text-xs text-blue-600 font-semibold hover:underline cursor-pointer"
+                >
+                  Forgot password?
+                </button>
+              }
+            />
 
-        <div className="mt-5 pt-4 border-t border-slate-200/80 space-y-2.5">
-          <button
-            type="button"
-            onClick={onRolePortals}
-            className="w-full h-10 border border-slate-300 bg-white text-slate-700 rounded-xl text-xs font-mono font-semibold hover:bg-slate-50 hover:border-slate-400 transition-all cursor-pointer"
-          >
-            Sign in through a role portal instead →
-          </button>
+            {errors.general && <AuthAlert tone="error">{errors.general}</AuthAlert>}
+
+            <SubmitButton loading={loading} loadingLabel="Authenticating & loading workspace…">
+              Sign In with Password
+            </SubmitButton>
+
+            <div className="pt-2 text-center">
+              <button
+                type="button"
+                onClick={() => setMode('otp-email')}
+                className="text-xs text-blue-600 font-semibold hover:underline cursor-pointer"
+              >
+                ← Request Email OTP instead
+              </button>
+            </div>
+          </form>
+        )}
+
+        <div className="mt-5 pt-4 border-t border-slate-200/80">
           <p className="text-center text-xs text-slate-500 font-normal">
             Don&apos;t have workspace access?{' '}
             <button type="button" onClick={onSignup} className="text-blue-600 font-semibold hover:underline cursor-pointer">

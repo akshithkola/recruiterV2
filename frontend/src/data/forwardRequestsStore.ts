@@ -100,6 +100,7 @@ export function createOrUpdateForwardRequest(
     bccRecipients,
   }
 
+  const nextList = [newReq, ...requests]
   forwardMemory = nextList
   window.dispatchEvent(new CustomEvent('forward_requests_updated'))
   return newReq

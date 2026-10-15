@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
   Optional,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -16,11 +17,15 @@ import { SubmissionRepository } from './repositories/submission.repository';
 import { Requirement, RequirementDocument } from '../requirements/schemas/requirement.schema';
 import { Candidate, CandidateDocument } from '../candidates/schemas/candidate.schema';
 import { User, UserDocument } from '../users/schemas/user.schema';
+import { Team, TeamDocument } from '../teams/schemas/team.schema';
 import { CreateSubmissionDto } from './dto/create-submission.dto';
 import { UpdateStageDto } from './dto/update-stage.dto';
 import { LeadApprovalDto } from './dto/lead-approval.dto';
 import { ForwardClientDto } from './dto/forward-client.dto';
 import { NotificationsService } from '../notifications/notifications.service';
+import { getClientEmailDefaults, isAccentureClient, sanitizeEmailList } from '../../common/constants/client-email-defaults';
+import { MailService } from '../mail/mail.service';
+import { reqCodeCandidates } from '../../common/requirement-id';
 
 @Injectable()
 export class SubmissionsService {
@@ -35,9 +40,13 @@ export class SubmissionsService {
     private readonly candidateModel: Model<CandidateDocument>,
     @InjectModel(User.name)
     private readonly userModel: Model<UserDocument>,
+    @InjectModel(Team.name)
+    private readonly teamModel: Model<TeamDocument>,
     private readonly submissionRepository: SubmissionRepository,
     @Optional()
     private readonly notificationsService?: NotificationsService,
+    @Optional()
+    private readonly mailService?: MailService,
   ) {}
 
   /** Format document for API output */
@@ -65,6 +74,9 @@ export class SubmissionsService {
       recruiterName: recruiterObj?.name || 'N/A',
       leadName: leadObj?.name || 'N/A',
       candidate: candidateObj?.name || candidateObj?._id?.toString() || obj.candidateId?.toString() || 'N/A',
+      email: candidateObj?.email || obj.email || '',
+      phone: candidateObj?.phone || obj.phone || '',
+      reqCode: reqObj?.reqCode || '',
       req: reqObj?.title || reqObj?.reqCode || reqObj?._id?.toString() || obj.requirementId?.toString() || 'N/A',
       client: clientObj?.clientName || reqObj?.clientName || obj.clientId?.toString() || 'N/A',
       recruiter: recruiterObj?.name || recruiterObj?._id?.toString() || obj.recruiterId?.toString() || 'N/A',
@@ -144,9 +156,38 @@ export class SubmissionsService {
 
     const filter: Record<string, any> = { orgId, deletedAt: null };
 
-    // Role-based access control: Recruiters see assigned/submitted records. Leads, managers, admins & superadmins see org submissions.
+    // Role-based access control:
+    // SuperAdmin & Admin: see ALL org submissions.
+    // Team Lead: see assigned submissions & submissions created by recruiters on their team.
+    // Recruiter: see assigned/submitted records.
     if (role === 'recruiter' && userObjectId) {
       filter.$or = [{ recruiterId: userObjectId }, { leadId: userObjectId }];
+    } else if ((role === 'lead' || role === 'team lead') && userObjectId) {
+      const teamRecruiterIds: Types.ObjectId[] = [userObjectId];
+      const teams = await this.teamModel.find({ orgId, leadId: userObjectId, deletedAt: null }).exec();
+      for (const t of teams) {
+        if (Array.isArray(t.recruiterIds)) {
+          for (const rId of t.recruiterIds) {
+            if (rId) teamRecruiterIds.push(new Types.ObjectId(rId.toString()));
+          }
+        }
+      }
+      const teamUsers = await this.userModel.find({
+        orgId,
+        $or: [
+          ...(teams.length ? [{ teamId: { $in: teams.map(t => t._id) } }] : []),
+          { _id: { $in: teamRecruiterIds } },
+        ],
+        deletedAt: null,
+      }).exec();
+      for (const u of teamUsers) {
+        teamRecruiterIds.push(new Types.ObjectId(u._id.toString()));
+      }
+
+      filter.$or = [
+        { leadId: userObjectId },
+        { recruiterId: { $in: teamRecruiterIds } },
+      ];
     }
 
     if (query?.stage) {
@@ -185,7 +226,7 @@ export class SubmissionsService {
       .populate('clientId', 'clientName domain')
       .populate('recruiterId', 'name email')
       .populate('leadId', 'name email')
-      .sort({ createdAt: -1 })
+      .sort({ updatedAt: -1, submittedAt: -1, createdAt: -1 })
       .exec();
 
     return items.map((item) => this.sanitizeSubmission(item));
@@ -269,7 +310,7 @@ export class SubmissionsService {
     }
 
     if ((!requirementId || !Types.ObjectId.isValid(requirementId)) && dto.req) {
-      const reqDoc = await this.requirementModel.findOne({ orgId, reqCode: dto.req, deletedAt: null }).exec();
+      const reqDoc = await this.requirementModel.findOne({ orgId, reqCode: { $in: reqCodeCandidates(String(dto.req)) }, deletedAt: null }).exec();
       if (reqDoc) requirementId = reqDoc._id.toString();
     }
 
@@ -301,13 +342,12 @@ export class SubmissionsService {
 
     // Lookup Requirement to resolve clientId & leadId if not provided
     const reqDoc = await this.requirementModel.findById(requirementObjectId).exec();
+    if (reqDoc && (reqDoc.status === 'On Hold' || reqDoc.status === 'Hold')) {
+      throw new BadRequestException(`Cannot submit candidate: Requirement '${reqDoc.reqCode || reqDoc.title}' is On Hold`);
+    }
     const clientId = dto.clientId && Types.ObjectId.isValid(dto.clientId)
       ? new Types.ObjectId(dto.clientId)
       : (reqDoc?.clientId ? new Types.ObjectId(reqDoc.clientId.toString()) : new Types.ObjectId());
-
-    const leadId = dto.leadId && Types.ObjectId.isValid(dto.leadId)
-      ? new Types.ObjectId(dto.leadId)
-      : (reqDoc?.assignedLeadId ? new Types.ObjectId(reqDoc.assignedLeadId.toString()) : null);
 
     let recruiterId = dto.recruiterId && Types.ObjectId.isValid(dto.recruiterId)
       ? new Types.ObjectId(dto.recruiterId)
@@ -315,6 +355,21 @@ export class SubmissionsService {
     if ((!dto.recruiterId || !Types.ObjectId.isValid(dto.recruiterId)) && dto.recruiter) {
       const rec = await this.userModel.findOne({ orgId, name: dto.recruiter, deletedAt: null }).exec();
       if (rec) recruiterId = rec._id as Types.ObjectId;
+    }
+
+    let leadId = dto.leadId && Types.ObjectId.isValid(dto.leadId)
+      ? new Types.ObjectId(dto.leadId)
+      : (reqDoc?.assignedLeadId ? new Types.ObjectId(reqDoc.assignedLeadId.toString()) : null);
+
+    if (!leadId && recruiterId) {
+      const team = await this.teamModel.findOne({
+        orgId,
+        $or: [{ recruiterIds: recruiterId }, { leadId: recruiterId }],
+        deletedAt: null,
+      }).exec();
+      if (team?.leadId) {
+        leadId = new Types.ObjectId(team.leadId.toString());
+      }
     }
 
     let matchScore = dto.matchScore;
@@ -369,7 +424,28 @@ export class SubmissionsService {
       }
     }
 
-    return this.findById(saved._id.toString(), currentUser);
+    const created = await this.findById(saved._id.toString(), currentUser);
+    if (dto.clientEmails?.length || dto.leadEmail || dto.leadEmails?.length) {
+      const senderName = currentUser?.name || currentUser?.recruiterName || 'Recruiter';
+      await this.sendClientSubmissionEmail({
+        clientEmails: dto.clientEmails,
+        leadEmail: dto.leadEmail,
+        leadEmails: dto.leadEmails,
+        ccEmails: dto.ccEmails,
+        subject: dto.emailSubject,
+        candidateId: candidateObjectId.toString(),
+        candidateIds: dto.candidateIds,
+        requirementId: requirementObjectId.toString(),
+        senderName: dto.recruiterName || senderName,
+        senderEmail: dto.recruiterEmail,
+        trackerColumns: dto.trackerColumns,
+        trackerRows: dto.trackerRows,
+        trackerHeaderColor: dto.trackerHeaderColor,
+        emailGreeting: dto.emailGreeting,
+        emailIntroduction: dto.emailIntroduction,
+      });
+    }
+    return created;
   }
 
   /** PUT /api/v1/submissions/:id/stage */
@@ -534,7 +610,275 @@ export class SubmissionsService {
       dto.notes || 'Forwarded to Client',
     );
 
-    return this.findById(updated._id.toString(), currentUser);
+    const forwarded = await this.findById(updated._id.toString(), currentUser);
+    if (dto.clientEmails?.length || dto.leadEmail || dto.leadEmails?.length) {
+      const senderName = currentUser?.name || currentUser?.recruiterName || 'Recruiter';
+      await this.sendClientSubmissionEmail({
+        clientEmails: dto.clientEmails,
+        leadEmail: dto.leadEmail,
+        leadEmails: dto.leadEmails,
+        ccEmails: dto.ccEmails,
+        subject: dto.emailSubject,
+        candidateId: doc.candidateId.toString(),
+        candidateIds: dto.candidateIds,
+        requirementId: doc.requirementId.toString(),
+        senderName: dto.recruiterName || senderName,
+        senderEmail: dto.recruiterEmail,
+        trackerColumns: dto.trackerColumns,
+        trackerRows: dto.trackerRows,
+        trackerHeaderColor: dto.trackerHeaderColor,
+        emailGreeting: dto.emailGreeting,
+        emailIntroduction: dto.emailIntroduction,
+      });
+    }
+    return forwarded;
+  }
+
+  private async sendClientSubmissionEmail(input: {
+    clientEmails?: string[];
+    leadEmail?: string;
+    leadEmails?: string[];
+    ccEmails?: string[];
+    subject?: string;
+    candidateId?: string;
+    candidateIds?: string[];
+    requirementId: string;
+    senderName?: string;
+    senderEmail?: string;
+    trackerColumns?: string[];
+    trackerRows?: Record<string, string>[];
+    trackerHeaderColor?: string;
+    emailGreeting?: string;
+    emailIntroduction?: string;
+  }) {
+    if (!this.mailService) {
+      throw new ServiceUnavailableException('Email service is not available');
+    }
+
+    const requirement = await this.requirementModel.findById(input.requirementId).exec();
+    const reqTitle = requirement?.title || '';
+    const reqCode = requirement?.reqCode || '';
+    const clientName = requirement?.clientName || '';
+
+    const emailDefaults = getClientEmailDefaults(clientName);
+    const normalizeEmail = (email: string) => String(email || '').trim().toLowerCase();
+    const isEmail = (email: string) => email.includes('@');
+
+    let rawClientEmails = input.clientEmails || [];
+    let rawCcEmails = input.ccEmails || [];
+    let senderEmail = input.senderEmail;
+
+    if (emailDefaults) {
+      if (!rawClientEmails.length) {
+        rawClientEmails = emailDefaults.submission.to;
+      }
+      if (!rawCcEmails.length) {
+        rawCcEmails = emailDefaults.submission.cc;
+      }
+      if (!senderEmail) {
+        senderEmail = emailDefaults.submission.from;
+      }
+    }
+
+    const clientTo = Array.from(
+      new Set(rawClientEmails.map(normalizeEmail).filter(isEmail)),
+    );
+    const leadList = Array.from(
+      new Set(
+        [
+          ...(input.leadEmails || []),
+          ...(input.leadEmail ? [input.leadEmail] : []),
+        ]
+          .map(normalizeEmail)
+          .filter(isEmail),
+      ),
+    ).filter((email) => !clientTo.includes(email));
+    if (!clientTo.length && !leadList.length) return;
+
+    const ccList = Array.from(new Set(rawCcEmails.map(normalizeEmail).filter(isEmail)))
+      .filter((email) => !clientTo.includes(email) && !leadList.includes(email));
+
+    const escapeHtml = (value: string) =>
+      String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+
+    const cell = (value: unknown) => {
+      const text = String(value ?? '').trim();
+      return escapeHtml(text || '—');
+    };
+
+    const pageColumns = (input.trackerColumns || []).map((column) => String(column || '').trim()).filter(Boolean);
+    const pageRows = Array.isArray(input.trackerRows)
+      ? input.trackerRows.filter((row) => row && typeof row === 'object')
+      : [];
+
+    let columns = pageColumns;
+    let rows = pageRows;
+    if (!columns.length || !rows.length) {
+      const candidateIdList = [
+        ...(input.candidateIds || []),
+        ...(input.candidateId ? [input.candidateId] : []),
+      ];
+      const validObjectIds = Array.from(new Set(candidateIdList))
+        .filter((id) => Types.ObjectId.isValid(id))
+        .map((id) => new Types.ObjectId(id));
+      const candidates = validObjectIds.length
+        ? await this.candidateModel.find({ _id: { $in: validObjectIds } }).exec()
+        : [];
+      const today = new Date();
+      const submittedOn = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`;
+      columns = [
+        'Sl No',
+        'Submission Date',
+        'Skillset',
+        'Candidate Name',
+        'Contact Number',
+        'Email ID',
+        'Total Yrs of Exp',
+        'Relevant Exp',
+        'Current Company',
+        'Current CTC',
+        'Expected CTC/Rate Card',
+        'Notice Period',
+        'Current Location',
+        'Preferred Location',
+        'Availability for Interview',
+        'Reason',
+        'Offer in Hand',
+        'LinkedIn URL',
+      ];
+      rows = candidates.map((candidate, index) => {
+        const skills = Array.isArray(candidate.skills) ? candidate.skills.filter(Boolean).join(', ') : '';
+        const createdValue = (candidate as { createdAt?: Date | string }).createdAt;
+        const created = createdValue ? new Date(createdValue) : null;
+        const createdLabel = created && !Number.isNaN(created.getTime())
+          ? `${String(created.getDate()).padStart(2, '0')}/${String(created.getMonth() + 1).padStart(2, '0')}/${created.getFullYear()}`
+          : submittedOn;
+        return {
+          'Sl No': String(index + 1),
+          'Submission Date': createdLabel,
+          Skillset: skills,
+          'Candidate Name': candidate.name || '',
+          'Contact Number': candidate.phone || '',
+          'Email ID': candidate.email || '',
+          'Total Yrs of Exp': candidate.totalExperienceYears != null ? `${candidate.totalExperienceYears} Years` : '',
+          'Relevant Exp': candidate.relevantExperienceYears != null ? `${candidate.relevantExperienceYears} Years` : '',
+          'Current Company': candidate.currentCompany || '',
+          'Current CTC': candidate.currentCtc != null ? String(candidate.currentCtc) : '',
+          'Expected CTC/Rate Card': candidate.expectedCtc != null ? String(candidate.expectedCtc) : '',
+          'Notice Period': candidate.noticePeriodDays != null ? `${candidate.noticePeriodDays} days` : '',
+          'Current Location': candidate.currentLocation || '',
+          'Preferred Location': candidate.preferredLocation || '',
+          'Availability for Interview': candidate.interviewAvailability || '',
+          Reason: candidate.reasonForChange || '',
+          'Offer in Hand': candidate.offerInHand || '',
+          'LinkedIn URL': candidate.linkedInUrl || '',
+        };
+      });
+    }
+
+    if (!rows.length) return;
+
+    const headerColor = /^#[0-9A-Fa-f]{3,8}$/.test(String(input.trackerHeaderColor || '').trim())
+      ? String(input.trackerHeaderColor).trim()
+      : '#C5E0B4';
+    const headerCells = columns
+      .map((column) => `<th style="padding:8px 6px;border:1px solid #1e293b;background-color:${headerColor};color:#0f172a;text-align:left;font-size:10px;text-transform:uppercase;">${escapeHtml(column.replace(/\u200b/g, ''))}</th>`)
+      .join('');
+    const bodyRows = rows
+      .map((row) => {
+        const cells = columns
+          .map((column) => `<td style="padding:6px 8px;border:1px solid #1e293b;vertical-align:top;">${cell(row[column])}</td>`)
+          .join('');
+        return `<tr>${cells}</tr>`;
+      })
+      .join('');
+
+    const greeting = (input.emailGreeting || `Dear ${clientName || 'Hiring Team'},`).trim();
+    const introduction = (input.emailIntroduction || `I hope you are doing well. Please find the attached resume and tracker below for the Role - ${reqTitle}.`).trim();
+    const introHtml = introduction
+      .split(/\n{2,}/)
+      .map((paragraph) => `<p style="margin:0 0 12px 0;">${escapeHtml(paragraph).replace(/\n/g, '<br>')}</p>`)
+      .join('');
+    const roleLine = [reqCode, reqTitle].filter(Boolean).join(' — ');
+    const senderName = input.senderName || 'Recruiter';
+    const subject = input.subject?.trim()
+      || (roleLine ? `Candidate submission — ${roleLine}` : 'Candidate submission');
+
+    const html = `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="margin:0;padding:16px;background:#f8fafc;font-family:Arial,Helvetica,sans-serif;color:#1e293b;">
+  <div style="max-width:1100px;margin:0 auto;background:#ffffff;border:1px solid #cbd5e1;">
+    <div style="background-color:#0d1b3e;padding:18px 24px;">
+      <span style="color:#ffffff;font-size:26px;font-weight:bold;letter-spacing:-0.5px;">metaforge</span>
+    </div>
+    <div style="padding:8px 24px 4px;font-size:12px;color:#475569;font-weight:bold;">Metaforge IT Solutions</div>
+    <div style="border-bottom:2px solid #800000;margin:0 24px 20px;"></div>
+    <div style="padding:0 24px 24px;font-size:13px;line-height:1.5;">
+      <p style="margin:0 0 12px 0;">${escapeHtml(greeting)}</p>
+      ${introHtml}
+      <div style="overflow-x:auto;margin:8px 0 24px 0;">
+        <table style="width:100%;border-collapse:collapse;font-size:11px;font-family:Arial,Helvetica,sans-serif;">
+          <thead><tr>${headerCells}</tr></thead>
+          <tbody>${bodyRows}</tbody>
+        </table>
+      </div>
+      <p style="margin:0 0 4px 0;">Thank you for your time and consideration.</p>
+      <p style="margin:0 0 16px 0;">We look forward to your feedback.</p>
+      <p style="margin:0 0 2px 0;">Regards,</p>
+      <p style="margin:0 0 2px 0;font-weight:bold;font-size:14px;color:#0f172a;">${escapeHtml(senderName)}</p>
+      ${input.senderEmail ? `<p style="margin:0 0 2px 0;font-size:12px;color:#475569;">${escapeHtml(input.senderEmail)}</p>` : ''}
+      <p style="margin:0;font-size:12px;color:#475569;font-weight:bold;">Metaforge IT Solutions</p>
+    </div>
+  </div>
+</body>
+</html>`;
+
+    const text = [
+      greeting,
+      '',
+      introduction,
+      '',
+      columns.map((column) => column.replace(/\u200b/g, '')).join('\t'),
+      ...rows.map((row) => columns.map((column) => String(row[column] || '—').replace(/\s+/g, ' ')).join('\t')),
+      '',
+      'Thank you for your time and consideration.',
+      'We look forward to your feedback.',
+      '',
+      'Regards,',
+      senderName,
+      input.senderEmail || '',
+      'Metaforge IT Solutions',
+    ].filter((line) => line !== undefined).join('\n');
+
+    try {
+      if (clientTo.length > 0) {
+        await this.mailService.sendMail({
+          from: senderEmail,
+          to: clientTo,
+          cc: ccList.length ? ccList : undefined,
+          subject,
+          text,
+          html,
+        });
+      }
+      if (leadList.length > 0) {
+        await this.mailService.sendMail({
+          from: senderEmail,
+          to: leadList,
+          cc: ccList.length ? ccList : undefined,
+          subject: subject.startsWith('[Lead Review]') ? subject : `[Lead Review] ${subject}`,
+          text,
+          html,
+        });
+      }
+    } catch {
+      throw new ServiceUnavailableException('The submission was saved, but the email could not be sent.');
+    }
   }
 
   /** DELETE /api/v1/submissions/:id */

@@ -5,7 +5,7 @@ import type { CreateJobDemandVmState } from './useCreateJobDemandFormState'
 export function useCreateJobDemandFormHandlers(s: CreateJobDemandVmState) {
   const {
     onSubmit, initialData, reqId, demandDate,
-    requirementFrom, customCompany, clientLeadPoc, jobTitle,
+    requirementFrom, customCompany, clientLeadPoc, toEmails, ccEmails, jobTitle,
     setJobTitle, jobStatus, priority, openings,
     yearlyBudget, locationInput, setLocationInput, locations,
     setLocations, mandatorySkillInput, setMandatorySkillInput, mandatorySkills,
@@ -82,6 +82,8 @@ export function useCreateJobDemandFormHandlers(s: CreateJobDemandVmState) {
       placed: initialData?.placed || 0,
       rejections: initialData?.rejections || 0,
       clientEmail: clientLeadPoc || `${finalClient.toLowerCase()}@client.com`,
+      toEmails: Array.isArray(toEmails) ? toEmails : [],
+      ccEmails: Array.isArray(ccEmails) ? ccEmails : [],
       clientPhone: '+91 98765 43210',
       location: locations.join(', ') || locationInput || 'Remote',
       openings: openings || 1,

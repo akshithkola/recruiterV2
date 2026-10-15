@@ -1,4 +1,4 @@
-import { Role } from '../../../types'
+import { Role, Requirement } from '../../../types'
 import { RecruiterDetailData } from '../RecruiterDetailAnalyticsPage'
 import { ClientPerformanceData } from '../ClientDetailAnalyticsPage'
 
@@ -38,6 +38,7 @@ export interface ReportsPageProps {
 export interface ClientPerformanceTabContentProps {
   clientPerformanceList: ClientPerformanceData[]
   onSelectClient: (client: ClientPerformanceData) => void
+  onSelectRequirement?: (req: Requirement) => void
 }
 
 export interface SubmissionsDashboardConfig {

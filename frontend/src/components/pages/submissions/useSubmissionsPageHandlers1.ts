@@ -1,6 +1,23 @@
 import React, { useMemo, useState } from 'react'
 import { Requirement } from '../../../types'
+import { getSessionUser } from '../../../store/session'
+import type { ScreenshotSubmission } from './preamble'
 import type { SubmissionsVmState } from './useSubmissionsPageState'
+
+export function getSubmissionTimestamp(item: ScreenshotSubmission): number {
+  const raw = item.raw || {}
+  const rawDate = raw.updatedAt || raw.submittedAt || raw.createdAt || item.submittedOn || raw.date
+  if (rawDate) {
+    const t = new Date(rawDate).getTime()
+    if (!isNaN(t) && t > 0) return t
+  }
+  const idMatch = (item.id || item.submissionId || '').match(/(\d{4})[/-](\d{1,2})[/-](\d{1,2})/)
+  if (idMatch) {
+    const d = new Date(`${idMatch[1]}-${idMatch[2].padStart(2, '0')}-${idMatch[3].padStart(2, '0')}`).getTime()
+    if (!isNaN(d)) return d
+  }
+  return 0
+}
 
 export function useSubmissionsPageHandlers1(s: SubmissionsVmState) {
   const {
@@ -41,7 +58,9 @@ export function useSubmissionsPageHandlers1(s: SubmissionsVmState) {
       onUpdateRequirements(updatedReqs)
     }
 
-    showToast(`Interview scheduled! Candidate status updated to "${scheduledStatus}" in table and recruitment progress.`)
+    const emailNotice = data?.emailSent ? ` Invite email sent to ${data.candidateEmail || 'candidate'}.` : ''
+    const waNotice = data?.whatsappSent ? ' WhatsApp link opened.' : ''
+    showToast(`Interview scheduled! Candidate status updated to "${scheduledStatus}".${emailNotice}${waNotice}`)
     setTargetSubForInterview(null)
   }
 
@@ -81,6 +100,11 @@ export function useSubmissionsPageHandlers1(s: SubmissionsVmState) {
 
   // Scope submissions data for team lead and recruiter roles
   const scopeSubmissions = useMemo(() => {
+    const session = getSessionUser()
+    const activeRecruiterName = (s.currentUserName || session?.name || '').trim().toLowerCase()
+    const activeRecruiterId = session?.id || ''
+    const activeRecruiterEmail = (session?.email || '').trim().toLowerCase()
+
     if (role === 'lead') {
       return submissionsList.filter(item => {
         const by = item.submittedBy.toLowerCase()
@@ -93,14 +117,58 @@ export function useSubmissionsPageHandlers1(s: SubmissionsVmState) {
         return true
       })
     }
+
     if (role === 'recruiter') {
+      const matchRecruiter = (item: ScreenshotSubmission) => {
+        const by = (item.submittedBy || '').toLowerCase().trim()
+        if (activeRecruiterId && item.raw?.recruiterId && String(item.raw.recruiterId) === String(activeRecruiterId)) return true
+        if (activeRecruiterEmail && item.raw?.recruiterEmail && String(item.raw.recruiterEmail).toLowerCase() === activeRecruiterEmail) return true
+        if (activeRecruiterName) {
+          if (by === activeRecruiterName || by.includes(activeRecruiterName) || activeRecruiterName.includes(by)) return true
+          const activeTokens = activeRecruiterName.split(/\s+/).filter(t => t.length >= 3)
+          const byTokens = by.split(/\s+/).filter(t => t.length >= 3)
+          if (activeTokens.some(t => byTokens.includes(t))) return true
+          return false
+        }
+        return by.includes('marcus') || by === 'marcus chen'
+      }
+
+      const isClientSubmission = (item: ScreenshotSubmission) => {
+        const st = (item.status || '').toLowerCase().trim()
+        const leadStatus = (item.leadApprovalStatus || '').toLowerCase().trim()
+
+        // Exclude internal-only draft or submitted to lead
+        if (st === 'submitted to lead' || st === 'draft' || leadStatus === 'pending') {
+          return false
+        }
+
+        return (
+          st === 'submitted to client' ||
+          st.includes('client') ||
+          st.includes('interview') ||
+          st.includes('select') ||
+          st.includes('offer') ||
+          st.includes('place') ||
+          leadStatus === 'forwarded' ||
+          leadStatus === 'approved' ||
+          (st === 'rejected' && !leadStatus.includes('lead') && !(item.rejectionReason || '').toLowerCase().includes('lead'))
+        )
+      }
+
+      const hasMatchingRecruiter = submissionsList.some(matchRecruiter)
+      if (hasMatchingRecruiter) {
+        return submissionsList.filter(item => matchRecruiter(item) && isClientSubmission(item))
+      }
+
+      // Default fallback if recruiter session has no seed records yet
       return submissionsList.filter(item => {
         const by = item.submittedBy.toLowerCase()
-        return by.includes('marcus') || by === 'marcus chen'
+        return (by.includes('marcus') || by === 'marcus chen') && isClientSubmission(item)
       })
     }
+
     return submissionsList
-  }, [submissionsList, role, scopeTab])
+  }, [submissionsList, role, scopeTab, s.currentUserName])
 
   // Extract unique client names dynamically for the client-wise filter dropdown
   const clientOptions = useMemo(() => {
@@ -125,7 +193,7 @@ export function useSubmissionsPageHandlers1(s: SubmissionsVmState) {
 
   // Dynamic filter
   const filteredData = useMemo(() => {
-    return scopeSubmissions.filter(item => {
+    const list = scopeSubmissions.filter(item => {
       // Search text
       if (searchQuery.trim()) {
         const q = searchQuery.trim().toLowerCase()
@@ -141,17 +209,38 @@ export function useSubmissionsPageHandlers1(s: SubmissionsVmState) {
       }
 
       // Date filter
-      const d = item.submittedOn || ''
-      if (dateFilter !== 'All') {
+      if (dateFilter && dateFilter !== 'All') {
+        const rawDate = item.submittedOn || ''
+        if (!rawDate) return false
+        const d = new Date(rawDate)
+        if (isNaN(d.getTime())) return false
+
+        const now = new Date()
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+        const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
+
         if (dateFilter === 'Today') {
-          if (!d.includes('Aug 17') && !d.includes('Today')) return false
+          if (d < startOfToday || d > endOfToday) return false
         } else if (dateFilter === 'Yesterday') {
-          if (!d.includes('Aug 16') && !d.includes('Yesterday')) return false
-        } else if (dateFilter === 'This week' || dateFilter === 'This month') {
-          if (!d.includes('Aug')) return false
+          const startOfYesterday = new Date(startOfToday.getTime() - 86400000)
+          const endOfYesterday = new Date(endOfToday.getTime() - 86400000)
+          if (d < startOfYesterday || d > endOfYesterday) return false
+        } else if (dateFilter === 'This week') {
+          const day = (now.getDay() + 6) % 7
+          const startOfWeek = new Date(startOfToday.getTime() - day * 86400000)
+          if (d < startOfWeek || d > endOfToday) return false
+        } else if (dateFilter === 'This month') {
+          const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+          if (d < startOfMonth || d > endOfToday) return false
         } else if (dateFilter === 'Custom range') {
-          if (customStartDate && d < customStartDate) return false
-          if (customEndDate && d > customEndDate) return false
+          if (customStartDate) {
+            const start = new Date(`${customStartDate}T00:00:00`)
+            if (d < start) return false
+          }
+          if (customEndDate) {
+            const end = new Date(`${customEndDate}T23:59:59.999`)
+            if (d > end) return false
+          }
         }
       }
 
@@ -165,8 +254,10 @@ export function useSubmissionsPageHandlers1(s: SubmissionsVmState) {
       const filterVal = statusFilter.toLowerCase().trim()
 
       if (filterVal !== 'all') {
-        if (filterVal === 'submitted to lead') {
-          if (!itemStatus.includes('lead') && !itemStatus.includes('submit')) return false
+        if (filterVal === 'submitted to client') {
+          if (!itemStatus.includes('client')) return false
+        } else if (filterVal === 'submitted to lead') {
+          if (!itemStatus.includes('lead')) return false
         } else if (filterVal === 'interview scheduled') {
           if (!itemStatus.includes('interview')) return false
         } else if (filterVal === 'selected') {
@@ -179,6 +270,13 @@ export function useSubmissionsPageHandlers1(s: SubmissionsVmState) {
       }
 
       return true
+    })
+
+    return [...list].sort((a, b) => {
+      const timeA = getSubmissionTimestamp(a)
+      const timeB = getSubmissionTimestamp(b)
+      if (timeB !== timeA) return timeB - timeA
+      return (b.id || '').localeCompare(a.id || '')
     })
   }, [
     scopeSubmissions,

@@ -1,6 +1,8 @@
 import type { RequirementDetailOverviewProps } from './preamble'
 import { useState, useMemo, useEffect, useRef } from 'react'
 import React from 'react'
+import { workspaceService } from '../../../services/workspace.service'
+import { apiErrorMessage } from '../../../services/candidatePayload'
 
 export interface PipelineCandidateItem {
   id: string
@@ -21,14 +23,36 @@ export interface PipelineCandidateItem {
 
 export function useRequirementDetailOverviewState(props: RequirementDetailOverviewProps) {
   const {
-  requirement,
-  role = 'superadmin',
-  onBack,
-  onOpenAssignModal,
-  onEditRequirement,
-  onAddCandidate,
-  onRevokeRequirement,
-}: RequirementDetailOverviewProps = props as RequirementDetailOverviewProps & Record<string, never>
+    requirement: initialRequirement,
+    role = 'superadmin',
+    onBack,
+    onOpenAssignModal,
+    onEditRequirement,
+    onAddCandidate,
+    onRevokeRequirement,
+    onRequirementUpdated,
+  }: RequirementDetailOverviewProps = props as RequirementDetailOverviewProps & Record<string, never>
+
+  const [requirement, setRequirement] = useState(initialRequirement)
+  const [isInternalEditing, setIsInternalEditing] = useState(false)
+
+  useEffect(() => {
+    if (initialRequirement) {
+      setRequirement(initialRequirement)
+    }
+  }, [initialRequirement])
+
+  const handleSaveRequirement = async (updatedReq: any) => {
+    try {
+      await workspaceService.updateRequirement(updatedReq.id, updatedReq)
+      setRequirement(updatedReq)
+      setIsInternalEditing(false)
+      onRequirementUpdated?.(updatedReq)
+      showToast('Requirement details updated successfully!')
+    } catch (err) {
+      showToast(apiErrorMessage(err) || 'Failed to update requirement')
+    }
+  }
   const normalizedRole = (role || '').toLowerCase()
   const isRecruiter = normalizedRole === 'recruiter'
   const isSuperAdminOrAdmin = normalizedRole === 'superadmin' || normalizedRole === 'admin' || normalizedRole === 'devteam'
@@ -370,40 +394,34 @@ export function useRequirementDetailOverviewState(props: RequirementDetailOvervi
 
   const isUnassigned = !requirement.owner || requirement.owner === 'Unassigned'
 
-  // Skills lists matching attached screenshot
-  const mandatorySkills = [
-    'Catia V6',
-    'Door Panel design experience',
-    'knowledge on complete door design',
-    'packaging',
-    'gaps',
-    'other CAE',
-    'Plant',
-    'forming requirements',
-    'Any',
-  ]
+  const mandatorySkills = useMemo(() => {
+    if (requirement.mandatorySkills && requirement.mandatorySkills.length > 0) {
+      return requirement.mandatorySkills
+    }
+    if (requirement.skills && requirement.skills.length > 0) {
+      return requirement.skills.slice(0, 4)
+    }
+    return []
+  }, [requirement])
 
-  const generalSkills = [
-    'Master section creation & validation',
-    'Door mechanisms',
-    'Hinges & handles',
-    'Cross-functional collaboration (CFT)',
-    'Manufacturing awareness',
-    'Experienced in Design & Development of BIW Closures from the concept to mass production Design',
-    'Design Considering the Package',
-    'master sections',
-    'styling',
-    'vehicle regulation & performance',
-    'Knowledge on Door Regulation for Asian and European market',
-    'Worked in atleast two complete life cycle of Door design',
-  ]
+  const generalSkills = useMemo(() => {
+    if (requirement.skills && requirement.skills.length > 0) {
+      return requirement.skills
+    }
+    return []
+  }, [requirement])
 
   return {
     requirement,
+    setRequirement,
+    isInternalEditing,
+    setIsInternalEditing,
+    handleSaveRequirement,
     role,
     onBack,
     onOpenAssignModal,
     onEditRequirement,
+    onRequirementUpdated,
     onAddCandidate,
     onRevokeRequirement,
     activeTab,

@@ -9,12 +9,15 @@ import {
   CandidateDocumentRecordSchema,
 } from './schemas/candidate-document.schema';
 
+import { NotificationsModule } from '../notifications/notifications.module';
+
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: Candidate.name, schema: CandidateSchema },
       { name: CandidateDocumentRecord.name, schema: CandidateDocumentRecordSchema },
     ]),
+    NotificationsModule,
   ],
   controllers: [CandidatesController],
   providers: [CandidatesService, CandidateRepository],

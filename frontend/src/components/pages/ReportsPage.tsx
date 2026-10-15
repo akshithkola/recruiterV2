@@ -60,6 +60,7 @@ import { HistoryPage } from './HistoryPage'
 import { ActivityLogsPage } from './ActivityLogsPage'
 import { SubmissionsPage } from './SubmissionsPage'
 import { InterviewTrackingPage } from './InterviewTrackingPage'
+import { RequirementDetailOverview } from './RequirementDetailOverview'
 
 
 interface ClientSubmissionInfo {
@@ -458,11 +459,13 @@ export interface ReportsPageProps {
 interface ClientPerformanceTabContentProps {
   clientPerformanceList: ClientPerformanceData[]
   onSelectClient: (client: ClientPerformanceData) => void
+  onSelectRequirement?: (req: Requirement) => void
 }
 
 function ClientPerformanceTabContent({
   clientPerformanceList,
   onSelectClient,
+  onSelectRequirement,
 }: ClientPerformanceTabContentProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
@@ -694,8 +697,29 @@ function ClientPerformanceTabContent({
                     {drillDownModal.client.requirementsList.map(req => (
                       <tr key={req.id} className="hover:bg-purple-50/30 transition-colors">
                         <td className="py-3 px-4">
-                          <div className="font-extrabold text-slate-900 text-xs">{req.title}</div>
-                          <div className="text-[10px] text-slate-400 font-mono mt-0.5">{req.id}</div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onSelectRequirement?.({
+                                id: req.id,
+                                title: req.title,
+                                client: drillDownModal.client.clientName,
+                                priority: 'Medium',
+                                status: req.status === 'Open' ? 'Open' : 'Active',
+                                submissions: req.submissions || 0,
+                                interviews: 0,
+                                placed: 0,
+                                dueDate: new Date().toISOString().split('T')[0],
+                                openings: 1,
+                                skills: ['Java', 'React'],
+                              })
+                              setDrillDownModal(null)
+                            }}
+                            className="text-left cursor-pointer group"
+                          >
+                            <div className="font-extrabold text-slate-900 text-xs group-hover:text-[#6B3BF6] group-hover:underline">{req.title}</div>
+                            <div className="text-[10px] text-[#6B3BF6] font-mono mt-0.5">{req.id}</div>
+                          </button>
                         </td>
                         <td className="py-3 px-4 text-slate-700 font-bold">{req.assignedRecruiter}</td>
                         <td className="py-3 px-4 text-center font-mono font-bold text-[#6B3BF6]">{req.submissions}</td>
@@ -756,6 +780,7 @@ export function ReportsPage({
   onUpdateRequirements,
 }: ReportsPageProps) {
   const [reportsTopTab, setReportsTopTab] = useState<'reports' | 'submissions' | 'interviews'>(initialReportsTab)
+  const [selectedReqForDetail, setSelectedReqForDetail] = useState<Requirement | null>(null)
 
   React.useEffect(() => {
     if (initialReportsTab) {
@@ -2027,6 +2052,23 @@ export function ReportsPage({
     )
   }
 
+  if (selectedReqForDetail) {
+    return (
+      <RequirementDetailOverview
+        requirement={selectedReqForDetail}
+        role={role}
+        onBack={() => setSelectedReqForDetail(null)}
+        onRequirementUpdated={updatedReq => {
+          setSelectedReqForDetail(updatedReq)
+          if (onUpdateRequirements && requirements.length > 0) {
+            const updated = requirements.map(r => (r.id === updatedReq.id ? updatedReq : r))
+            onUpdateRequirements(updated)
+          }
+        }}
+      />
+    )
+  }
+
   return (
     <div className="space-y-6 w-full pb-16 font-sans text-slate-800">
       {/* PRIMARY CONSOLIDATED TOP NAVIGATION TAB BAR */}
@@ -2098,6 +2140,7 @@ export function ReportsPage({
           role={role}
           interviews={interviews}
           onOpenFeedbackModal={onOpenFeedback}
+          onUpdateRequirements={onUpdateRequirements}
         />
       ) : (
         <>
@@ -2149,6 +2192,7 @@ export function ReportsPage({
             <ClientPerformanceTabContent
               clientPerformanceList={clientPerformanceList}
               onSelectClient={cli => setSelectedClient(cli)}
+              onSelectRequirement={target => setSelectedReqForDetail(target)}
             />
           ) : mainTab === 'audit' && role !== 'recruiter' ? (
             <ActivityLogsPage role={role} />
@@ -2346,10 +2390,56 @@ export function ReportsPage({
                         return (
                           <tr key={req.id || idx} className="hover:bg-purple-50/30 transition-colors">
                             <td className="py-3 px-4 font-mono font-extrabold text-[#6B3BF6]">
-                              {req.id}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const found = requirements.find(r => r.id === req.id || r._id === req.id || r.title.toLowerCase() === req.title.toLowerCase())
+                                  const targetReq: Requirement = found || {
+                                    id: req.id,
+                                    title: req.title,
+                                    client: req.client || clientList[0] || 'Client',
+                                    priority: 'Medium',
+                                    status: req.status === 'Non-Worked' ? 'Open' : 'Active',
+                                    submissions: req.submissions || 0,
+                                    interviews: req.interviews || 0,
+                                    placed: 0,
+                                    dueDate: new Date().toISOString().split('T')[0],
+                                    openings: req.positions || 1,
+                                    skills: ['JavaScript', 'React'],
+                                  }
+                                  setSelectedReqForDetail(targetReq)
+                                  setWorkedReqsModalRecruiter(null)
+                                }}
+                                className="font-mono font-extrabold text-[#6B3BF6] hover:underline cursor-pointer text-left"
+                              >
+                                {req.id}
+                              </button>
                             </td>
                             <td className="py-3 px-4 font-bold text-slate-900 max-w-xs truncate">
-                              {req.title}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const found = requirements.find(r => r.id === req.id || r._id === req.id || r.title.toLowerCase() === req.title.toLowerCase())
+                                  const targetReq: Requirement = found || {
+                                    id: req.id,
+                                    title: req.title,
+                                    client: req.client || clientList[0] || 'Client',
+                                    priority: 'Medium',
+                                    status: req.status === 'Non-Worked' ? 'Open' : 'Active',
+                                    submissions: req.submissions || 0,
+                                    interviews: req.interviews || 0,
+                                    placed: 0,
+                                    dueDate: new Date().toISOString().split('T')[0],
+                                    openings: req.positions || 1,
+                                    skills: ['JavaScript', 'React'],
+                                  }
+                                  setSelectedReqForDetail(targetReq)
+                                  setWorkedReqsModalRecruiter(null)
+                                }}
+                                className="font-bold text-slate-900 hover:text-[#6B3BF6] hover:underline cursor-pointer text-left max-w-xs truncate block"
+                              >
+                                {req.title}
+                              </button>
                             </td>
                             <td className="py-3 px-4">
                               <SubmittedClientsPillCell clients={clientList} />

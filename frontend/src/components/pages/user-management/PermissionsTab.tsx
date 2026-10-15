@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from 'react'
 import {
   Search,
   CheckCircle2,
@@ -6,12 +7,25 @@ import {
   Check,
   X,
 } from 'lucide-react'
+import { PaginationFooter } from '../../ui/PaginationFooter'
 import type { UserManagementVM } from './useUserManagement'
 
 export function PermissionsTab({
     searchQuery, setSearchQuery, roleFilter, setRoleFilter,
     filteredRecruiterUsers, openManageUserPermissionsModal
 }: UserManagementVM) {
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(5)
+  const totalPages = Math.ceil(filteredRecruiterUsers.length / pageSize) || 1
+  const paginatedUsers = useMemo(() => {
+    const start = (currentPage - 1) * pageSize
+    return filteredRecruiterUsers.slice(start, start + pageSize)
+  }, [filteredRecruiterUsers, currentPage, pageSize])
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, roleFilter, pageSize, filteredRecruiterUsers.length])
+
   return (
         <div className="space-y-6 animate-in fade-in duration-150">
           {/* SEARCH & FILTER BAR */}
@@ -61,7 +75,7 @@ export function PermissionsTab({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-xs text-slate-700 font-medium">
-                  {filteredRecruiterUsers.map(user => (
+                  {paginatedUsers.map(user => (
                     <tr key={user.id} className="hover:bg-purple-50/30 transition-colors">
                       <td className="py-4 px-4 font-bold text-slate-900 max-w-xs">
                         <div className="flex items-center gap-3">
@@ -162,6 +176,15 @@ export function PermissionsTab({
                 </tbody>
               </table>
             </div>
+            <PaginationFooter
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={filteredRecruiterUsers.length}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={setPageSize}
+              itemLabel="users"
+            />
           </div>
         </div>
   )

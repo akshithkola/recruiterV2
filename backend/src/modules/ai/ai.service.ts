@@ -6,9 +6,11 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { ConfigService } from '@nestjs/config';
+import * as fs from 'fs';
 import { AIRepository } from './repositories/ai.repository';
 import { Candidate, CandidateDocument } from '../candidates/schemas/candidate.schema';
 import { Requirement, RequirementDocument } from '../requirements/schemas/requirement.schema';
+import { FilesService } from '../files/files.service';
 
 @Injectable()
 export class AIService {
@@ -18,6 +20,7 @@ export class AIService {
   constructor(
     private readonly aiRepository: AIRepository,
     private readonly configService: ConfigService,
+    private readonly filesService: FilesService,
     @InjectModel(Candidate.name)
     private readonly candidateModel: Model<CandidateDocument>,
     @InjectModel(Requirement.name)
@@ -202,7 +205,22 @@ export class AIService {
       throw new BadRequestException('Either resumeText or fileId must be provided for AI parsing');
     }
 
-    const text = dto.resumeText || 'Sample Resume Content for AI extraction';
+    let fileRecord: any = null;
+    let diskText = '';
+
+    if (dto.fileId) {
+      try {
+        const fileData = await this.filesService.getFilePath(currentUser, dto.fileId);
+        fileRecord = fileData.fileRecord;
+        if (fileData.absolutePath && fs.existsSync(fileData.absolutePath)) {
+          diskText = this.extractTextFromDiskFile(fileData.absolutePath);
+        }
+      } catch {
+        // file lookup optional
+      }
+    }
+
+    const text = dto.resumeText || diskText || 'Sample Resume Content for AI extraction';
     const jobId = `JOB-AI-${Date.now()}`;
 
     const gatewayResult = await this.callGateway<{ extractedData?: Record<string, unknown>; confidenceScore?: number }>(
@@ -210,13 +228,31 @@ export class AIService {
       { resumeText: text, fileId: dto.fileId },
     );
 
-    const extractedData = gatewayResult?.extractedData || {
-      candidateName: this.extractField(text, /name[:\s]+([A-Za-z .]+)/i) || 'Unknown Candidate',
-      email: this.extractField(text, /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i) || '',
-      contactNumber: this.extractField(text, /(\+?\d[\d\s-]{8,}\d)/) || '',
-      primarySkill: this.extractField(text, /skills?[:\s]+([A-Za-z0-9, /+]+)/i) || 'General',
-      totalExperienceYears: Number(this.extractField(text, /(\d+(?:\.\d+)?)\s+years/i) || 0),
+    const expNum = Number(this.extractField(text, /(\d+(?:\.\d+)?)\s*(?:years?|yrs?)/i) || 0);
+
+    const fallbackExtracted = {
+      candidateName: this.extractField(text, /(?:name|candidate name|full name)[:\s]+([A-Za-z .'-]+)/i) || this.extractField(text, /^([A-Z][a-z]+\s+[A-Z][a-z]+)/m) || (fileRecord?.originalName ? fileRecord.originalName.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ') : 'Unknown Candidate'),
+      email: this.extractField(text, /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/i) || '',
+      contactNumber: this.extractField(text, /(?:phone|contact|mobile|tel)?[:\s]*(\+?\d[\d\s-]{8,}\d)/i) || this.extractField(text, /(\+?\d[\d\s-]{8,}\d)/) || '',
+      primarySkill: this.extractField(text, /(?:primary skill|technologies|tech stack|skills)[:\s]+([A-Za-z0-9, /+#.-]+)/i) || 'General',
+      skills: this.extractField(text, /(?:skills|key skills|core competencies)[:\s]+([A-Za-z0-9, /+#.-]+)/i) || '',
+      technologies: this.extractField(text, /(?:technologies|tech stack|tools)[:\s]+([A-Za-z0-9, /+#.-]+)/i) || '',
+      totalExperienceYears: expNum,
+      totalExperience: this.extractField(text, /(?:total experience|experience|exp)[:\s]+([\d.]+\s*(?:years?|yrs?|months?)?)/i) || (expNum ? `${expNum} Years` : ''),
+      relevantExperience: this.extractField(text, /(?:relevant experience|rel exp)[:\s]+([\d.]+\s*(?:years?|yrs?|months?)?)/i) || '',
+      currentCompany: this.extractField(text, /(?:current company|company|organization|employer|present company)[:\s]+([A-Za-z0-9 .&,-]+)/i) || '',
+      qualification: this.extractField(text, /(?:qualification|education|degree)[:\s]+([A-Za-z0-9 .&,-]+)/i) || this.extractField(text, /(B\.?Tech|M\.?Tech|B\.?E\.?|M\.?C\.?A\.?|B\.?S\.?c|M\.?S\.?c|MBA|Bachelor|Master)/i) || '',
+      currentCtc: this.extractField(text, /(?:current ctc|cctc|present ctc)[:\s]+([A-Za-z0-9 .$/-]+)/i) || '',
+      expectedCtc: this.extractField(text, /(?:expected ctc|ectc)[:\s]+([A-Za-z0-9 .$/-]+)/i) || '',
+      currentLocation: this.extractField(text, /(?:location|current location|city)[:\s]+([A-Za-z .-]+)/i) || '',
+      noticePeriod: this.extractField(text, /(?:notice period|notice)[:\s]+([A-Za-z0-9 .-]+)/i) || '',
       summary: text.slice(0, 280),
+      fileName: fileRecord?.originalName || null,
+    };
+
+    const extractedData = {
+      ...fallbackExtracted,
+      ...(gatewayResult?.extractedData || {}),
     };
 
     if (dto.fileId && Types.ObjectId.isValid(dto.fileId)) {
@@ -242,6 +278,25 @@ export class AIService {
       confidenceScore: gatewayResult?.confidenceScore ?? 0.8,
       extractedData,
     };
+  }
+
+  private extractTextFromDiskFile(absolutePath: string): string {
+    if (!fs.existsSync(absolutePath)) return '';
+    try {
+      const buf = fs.readFileSync(absolutePath);
+      const rawStr = buf.toString('utf-8');
+      const cleanText = rawStr.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, ' ');
+      const readableLines = cleanText
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0 && /^[\x20-\x7E\s.,@+()-]+$/.test(line.slice(0, 50)));
+      if (readableLines.length > 3) {
+        return readableLines.join('\n');
+      }
+      return cleanText;
+    } catch {
+      return '';
+    }
   }
 
   /**

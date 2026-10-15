@@ -134,7 +134,7 @@ export function useClientDeliveryGapState(props: ClientGapAnalysisProps) {
 
   // Requirement Gap Analysis Pagination State (10 items limit)
   const [gapCurrentPage, setGapCurrentPage] = useState(1)
-  const [gapPageSize, setGapPageSize] = useState(10)
+  const [gapPageSize, setGapPageSize] = useState(5)
 
   const gapTotalPages = Math.ceil(filteredRequirements.length / gapPageSize) || 1
 

@@ -2,6 +2,9 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model, Types } from 'mongoose';
+import { User, UserDocument } from '../users/schemas/user.schema';
 
 export interface JwtPayload {
   sub: string;
@@ -27,7 +30,10 @@ function cookieExtractor(req: { headers?: { cookie?: string } }): string | null 
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor(configService: ConfigService) {
+  constructor(
+    configService: ConfigService,
+    @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
+  ) {
     super({
       jwtFromRequest: ExtractJwt.fromExtractors([
         ExtractJwt.fromAuthHeaderAsBearerToken(),
@@ -42,6 +48,24 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!payload || !payload.sub || !payload.email) {
       throw new UnauthorizedException('Invalid JWT payload format');
     }
+
+    let capabilities = {};
+    const dbUser = await this.userModel.findOne({
+      $or: [
+        ...(Types.ObjectId.isValid(payload.sub) ? [{ _id: payload.sub }] : []),
+        { userId: payload.sub },
+        { email: payload.email },
+      ],
+      deletedAt: null,
+    }).exec();
+
+    if (dbUser) {
+      if (dbUser.active === false) {
+        throw new UnauthorizedException('User account has been deactivated or deleted');
+      }
+      capabilities = dbUser.capabilities || {};
+    }
+
     return {
       id: payload.sub,
       userId: payload.userId || payload.sub,
@@ -50,6 +74,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       orgId: payload.orgId,
       name: payload.name,
       permissions: payload.permissions || [],
+      capabilities,
     };
   }
 }

@@ -2,6 +2,7 @@ import React from 'react'
 import { SubmitToLeadTrackerCustomize } from './SubmitToLeadTrackerCustomize'
 import { GripVertical, Eye, EyeOff, ChevronLeft, ChevronRight } from 'lucide-react'
 import { SubmitToLeadVm } from './useSubmitToLeadPage'
+import { columnLabel } from './trackerPresets.data'
 
 export function SubmitToLeadTracker({ vm }: { vm: SubmitToLeadVm }) {
   const {
@@ -53,12 +54,9 @@ export function SubmitToLeadTracker({ vm }: { vm: SubmitToLeadVm }) {
               onChange={e => handleClientChange(e.target.value)}
               className="px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-extrabold text-slate-800 focus:outline-none cursor-pointer shadow-2xs"
             >
-              <option value="METAFORGE (INTERNAL)">METAFORGE (INTERNAL)</option>
-              <option value="LTTS / L&T">LTTS / L&T</option>
-              <option value="Continental Automotive">Continental Automotive</option>
-              <option value="Bosch Global">Bosch Global</option>
-              <option value="Accenture Enterprise">Accenture Enterprise</option>
-              <option value="ITC Infotech">ITC Infotech</option>
+              {Object.keys(CLIENT_TRACKER_PRESETS).map(preset => (
+                <option key={preset} value={preset}>{preset}</option>
+              ))}
             </select>
           </div>
         </div>
@@ -68,16 +66,16 @@ export function SubmitToLeadTracker({ vm }: { vm: SubmitToLeadVm }) {
           <table className="w-full text-left border-collapse font-mono text-xs">
             <thead>
               <tr style={{ backgroundColor: headerColor }} className="text-slate-950 font-black border-b-2 border-slate-800 text-[10px] uppercase">
-                {visibleColumns.map(col => (
-                  <th key={col} className="p-2.5 border-r-2 border-slate-800">{col}</th>
+                {visibleColumns.map((col: string, index: number) => (
+                  <th key={`${col}-${index}`} className="p-2.5 border-r-2 border-slate-800">{columnLabel(col)}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y-2 divide-slate-800 font-semibold text-slate-900">
               {trackerRows.map((row, rIdx) => (
                 <tr key={rIdx}>
-                  {visibleColumns.map(col => (
-                    <td key={col} className="p-1 border-r-2 border-slate-800">
+                  {visibleColumns.map((col: string, index: number) => (
+                    <td key={`${col}-${index}`} className="p-1 border-r-2 border-slate-800">
                       <input
                         type="text"
                         value={row[col] || ''}

@@ -8,10 +8,12 @@ import { AIMatchScore, AIMatchScoreSchema } from './schemas/ai-match-score.schem
 import { AIParsingJob, AIParsingJobSchema } from './schemas/ai-parse-job.schema';
 import { Candidate, CandidateSchema } from '../candidates/schemas/candidate.schema';
 import { Requirement, RequirementSchema } from '../requirements/schemas/requirement.schema';
+import { FilesModule } from '../files/files.module';
 
 @Module({
   imports: [
     ConfigModule,
+    FilesModule,
     MongooseModule.forFeature([
       { name: AIMatchScore.name, schema: AIMatchScoreSchema },
       { name: AIParsingJob.name, schema: AIParsingJobSchema },
@@ -24,3 +26,4 @@ import { Requirement, RequirementSchema } from '../requirements/schemas/requirem
   exports: [AIService, AIRepository],
 })
 export class AIModule {}
+

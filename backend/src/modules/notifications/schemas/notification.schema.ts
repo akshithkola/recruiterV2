@@ -11,7 +11,9 @@ export type NotificationType =
   | 'offer_released'
   | 'candidate_placed'
   | 'requirement_assigned'
-  | 'lead_approval_requested';
+  | 'lead_approval_requested'
+  | 'candidate_created'
+  | 'candidate_updated';
 
 export type EntityType = 'submission' | 'interview' | 'offer' | 'requirement' | 'candidate';
 
@@ -34,6 +36,8 @@ export class Notification {
       'candidate_placed',
       'requirement_assigned',
       'lead_approval_requested',
+      'candidate_created',
+      'candidate_updated',
     ],
   })
   type: NotificationType;

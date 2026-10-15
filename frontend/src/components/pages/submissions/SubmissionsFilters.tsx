@@ -176,7 +176,7 @@ export function SubmissionsFilters({ vm }: { vm: SubmissionsVm }) {
                 className="w-full appearance-none pl-3.5 pr-8 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6B3BF6]/20 focus:border-[#6B3BF6] text-slate-700 bg-white font-bold cursor-pointer"
               >
                 <option value="All">All Candidate Statuses</option>
-                <option value="Submitted to Lead">Submitted to Client / Lead</option>
+                <option value="Submitted to Client">Submitted to Client</option>
                 <option value="Interview Scheduled">Interview Scheduled</option>
                 <option value="Selected">Selected in Interview</option>
                 <option value="Placed">Placed</option>

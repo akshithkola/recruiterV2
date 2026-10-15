@@ -1,6 +1,7 @@
 import React from 'react'
-import { checkDuplicateSubmission } from '../../../data/submissionsStore'
+import { Send, X } from 'lucide-react'
 import { CandidateRepoVm } from './useCandidateRepository'
+import { hasCapability } from '../../../store/session'
 
 export function CandidateSelectionDock({ vm }: { vm: CandidateRepoVm }) {
   const {
@@ -12,49 +13,53 @@ export function CandidateSelectionDock({ vm }: { vm: CandidateRepoVm }) {
     showToast,
     setSelectedCandidatesForSubmit,
     setViewMode,
+    setIsChangeReqModalOpen,
     scrollToNextPageSection,
   } = vm
+
   return (
     <>
-      {activeRequirement && selectedIds.size > 0 && viewMode !== 'submit_to_lead' && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-[#EFF6FF] border border-[#C7D2FE] shadow-2xl rounded-2xl p-2.5 px-6 flex items-center gap-6 backdrop-blur-md animate-in fade-in slide-in-from-bottom-4 duration-200">
-          <span className="text-xs font-extrabold text-[#1E3A8A]">
-            {selectedIds.size} candidate(s) selected for {activeRequirement.id}
-          </span>
+      {selectedIds.size > 0 && viewMode !== 'submit_to_lead' && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 text-white border border-slate-700/80 shadow-2xl rounded-2xl p-3 px-6 flex items-center gap-6 backdrop-blur-md animate-in fade-in slide-in-from-bottom-4 duration-200">
+          <div className="flex items-center gap-2.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span className="text-xs font-bold text-slate-100">
+              <strong className="text-emerald-400 font-extrabold">{selectedIds.size}</strong> candidate(s) selected
+            </span>
+          </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <button
               onClick={() => setSelectedIds(new Set())}
-              className="px-4 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold rounded-xl cursor-pointer transition-all shadow-2xs"
+              className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl cursor-pointer transition-all border border-slate-700 inline-flex items-center gap-1"
             >
-              Clear Selection
+              <X className="w-3.5 h-3.5 text-slate-400" />
+              <span>Clear</span>
             </button>
             <button
               onClick={() => {
-                const items = repoList.filter(i => selectedIds.has(i.id))
-                const dupItems = items.filter(i =>
-                  checkDuplicateSubmission(activeRequirement.id, {
-                    email: i.email,
-                    phone: i.phone,
-                    candidateId: i.candidateId,
-                    name: i.name,
-                  }).isDuplicate
-                )
-
-                if (dupItems.length > 0) {
-                  showToast(
-                    `⚠️ Duplicate Submission: ${dupItems.map(d => d.name).join(', ')} ${dupItems.length === 1 ? 'has' : 'have'} already been submitted for ${activeRequirement.title}. Cannot submit duplicate candidates.`
-                  )
+                if (!hasCapability('submitToClients')) {
+                  showToast('Permission Restricted: Super Admin has disabled client submissions for your account.')
                   return
                 }
-
+                const items = repoList.filter(i => selectedIds.has(i.id))
+                if (!items.length) {
+                  showToast('Select at least one candidate.')
+                  return
+                }
+                if (!activeRequirement?.id) {
+                  setIsChangeReqModalOpen(true)
+                  showToast('Please select a requirement to forward candidate(s).')
+                  return
+                }
                 setSelectedCandidatesForSubmit(items)
                 setViewMode('submit_to_lead')
                 scrollToNextPageSection()
               }}
-              className="px-5 py-2 bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-xs font-extrabold rounded-xl shadow-md transition-all cursor-pointer active:scale-98 flex items-center gap-1.5"
+              className="px-5 py-2 bg-[#4F46E5] hover:bg-[#4338CA] text-white text-xs font-extrabold rounded-xl shadow-lg transition-all cursor-pointer active:scale-98 flex items-center gap-2"
             >
-              <span>Submit Selected ({selectedIds.size})</span>
+              <Send className="w-3.5 h-3.5" />
+              <span>Forward / Submit Candidate(s)</span>
             </button>
           </div>
         </div>

@@ -1,10 +1,13 @@
-import React, { useState } from 'react'
-import { Interview, Requirement, Submission, ActivityLogItem } from '../../types'
+import React, { useEffect, useMemo, useState } from 'react'
+import { Interview, Requirement, Submission, ActivityLogItem, Candidate } from '../../types'
 import { RequirementDetailOverview } from '../pages/RequirementDetailOverview'
+import { workspaceService, usersService } from '../../services/workspace.service'
+import { getSessionUser } from '../../store/session'
 import { CandidateRepositoryPage } from '../pages/CandidateRepositoryPage'
 import { SubmissionsPage } from '../pages/SubmissionsPage'
 import { InterviewTrackingPage } from '../pages/InterviewTrackingPage'
 import { RequirementsPage } from '../pages/RequirementsPage'
+import { RevokeRequirementModal } from '../modals/RevokeRequirementModal'
 import {
   Send,
   MessageSquare,
@@ -19,11 +22,13 @@ import {
   Plus,
   Briefcase,
   ArrowUp,
+  Calendar,
 } from 'lucide-react'
 import { PaginationFooter } from '../ui/PaginationFooter'
 import { PageHeader } from '../layout/PageHeader'
 
 interface Props {
+  candidates?: Candidate[]
   submissions: Submission[]
   interviews: Interview[]
   requirements: Requirement[]
@@ -35,6 +40,7 @@ interface Props {
   onOpenFeedbackModal?: (interview: Interview) => void
   onOpenCandidateDetail?: (sub: Submission) => void
   onAddActivityLog?: (log: ActivityLogItem) => void
+  onUpdateRequirements?: (next: Requirement[]) => void
 }
 
 interface ActiveReqRow {
@@ -46,50 +52,45 @@ interface ActiveReqRow {
   timestamp: string
 }
 
-const DEFAULT_ACTIVE_REQS: ActiveReqRow[] = [
-  {
-    type: 'Requirement',
-    id: 'REQ-2026-06-19-001',
-    name: 'AI Data Engineer',
-    client: 'harish',
-    status: 'Assigned',
-    timestamp: 'Jun 19, 2026, 07:29 PM',
-  },
-  {
-    type: 'Requirement',
-    id: 'REQ-2026-06-19-002',
-    name: 'Fullstack React Developer',
-    client: 'Metaforge IT',
-    status: 'Submitted',
-    timestamp: 'Jun 20, 2026, 10:15 AM',
-  },
-  {
-    type: 'Requirement',
-    id: 'REQ-2026-06-19-003',
-    name: 'DevOps Cloud Specialist',
-    client: 'Continental Automotive',
-    status: 'Selected for interview',
-    timestamp: 'Jun 21, 2026, 02:45 PM',
-  },
-]
-
 export function RecruiterDashboard({
+  candidates,
   submissions,
   interviews,
   requirements,
   activityLogs,
-  currentUserName = 'Harish Gadipally',
-  currentUserEmail,
+  currentUserName: propUserName,
+  currentUserEmail: propUserEmail,
   onOpenSubmitCandidate,
   onOpenCandidateRepo,
   onOpenFeedbackModal,
   onOpenCandidateDetail,
   onAddActivityLog,
+  onUpdateRequirements,
 }: Props) {
+  const session = getSessionUser()
+  const currentUserName = propUserName || session?.name || 'Recruiter'
+  const currentUserEmail = propUserEmail || session?.email || ''
+  const [recentActivityPageSize, setRecentActivityPageSize] = React.useState<number>(5)
+  const [dbUsers, setDbUsers] = useState<any[]>([])
+  const [isRevokeModalOpen, setIsRevokeModalOpen] = useState(false)
+  const [toastMsg, setToastMsg] = useState<string | null>(null)
+
+  useEffect(() => {
+    usersService.list().then((data: any) => {
+      const list = Array.isArray(data) ? data : data?.items || data?.data || []
+      setDbUsers(list)
+    }).catch(() => {})
+  }, [])
+
+  const showToast = (msg: string) => {
+    setToastMsg(msg)
+    window.setTimeout(() => setToastMsg(null), 3500)
+  }
+
   // Filter activity logs specifically performed by or relevant to the logged-in user/recruiter
   const userActivityLogs = React.useMemo(() => {
-    const targetName = (currentUserName || 'Harish Gadipally').toLowerCase()
-    const targetEmail = (currentUserEmail || '').toLowerCase()
+    const targetName = (currentUserName || session?.name || 'Recruiter').toLowerCase()
+    const targetEmail = (currentUserEmail || session?.email || '').toLowerCase()
 
     // 1. Explicit activity logs matching user name or email
     const explicitLogs = (activityLogs || []).filter(log => {
@@ -100,7 +101,7 @@ export function RecruiterDashboard({
 
     // 2. Synthesize log items from candidate submissions performed by this recruiter
     const submissionLogs: ActivityLogItem[] = submissions
-      .filter(s => !targetName || s.recruiter.toLowerCase().includes(targetName) || targetName.includes('harish'))
+      .filter(s => !targetName || s.recruiter.toLowerCase().includes(targetName))
       .map(s => ({
         id: `sub-activity-${s.id}`,
         timestamp: s.date || 'Recently',
@@ -120,14 +121,14 @@ export function RecruiterDashboard({
 
     // 3. Synthesize log items from interview tracking
     const interviewLogs: ActivityLogItem[] = interviews
-      .filter(i => !targetName || (i.recruiter && i.recruiter.toLowerCase().includes(targetName)) || targetName.includes('harish'))
+      .filter(i => !targetName || (i.recruiter && i.recruiter.toLowerCase().includes(targetName)))
       .map(i => ({
         id: `iv-activity-${i.id}`,
         timestamp: i.date || 'Recently',
-        userName: i.recruiter || currentUserName || 'Harish Gadipally',
+        userName: i.recruiter || currentUserName || 'Recruiter',
         userEmail: currentUserEmail || '',
         userRole: 'recruiter',
-        userAvatar: (i.recruiter || 'H').charAt(0).toUpperCase(),
+        userAvatar: (i.recruiter || currentUserName || 'R').charAt(0).toUpperCase(),
         action: `Scheduled interview (${i.stage || 'Round'}) for ${i.candidate}`,
         category: 'Interviews',
         targetEntity: `Interview with ${i.candidate}`,
@@ -156,24 +157,44 @@ export function RecruiterDashboard({
 
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('Assigned')
+  const [reqDateFilter, setReqDateFilter] = useState('All')
+  const [reqCustomStartDate, setReqCustomStartDate] = useState('')
+  const [reqCustomEndDate, setReqCustomEndDate] = useState('')
   const [selectedReqIds, setSelectedReqIds] = useState<Set<string>>(new Set())
   const [recentSubmissionsFilter, setRecentSubmissionsFilter] = useState('All Status')
 
   // Pagination state for active requirements table
   const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize, setPageSize] = useState(10)
+  const [pageSize, setPageSize] = useState(5)
 
   // Inline View state for KPI cards (Assigned Requirements, Total Submissions, Interviews Handled, Onboarding)
-  const [inlineView, setInlineView] = useState<'requirements' | 'submissions' | 'interviews' | 'onboarding' | null>(null)
+  const [inlineView, setInlineView] = useState<'requirements' | 'submissions' | 'interviews' | 'onboarding' | null>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('mrap_recruiter_inline_view')
+        if (saved === 'requirements' || saved === 'submissions' || saved === 'interviews' || saved === 'onboarding') {
+          return saved as any
+        }
+      } catch {}
+    }
+    return null
+  })
+
+  const handleSetInlineView = (view: 'requirements' | 'submissions' | 'interviews' | 'onboarding' | null) => {
+    setInlineView(view)
+    if (typeof window !== 'undefined') {
+      try {
+        if (view) {
+          localStorage.setItem('mrap_recruiter_inline_view', view)
+        } else {
+          localStorage.removeItem('mrap_recruiter_inline_view')
+        }
+      } catch {}
+    }
+  }
 
   // Inline Candidate Repository & Submission workflow state (kept strictly inside My Work page)
   const [inlineReqId, setInlineReqId] = useState<string | null>(null)
-  const [toastMsg, setToastMsg] = useState<string | null>(null)
-
-  const showToast = (msg: string) => {
-    setToastMsg(msg)
-    setTimeout(() => setToastMsg(null), 3500)
-  }
 
   const handleOpenInlineCandidateRepo = (reqId: string) => {
     setInlineReqId(reqId)
@@ -209,15 +230,19 @@ export function RecruiterDashboard({
     setSelectedReqForDetail(found)
   }
 
-  const recruiterList = [
-    { id: '1', name: 'Adirala sathvika', email: 'No email' },
-    { id: '2', name: 'Arvind GR', email: 'arvind.gr@metaforgeit.com' },
-    { id: '3', name: 'Charlie Darwin', email: 'charlie@metaforgeit.com' },
-    { id: '4', name: 'Harini Sindey', email: 'harini.s@metaforgeit.com' },
-    { id: '5', name: 'Harish Gadipally', email: 'harish.g@metaforgeit.com' },
-    { id: '6', name: 'Puttapaka Saiteja', email: 'saiteja.p@metaforgeit.com' },
-    { id: '7', name: 'Kallol Chakraborty', email: 'kallol.c@ltts.com' },
-  ]
+  const recruiterList = useMemo(() => {
+    return dbUsers
+      .filter(u => u && !u.deletedAt && u.active !== false)
+      .filter(u => String(u.role || '').toLowerCase() === 'recruiter')
+      .filter(u => u.name && (u.id || u._id))
+      .map(u => ({
+        id: String(u.id || u._id),
+        name: String(u.name),
+        email: u.email || '',
+      }))
+      .filter(r => r.name.toLowerCase() !== (currentUserName || '').toLowerCase())
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [dbUsers, currentUserName])
 
   const filteredRecruiterList = recruiterList.filter(
     r =>
@@ -235,28 +260,115 @@ export function RecruiterDashboard({
     setSelectedRecruiterNames(next)
   }
 
-  const handleConfirmReassign = () => {
-    const assignees: string[] = []
-    if (isAssignMyselfChecked) assignees.push('Harish Gadipally')
-    selectedRecruiterNames.forEach(n => assignees.push(n))
+  const handleConfirmReassign = async () => {
+    const activeSession = getSessionUser()
+    const activeName = currentUserName || activeSession?.name || 'Recruiter'
+    if (totalSelectedRecruitersCount === 0 || !selectedReqForDetail) return
 
-    if (assignees.length === 0) return
+    const selectedOthers = recruiterList.filter(r => selectedRecruiterNames.has(r.name))
+    const recruiterIds: string[] = []
+    const ownerNames: string[] = []
 
-    const assigneesText = assignees.join(', ')
-
-    if (selectedReqForDetail) {
-      setSelectedReqForDetail({
-        ...selectedReqForDetail,
-        owner: assigneesText,
-        assignmentStatus: 'Assigned',
-        submissions: selectedReqForDetail.submissions || 7,
-      })
+    if (isAssignMyselfChecked) {
+      recruiterIds.push(activeSession?.id || activeName)
+      ownerNames.push(activeName)
     }
+    for (const rec of selectedOthers) {
+      recruiterIds.push(rec.id)
+      ownerNames.push(rec.name)
+    }
+
+    const reqKey = selectedReqForDetail._id || selectedReqForDetail.id
+    try {
+      await workspaceService.assignRequirement(reqKey, { recruiterIds })
+    } catch (err: any) {
+      console.error('Failed to reassign requirement:', err)
+      showToast(err?.message || 'Failed to reassign requirement')
+      return
+    }
+
+    const ownersText = ownerNames.join(', ')
+    const nowIso = new Date().toISOString()
+    const updatedReq: Requirement = {
+      ...selectedReqForDetail,
+      owner: ownersText,
+      assignmentStatus: 'Assigned',
+      status: 'Assigned',
+      submissions: selectedReqForDetail.submissions || 0,
+      updatedAt: nowIso,
+    }
+
+    const nextRequirements = requirements.map(r =>
+      r.id === selectedReqForDetail.id || r._id === selectedReqForDetail._id ? updatedReq : r
+    )
+    onUpdateRequirements?.(nextRequirements)
+
+    const stillMine = isAssignMyselfChecked
+    if (stillMine) {
+      setSelectedReqForDetail(updatedReq)
+    } else {
+      setSelectedReqForDetail(null)
+    }
+
+    showToast(
+      stillMine
+        ? `Requirement reassigned to ${ownersText}.`
+        : `Requirement reassigned to ${ownersText}. It left your My Work list.`
+    )
 
     setIsAssignModalOpen(false)
     setSelectedRecruiterNames(new Set())
     setIsAssignMyselfChecked(true)
     setRecruiterSearchQuery('')
+  }
+
+  const handleConfirmRevoke = async (reqId: string, reason: string) => {
+    const target = selectedReqForDetail?.id === reqId || selectedReqForDetail?._id === reqId
+      ? selectedReqForDetail
+      : requirements.find(r => r.id === reqId || r._id === reqId)
+    if (!target) return
+
+    const reqKey = target._id || target.id
+    try {
+      await workspaceService.revokeRequirement(reqKey, { reason })
+    } catch (err: any) {
+      console.error('Failed to revoke requirement:', err)
+      showToast(err?.message || 'Failed to submit revoke request')
+      return
+    }
+
+    const updatedReq: Requirement = {
+      ...target,
+      status: 'On Hold',
+      revokeRequested: true,
+      revokeReason: reason,
+      revokeRequestedBy: currentUserName,
+      revokeRequestedAt: 'Just now',
+    }
+    const nextRequirements = requirements.map(r =>
+      r.id === target.id || r._id === target._id ? updatedReq : r
+    )
+    onUpdateRequirements?.(nextRequirements)
+    setSelectedReqForDetail(updatedReq)
+    setIsRevokeModalOpen(false)
+    showToast('Revoke request submitted. Requirement is On Hold pending approval.')
+
+    onAddActivityLog?.({
+      id: `LOG-${Date.now()}`,
+      timestamp: 'Just now',
+      userName: currentUserName,
+      userEmail: currentUserEmail || '',
+      userRole: 'recruiter',
+      userAvatar: currentUserName.charAt(0),
+      action: `Requested Revoke Permission for Requirement ${target.id}`,
+      category: 'Requirements',
+      targetEntity: `Requirement ${target.id}`,
+      targetId: target.id,
+      clientName: target.client,
+      ipAddress: '192.168.1.45',
+      status: 'Warning',
+      details: `Reason for revoke request: ${reason}. Pending approval from Team Lead / Admin.`,
+    })
   }
 
   if (selectedReqForDetail) {
@@ -266,21 +378,28 @@ export function RecruiterDashboard({
           requirement={selectedReqForDetail}
           role="recruiter"
           onBack={() => setSelectedReqForDetail(null)}
+          onOpenAssignModal={() => {
+            setIsAssignMyselfChecked(true)
+            setSelectedRecruiterNames(new Set())
+            setRecruiterSearchQuery('')
+            setIsAssignModalOpen(true)
+          }}
+          onRevokeRequirement={() => setIsRevokeModalOpen(true)}
           onAddCandidate={() => onOpenSubmitCandidate?.(selectedReqForDetail.id)}
+          onRequirementUpdated={updated => {
+            setSelectedReqForDetail(updated)
+          }}
         />
 
-        {/* REASSIGN MODAL OVERLAY */}
+        {/* REASSIGN MODAL */}
         {isAssignModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 animate-in fade-in duration-150">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[480px] overflow-hidden border border-slate-100 font-sans">
-              {/* Header */}
               <div className="flex items-start justify-between px-6 py-5 border-b border-slate-100">
                 <div>
-                  <h3 className="text-xl font-bold text-slate-900 tracking-tight">
-                    Reassign
-                  </h3>
+                  <h3 className="text-xl font-bold text-slate-900 tracking-tight">Reassign</h3>
                   <p className="text-xs text-slate-500 font-normal mt-1">
-                    Select yourself and/or other recruiters for this requirement in one step.
+                    Keep yourself and/or assign other recruiters for this requirement.
                   </p>
                 </div>
                 <button
@@ -291,9 +410,7 @@ export function RecruiterDashboard({
                 </button>
               </div>
 
-              {/* Content */}
               <div className="p-6 space-y-4">
-                {/* Assign myself card */}
                 <label className="bg-blue-50/80 border border-blue-200/80 rounded-2xl p-4 flex items-start gap-3.5 cursor-pointer hover:bg-blue-50 transition-colors block">
                   <input
                     type="checkbox"
@@ -303,15 +420,14 @@ export function RecruiterDashboard({
                   />
                   <div>
                     <div className="text-sm font-bold text-blue-900 leading-snug">
-                      Assign myself (Harish Gadipally)
+                      Keep myself ({currentUserName})
                     </div>
                     <div className="text-xs text-blue-600/90 leading-normal mt-0.5 font-normal">
-                      Include yourself along with any recruiters selected below.
+                      Stay assigned along with any recruiters selected below.
                     </div>
                   </div>
                 </label>
 
-                {/* Search recruiter input */}
                 <div className="space-y-1">
                   <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                     ASSIGN TO RECRUITER
@@ -325,12 +441,10 @@ export function RecruiterDashboard({
                   />
                 </div>
 
-                {/* Showing counter */}
                 <div className="text-xs text-slate-500 font-medium px-0.5">
                   Showing {filteredRecruiterList.length} of {recruiterList.length} recruiters
                 </div>
 
-                {/* Recruiter cards scrollable list */}
                 <div className="max-h-56 overflow-y-auto space-y-2.5 pr-1.5 custom-scrollbar">
                   {filteredRecruiterList.map(rec => {
                     const isChecked = selectedRecruiterNames.has(rec.name)
@@ -350,20 +464,18 @@ export function RecruiterDashboard({
                           className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer shrink-0"
                         />
                         <div>
-                          <div className="text-sm font-bold text-slate-900 leading-snug">
-                            {rec.name}
-                          </div>
-                          <div className="text-xs text-slate-400 mt-0.5 font-normal">
-                            {rec.email}
-                          </div>
+                          <div className="text-sm font-bold text-slate-900 leading-snug">{rec.name}</div>
+                          <div className="text-xs text-slate-400 mt-0.5 font-normal">{rec.email}</div>
                         </div>
                       </label>
                     )
                   })}
+                  {filteredRecruiterList.length === 0 && (
+                    <div className="text-xs text-slate-400 py-4 text-center">No other recruiters found.</div>
+                  )}
                 </div>
               </div>
 
-              {/* Footer actions */}
               <div className="px-6 py-4 bg-slate-50/50 border-t border-slate-100 flex items-center justify-end gap-3">
                 <button
                   type="button"
@@ -376,7 +488,7 @@ export function RecruiterDashboard({
                   type="button"
                   onClick={handleConfirmReassign}
                   disabled={totalSelectedRecruitersCount === 0}
-                  className="px-6 h-11 bg-[#6B3BF6] hover:bg-[#5833E0] disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-bold rounded-xl transition-all shadow-xs cursor-pointer active:scale-98"
+                  className="px-6 h-11 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-bold rounded-xl transition-all shadow-xs cursor-pointer active:scale-98"
                 >
                   Assign {totalSelectedRecruitersCount} recruiter(s)
                 </button>
@@ -384,31 +496,98 @@ export function RecruiterDashboard({
             </div>
           </div>
         )}
+
+        <RevokeRequirementModal
+          isOpen={isRevokeModalOpen}
+          onClose={() => setIsRevokeModalOpen(false)}
+          requirement={selectedReqForDetail}
+          userRole="recruiter"
+          currentUserName={currentUserName}
+          onSubmitRevoke={(reqId, reason) => {
+            void handleConfirmRevoke(reqId, reason)
+          }}
+        />
+
+        {toastMsg && (
+          <div className="fixed bottom-6 right-6 z-[60] bg-slate-900 text-white text-sm font-medium px-4 py-3 rounded-xl shadow-lg max-w-sm">
+            {toastMsg}
+          </div>
+        )}
       </>
     )
   }
 
-  // Exclude unassigned requirements from My Work page. Requirements appear in My Work ONLY after assignment by Super Admin, Admin, or Lead.
+  const assignedToMe = (owner?: string) => {
+    const me = (currentUserName || '').trim().toLowerCase()
+    if (!me) return false
+    return (owner || '')
+      .split(',')
+      .map(name => name.trim().toLowerCase())
+      .includes(me)
+  }
+
   const assignedRequirements = requirements.filter(
-    r => r.owner && r.owner !== 'Unassigned' && r.assignmentStatus !== 'Unassigned'
+    r => r.assignmentStatus !== 'Unassigned' && assignedToMe(r.owner)
   )
 
-  // Map assigned requirements to table rows or fallback to active assigned demo data
-  const activeReqRows: ActiveReqRow[] = assignedRequirements.length > 0
-    ? assignedRequirements.map(r => ({
-        type: 'Requirement',
-        id: r.id,
-        name: r.title,
-        client: r.client,
-        status: r.assignmentStatus || 'Assigned',
-        timestamp: r.dueDate ? `${r.dueDate}, 07:29 PM` : 'Jun 19, 2026, 07:29 PM',
-      }))
-    : DEFAULT_ACTIVE_REQS.filter(r => r.status !== 'Unassigned')
+  const activeReqRows: ActiveReqRow[] = [...assignedRequirements]
+    .sort((a, b) => {
+      const rawDateA = (a as any).updatedAt || a.emailArrivedTime || (a as any).createdAt || a.dueDate
+      const rawDateB = (b as any).updatedAt || b.emailArrivedTime || (b as any).createdAt || b.dueDate
+      const timeA = rawDateA ? new Date(rawDateA).getTime() || 0 : 0
+      const timeB = rawDateB ? new Date(rawDateB).getTime() || 0 : 0
+      if (timeB !== timeA) return timeB - timeA
+      return (b.id || '').localeCompare(a.id || '')
+    })
+    .map(r => ({
+      type: 'Requirement',
+      id: r.id,
+      name: r.title,
+      client: r.client,
+      status: r.assignmentStatus || 'Assigned',
+      timestamp: r.emailArrivedTime || r.dueDate || '',
+    }))
 
   // Filter requirements by merged searchQuery and statusFilter
   const filteredReqs = activeReqRows.filter(req => {
     // Explicitly reject any Unassigned requirements
     if (req.status.toLowerCase() === 'unassigned') return false
+
+    // Date filter
+    if (reqDateFilter && reqDateFilter !== 'All') {
+      const rawDate = req.timestamp || ''
+      if (!rawDate) return false
+      const d = new Date(rawDate)
+      if (isNaN(d.getTime())) return false
+
+      const now = new Date()
+      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+      const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
+
+      if (reqDateFilter === 'Today') {
+        if (d < startOfToday || d > endOfToday) return false
+      } else if (reqDateFilter === 'Yesterday') {
+        const startOfYesterday = new Date(startOfToday.getTime() - 86400000)
+        const endOfYesterday = new Date(endOfToday.getTime() - 86400000)
+        if (d < startOfYesterday || d > endOfYesterday) return false
+      } else if (reqDateFilter === 'This week') {
+        const day = (now.getDay() + 6) % 7
+        const startOfWeek = new Date(startOfToday.getTime() - day * 86400000)
+        if (d < startOfWeek || d > endOfToday) return false
+      } else if (reqDateFilter === 'This month') {
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+        if (d < startOfMonth || d > endOfToday) return false
+      } else if (reqDateFilter === 'Custom range') {
+        if (reqCustomStartDate) {
+          const start = new Date(`${reqCustomStartDate}T00:00:00`)
+          if (d < start) return false
+        }
+        if (reqCustomEndDate) {
+          const end = new Date(`${reqCustomEndDate}T23:59:59.999`)
+          if (d > end) return false
+        }
+      }
+    }
 
     const q = searchQuery.trim().toLowerCase()
     const matchesQuery = !q || req.client.toLowerCase().includes(q) || req.id.toLowerCase().includes(q) || req.name.toLowerCase().includes(q)
@@ -441,7 +620,7 @@ export function RecruiterDashboard({
           <div className="flex items-center gap-3">
             <button
               onClick={() => {
-                setInlineView(null)
+                handleSetInlineView(null)
                 window.scrollTo({ top: 0, behavior: 'smooth' })
               }}
               className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold transition-all cursor-pointer"
@@ -456,12 +635,12 @@ export function RecruiterDashboard({
 
         <RequirementsPage
           role="recruiter"
-          requirements={requirements}
+          requirements={assignedRequirements}
           submissions={submissions}
           interviews={interviews}
           onOpenSubmit={onOpenSubmitCandidate}
           onNavigateToDashboard={() => {
-            setInlineView(null)
+            handleSetInlineView(null)
             window.scrollTo({ top: 0, behavior: 'smooth' })
           }}
         />
@@ -476,7 +655,7 @@ export function RecruiterDashboard({
           <div className="flex items-center gap-3">
             <button
               onClick={() => {
-                setInlineView(null)
+                handleSetInlineView(null)
                 window.scrollTo({ top: 0, behavior: 'smooth' })
               }}
               className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold transition-all cursor-pointer"
@@ -491,6 +670,7 @@ export function RecruiterDashboard({
 
         <SubmissionsPage
           role="recruiter"
+          currentUserName={currentUserName}
           submissions={submissions}
           requirements={requirements}
           onOpenSubmitCandidate={onOpenSubmitCandidate}
@@ -506,7 +686,7 @@ export function RecruiterDashboard({
           <div className="flex items-center gap-3">
             <button
               onClick={() => {
-                setInlineView(null)
+                handleSetInlineView(null)
                 window.scrollTo({ top: 0, behavior: 'smooth' })
               }}
               className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold transition-all cursor-pointer"
@@ -535,7 +715,7 @@ export function RecruiterDashboard({
           <div className="flex items-center gap-3">
             <button
               onClick={() => {
-                setInlineView(null)
+                handleSetInlineView(null)
                 window.scrollTo({ top: 0, behavior: 'smooth' })
               }}
               className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold transition-all cursor-pointer"
@@ -562,6 +742,7 @@ export function RecruiterDashboard({
     return (
       <div className="w-full pb-12 font-sans animate-in fade-in duration-200">
         <CandidateRepositoryPage
+          candidates={candidates}
           selectedReqId={inlineReqId}
           role="recruiter"
           requirements={requirements}
@@ -591,7 +772,7 @@ export function RecruiterDashboard({
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Card 1: Assigned Requirements */}
           <div
-            onClick={() => setInlineView('requirements')}
+            onClick={() => handleSetInlineView('requirements')}
             className="bg-[#EBF3FF] border border-[#BFDBFE] rounded-2xl p-5 flex items-center justify-between shadow-sm transition-all duration-200 hover:shadow-md cursor-pointer hover:scale-[1.01] group"
             title="Click to view Assigned Requirements"
           >
@@ -612,7 +793,7 @@ export function RecruiterDashboard({
 
           {/* Card 2: Total Submissions */}
           <div
-            onClick={() => setInlineView('submissions')}
+            onClick={() => handleSetInlineView('submissions')}
             className="bg-[#E6F8F0] border border-[#A7F3D0] rounded-2xl p-5 flex items-center justify-between shadow-sm transition-all duration-200 hover:shadow-md cursor-pointer hover:scale-[1.01] group"
             title="Click to view Total Submissions details"
           >
@@ -633,7 +814,7 @@ export function RecruiterDashboard({
 
           {/* Card 3: Interviews Handled */}
           <div
-            onClick={() => setInlineView('interviews')}
+            onClick={() => handleSetInlineView('interviews')}
             className="bg-[#EEF2FF] border border-[#C7D2FE] rounded-2xl p-5 flex items-center justify-between shadow-sm transition-all duration-200 hover:shadow-md cursor-pointer hover:scale-[1.01] group"
             title="Click to view Interview Tracking details"
           >
@@ -654,7 +835,7 @@ export function RecruiterDashboard({
 
           {/* Card 4: Onboarding */}
           <div
-            onClick={() => setInlineView('onboarding')}
+            onClick={() => handleSetInlineView('onboarding')}
             className="bg-[#F4EFFE] border border-[#E9D8FD] rounded-2xl p-5 flex items-center justify-between shadow-sm transition-all duration-200 hover:shadow-md cursor-pointer hover:scale-[1.01] group"
             title="Click to view Onboarding details"
           >
@@ -696,7 +877,58 @@ export function RecruiterDashboard({
               className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-200/90 bg-white text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#6B3BF6]/20 focus:border-[#6B3BF6] transition-all placeholder:text-slate-400 shadow-2xs"
             />
           </div>
+
+          <div className="flex items-center gap-2">
+            <div className="relative w-44">
+              <Calendar className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              <select
+                value={reqDateFilter}
+                onChange={e => setReqDateFilter(e.target.value)}
+                className="w-full appearance-none pl-9 pr-8 py-2.5 text-xs border border-slate-200/90 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#6B3BF6]/20 focus:border-[#6B3BF6] text-slate-700 bg-white font-semibold cursor-pointer shadow-2xs"
+              >
+                <option value="All">All Dates</option>
+                <option value="Today">Today</option>
+                <option value="Yesterday">Yesterday</option>
+                <option value="This week">This week</option>
+                <option value="This month">This month</option>
+                <option value="Custom range">Custom range...</option>
+              </select>
+            </div>
+          </div>
         </div>
+
+        {reqDateFilter === 'Custom range' && (
+          <div className="flex flex-wrap items-center gap-2.5 p-3 bg-slate-50 border border-slate-200 rounded-xl animate-in fade-in duration-150">
+            <span className="text-xs font-bold text-slate-500 flex items-center gap-1">
+              <Calendar className="w-3.5 h-3.5 text-blue-600" />
+              <span>Select Date Range:</span>
+            </span>
+            <input
+              type="date"
+              value={reqCustomStartDate}
+              onChange={e => setReqCustomStartDate(e.target.value)}
+              className="px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg text-slate-800 focus:outline-none focus:border-blue-500 bg-white font-medium"
+            />
+            <span className="text-xs text-slate-400 font-bold">to</span>
+            <input
+              type="date"
+              value={reqCustomEndDate}
+              onChange={e => setReqCustomEndDate(e.target.value)}
+              className="px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg text-slate-800 focus:outline-none focus:border-blue-500 bg-white font-medium"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                setReqCustomStartDate('')
+                setReqCustomEndDate('')
+                setReqDateFilter('All')
+              }}
+              className="px-3 py-1.5 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors cursor-pointer shrink-0"
+            >
+              Clear Date Filter
+            </button>
+          </div>
+        )}
 
         {/* Requirements Table */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
@@ -791,7 +1023,7 @@ export function RecruiterDashboard({
       </section>
 
       {/* Recent Activity Section */}
-      <section className="space-y-4">
+      <section className="space-y-4 overflow-visible">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-lg font-bold text-slate-900 tracking-tight">Recent Activity</h2>
@@ -799,14 +1031,30 @@ export function RecruiterDashboard({
               Actions and updates performed in your recruiter account.
             </p>
           </div>
-          <span className="text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full border border-blue-200/60 shadow-2xs">
-            {userActivityLogs.length} Action{userActivityLogs.length === 1 ? '' : 's'} Logged
-          </span>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-2.5 py-1 shadow-2xs relative z-20">
+              <label htmlFor="dashboard-recent-page-size" className="text-xs text-slate-500 font-medium whitespace-nowrap">Page size:</label>
+              <select
+                id="dashboard-recent-page-size"
+                value={recentActivityPageSize}
+                onChange={(e) => setRecentActivityPageSize(Number(e.target.value))}
+                className="text-xs font-bold text-slate-800 bg-transparent focus:outline-none cursor-pointer border-none p-0"
+              >
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={15}>15</option>
+                <option value={20}>20</option>
+              </select>
+            </div>
+            <span className="text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full border border-blue-200/60 shadow-2xs">
+              Showing {Math.min(userActivityLogs.length, recentActivityPageSize)} of {userActivityLogs.length} Action{userActivityLogs.length === 1 ? '' : 's'}
+            </span>
+          </div>
         </div>
 
         {userActivityLogs.length > 0 ? (
           <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs divide-y divide-slate-100 overflow-hidden">
-            {userActivityLogs.slice(0, 10).map((log, idx) => {
+            {userActivityLogs.slice(0, recentActivityPageSize).map((log, idx) => {
               const isSubmission = log.category === 'Submissions' || log.action.toLowerCase().includes('submit')
               const isInterview = log.category === 'Interviews' || log.action.toLowerCase().includes('interview')
 

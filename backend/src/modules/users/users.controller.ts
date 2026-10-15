@@ -61,6 +61,13 @@ export class UsersController {
     return this.usersService.findById(id, req.user);
   }
 
+  /** POST /api/v1/users/restore/:id */
+  @Post('restore/:id')
+  @Roles('superadmin', 'admin')
+  async restore(@Param('id') id: string, @Req() req: any) {
+    return this.usersService.restore(id, req.user);
+  }
+
   /** POST /api/v1/users */
   @Post()
   @Roles('superadmin', 'admin')
@@ -83,7 +90,14 @@ export class UsersController {
   /** DELETE /api/v1/users/:id */
   @Delete(':id')
   @Roles('superadmin', 'admin')
-  async remove(@Param('id') id: string, @Req() req: any) {
+  async remove(
+    @Param('id') id: string,
+    @Query('permanent') permanent: string,
+    @Req() req: any,
+  ) {
+    if (permanent === 'true') {
+      return this.usersService.hardDelete(id, req.user);
+    }
     return this.usersService.softDelete(id, req.user);
   }
 }

@@ -13,18 +13,34 @@ const FALLBACK_PERMISSIONS: Record<string, string[]> = {
     'rep_view_exec', 'rep_view_recruiter', 'user_manage',
   ],
   lead: [
-    'req_view_all', 'req_assign',
+    'req_view_all', 'req_assign', 'req_edit',
     'cand_search', 'cand_add', 'cand_export',
     'sub_create', 'sub_view_all', 'sub_reassign', 'sub_move_stage',
     'int_schedule', 'int_join_links', 'int_feedback',
     'rep_view_recruiter',
   ],
   recruiter: [
+    'req_assign',
+    'req_edit',
     'cand_search', 'cand_add',
     'sub_create', 'sub_move_stage',
     'int_schedule', 'int_join_links', 'int_feedback',
   ],
   client: ['req_view_my', 'sub_view_client', 'int_feedback'],
+};
+
+const PERMISSION_TO_CAPABILITY: Record<string, string> = {
+  cand_add: 'addCandidates',
+  sub_create: 'submitToClients',
+  sub_forward_client: 'submitToClients',
+  int_schedule: 'scheduleInterviews',
+  cand_export: 'exportReportsCsv',
+  rep_export: 'exportReportsCsv',
+  rep_view_exec: 'viewTeamAnalytics',
+  sub_reassign: 'reassignRequirements',
+  req_assign: 'reassignRequirements',
+  cand_delete: 'deleteRecords',
+  req_delete: 'deleteRecords',
 };
 
 @Injectable()
@@ -46,9 +62,22 @@ export class PermissionsGuard implements CanActivate {
     const role = String(user.role).toLowerCase();
     if (role === 'superadmin' || role === 'devteam') return true;
 
-    const granted: string[] = Array.isArray(user.permissions) && user.permissions.length
-      ? user.permissions
-      : FALLBACK_PERMISSIONS[role] || [];
+    // Recruiters are permitted to access req_assign (scoped to self-assignment in RequirementsService)
+    if (role === 'recruiter' && required === 'req_assign') return true;
+
+    const capKey = PERMISSION_TO_CAPABILITY[required];
+    if (capKey && user.capabilities && typeof user.capabilities === 'object' && user.capabilities[capKey] !== undefined) {
+      if (user.capabilities[capKey] === false) {
+        throw new ForbiddenException(`Permission Restricted: Super Admin has disabled ${capKey} for your account.`);
+      }
+      if (user.capabilities[capKey] === true) {
+        return true;
+      }
+    }
+
+    const fallback = FALLBACK_PERMISSIONS[role] || [];
+    const userPerms = Array.isArray(user.permissions) ? user.permissions : [];
+    const granted: string[] = Array.from(new Set([...userPerms, ...fallback]));
 
     if (granted.includes('*') || granted.includes(required)) return true;
 

@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { X } from 'lucide-react'
 import { ScheduleInterviewFormFields } from './ScheduleInterviewModal.fields'
-import { interviewsService, submissionsService } from '../../services/workspace.service'
+import { interviewsService, submissionsService, candidatesService } from '../../services/workspace.service'
 import { apiErrorMessage } from '../pages/submissions/preamble'
 
 interface ScheduleInterviewModalProps {
@@ -38,12 +38,14 @@ export function ScheduleInterviewModal({
   const [meetingLink, setMeetingLink] = useState('')
   const [candidateEmail, setCandidateEmail] = useState('')
   const [candidatePhone, setCandidatePhone] = useState('')
-  const [sendEmail, setSendEmail] = useState(false)
-  const [sendWhatsApp, setSendWhatsApp] = useState(false)
+  const [sendEmail, setSendEmail] = useState(true)
+  const [sendWhatsApp, setSendWhatsApp] = useState(true)
   const [notes, setNotes] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [dynamicSubmissionsList, setDynamicSubmissionsList] = useState<Array<{ id: string; label: string }>>([])
+  const [rawSubmissions, setRawSubmissions] = useState<any[]>([])
+  const [rawCandidates, setRawCandidates] = useState<any[]>([])
 
   React.useEffect(() => {
     if (isOpen) {
@@ -51,22 +53,95 @@ export function ScheduleInterviewModal({
       setDate(getTodayDateString())
       setErrorMsg(null)
 
-      submissionsService.list()
-        .then(subs => {
-          if (Array.isArray(subs) && subs.length > 0) {
-            const mapped = subs.map((s: any) => ({
-              id: s.id || s._id,
-              label: `${s.candidateName || s.candidate || 'Candidate'} — ${s.requirementTitle || s.requirement || 'Requirement'}`,
-            }))
-            setDynamicSubmissionsList(mapped)
-            if (!submission && mapped.length > 0) {
-              setSubmission(mapped[0].id)
-            }
+      Promise.all([
+        submissionsService.list().catch(() => []),
+        candidatesService.list().catch(() => ({ data: [] })),
+      ]).then(([subs, candRes]) => {
+        const subsArr: any[] = Array.isArray(subs) ? subs : []
+        const candsArr: any[] = Array.isArray(candRes) ? candRes : (candRes?.data || [])
+        setRawSubmissions(subsArr)
+        setRawCandidates(candsArr)
+
+        const mapped: Array<{ id: string; label: string }> = []
+        subsArr.forEach((s: any) => {
+          mapped.push({
+            id: s.id || s._id,
+            label: `${s.candidateName || s.candidate || 'Candidate'} — ${s.requirementTitle || s.requirement || 'Requirement'}`,
+          })
+        })
+
+        // Also add candidate options if not already listed in submissions
+        candsArr.forEach((c: any) => {
+          const cId = c.id || c._id
+          const hasInSub = subsArr.some((s: any) =>
+            (s.candidateId && (s.candidateId === cId || s.candidateId._id === cId)) ||
+            (s.candidateName && s.candidateName.toLowerCase() === (c.name || '').toLowerCase())
+          )
+          if (!hasInSub) {
+            mapped.push({
+              id: cId,
+              label: `${c.name || c.fullName || 'Candidate'} (Candidate Direct)`,
+            })
           }
         })
-        .catch(() => undefined)
+
+        setDynamicSubmissionsList(mapped)
+
+        const chosen = initialSubmission || submission || (mapped.length > 0 ? mapped[0].id : '')
+        if (!submission && mapped.length > 0) {
+          setSubmission(mapped[0].id)
+        }
+
+        // Auto-fill candidate email & phone from matched submission or candidate
+        const foundSub = subsArr.find((s: any) =>
+          (s.id || s._id) === chosen ||
+          s.submissionId === chosen ||
+          `${s.candidateName || s.candidate} — ${s.requirementTitle || s.requirement}` === chosen ||
+          (s.candidateName && chosen.toLowerCase().includes(s.candidateName.toLowerCase()))
+        )
+        if (foundSub) {
+          if (foundSub.email || foundSub.candidateEmail) setCandidateEmail(foundSub.email || foundSub.candidateEmail)
+          if (foundSub.phone || foundSub.candidatePhone) setCandidatePhone(foundSub.phone || foundSub.candidatePhone)
+        } else {
+          const foundCand = candsArr.find((c: any) =>
+            (c.id || c._id) === chosen ||
+            c.candidateId === chosen ||
+            c.name === chosen ||
+            (c.name && chosen.toLowerCase().includes(c.name.toLowerCase()))
+          )
+          if (foundCand) {
+            if (foundCand.email) setCandidateEmail(foundCand.email)
+            if (foundCand.phone) setCandidatePhone(foundCand.phone)
+          }
+        }
+      }).catch(() => undefined)
     }
   }, [isOpen, initialSubmission])
+
+  const handleSubmissionChange = (newSub: string) => {
+    setSubmission(newSub)
+    const foundSub = rawSubmissions.find((s: any) =>
+      (s.id || s._id) === newSub ||
+      s.submissionId === newSub ||
+      `${s.candidateName || s.candidate} — ${s.requirementTitle || s.requirement}` === newSub ||
+      (s.candidateName && newSub.toLowerCase().includes(s.candidateName.toLowerCase()))
+    )
+    if (foundSub) {
+      if (foundSub.email || foundSub.candidateEmail) setCandidateEmail(foundSub.email || foundSub.candidateEmail)
+      if (foundSub.phone || foundSub.candidatePhone) setCandidatePhone(foundSub.phone || foundSub.candidatePhone)
+    } else {
+      const foundCand = rawCandidates.find((c: any) =>
+        (c.id || c._id) === newSub ||
+        c.candidateId === newSub ||
+        c.name === newSub ||
+        (c.name && newSub.toLowerCase().includes(c.name.toLowerCase()))
+      )
+      if (foundCand) {
+        if (foundCand.email) setCandidateEmail(foundCand.email)
+        if (foundCand.phone) setCandidatePhone(foundCand.phone)
+      }
+    }
+  }
 
   if (!isOpen) return null
 
@@ -75,7 +150,7 @@ export function ScheduleInterviewModal({
     setIsSubmitting(true)
     setErrorMsg(null)
     try {
-      let targetSubId = submissionId
+      let targetSubId = submissionId || submission
 
       if (!targetSubId && submission) {
         if (submission.match(/^[0-9a-fA-F]{24}$/)) {
@@ -90,32 +165,86 @@ export function ScheduleInterviewModal({
             const matchedDyn = dynamicSubmissionsList.find(s => s.id === submission || s.label === submission)
             if (matchedDyn) {
               targetSubId = matchedDyn.id
+            } else {
+              const matchedRaw = rawSubmissions.find(s =>
+                (s.id || s._id) === submission ||
+                s.submissionId === submission ||
+                (s.candidateName && submission.toLowerCase().includes(s.candidateName.toLowerCase())) ||
+                (s.candidate && submission.toLowerCase().includes(s.candidate.toLowerCase()))
+              )
+              if (matchedRaw) {
+                targetSubId = matchedRaw.id || matchedRaw._id
+              }
             }
           }
         }
       }
 
       if (!targetSubId) {
-        const subs = await submissionsService.list()
-        if (Array.isArray(subs) && subs.length > 0) {
-          targetSubId = subs[0].id || subs[0]._id
+        targetSubId = submission
+      }
+
+      // Safely parse date and time to ISO string
+      let parsedDate = new Date()
+      try {
+        let cleanTime = (time || '10:00').trim()
+        const timeMatch = cleanTime.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i)
+        if (timeMatch) {
+          let hours = parseInt(timeMatch[1], 10)
+          const mins = parseInt(timeMatch[2], 10)
+          const meridian = timeMatch[3]?.toUpperCase()
+          if (meridian === 'PM' && hours < 12) hours += 12
+          if (meridian === 'AM' && hours === 12) hours = 0
+          cleanTime = `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`
         }
+
+        let yyyy = '', mm = '', dd = ''
+        if (date.includes('-')) {
+          const parts = date.split('-')
+          yyyy = parts[0]
+          mm = parts[1]
+          dd = parts[2]
+        } else if (date.includes('/')) {
+          const parts = date.split('/')
+          if (parts[0].length === 4) {
+            yyyy = parts[0]; mm = parts[1]; dd = parts[2]
+          } else {
+            mm = parts[0]; dd = parts[1]; yyyy = parts[2]
+          }
+        }
+        if (yyyy && mm && dd) {
+          parsedDate = new Date(`${yyyy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}T${cleanTime}:00`)
+        } else {
+          parsedDate = new Date(`${date} ${cleanTime}`)
+        }
+      } catch {
+        parsedDate = new Date()
       }
 
-      if (!targetSubId) {
-        throw new Error('Please select a candidate submission to schedule an interview.')
-      }
-
-      const dateTimeIso = new Date(`${date}T${time || '10:00'}`).toISOString()
+      const dateTimeIso = !isNaN(parsedDate.getTime()) ? parsedDate.toISOString() : new Date().toISOString()
 
       const created = await interviewsService.create({
-        submissionId: targetSubId,
+        submissionId: targetSubId || submission,
         round: interviewRound,
         dateTime: dateTimeIso,
         mode: interviewMode,
-        meetingUrl: meetingLink || undefined,
-        interviewerEmail: candidateEmail || undefined,
+        status,
+        meetingUrl: meetingLink.trim() || undefined,
+        candidateEmail: candidateEmail.trim() || undefined,
+        candidatePhone: candidatePhone.trim() || undefined,
+        notes: notes.trim() || undefined,
+        sendEmail: Boolean(sendEmail),
+        sendWhatsApp: Boolean(sendWhatsApp),
       })
+
+      // If WhatsApp dispatch requested and WhatsApp url returned, open it for immediate sending
+      if (sendWhatsApp && created?.whatsappUrl) {
+        try {
+          window.open(created.whatsappUrl, '_blank')
+        } catch {
+          // ignore popup blocker if restricted
+        }
+      }
 
       const scheduleData = {
         ...created,
@@ -124,7 +253,7 @@ export function ScheduleInterviewModal({
         date,
         time,
         interviewMode,
-        status: created.status || status,
+        status: created?.status || status,
         meetingLink,
         candidateEmail,
         candidatePhone,
@@ -170,7 +299,7 @@ export function ScheduleInterviewModal({
         <form onSubmit={handleSubmit} className="space-y-4 text-xs">
           <ScheduleInterviewFormFields
             submission={submission}
-            setSubmission={setSubmission}
+            setSubmission={handleSubmissionChange}
             interviewRound={interviewRound}
             setInterviewRound={setInterviewRound}
             date={date}
@@ -239,7 +368,7 @@ export function ScheduleInterviewModal({
               disabled={isSubmitting}
               className="px-5 py-2 bg-[#2563EB] hover:bg-[#1D4ED8] disabled:opacity-50 text-white font-bold rounded-xl shadow-sm transition-all cursor-pointer active:scale-98"
             >
-              {isSubmitting ? 'Scheduling...' : 'Schedule Interview'}
+              {isSubmitting ? 'Scheduling & Dispatching Invites...' : 'Schedule Interview'}
             </button>
           </div>
         </form>
@@ -247,4 +376,3 @@ export function ScheduleInterviewModal({
     </div>
   )
 }
-

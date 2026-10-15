@@ -11,10 +11,13 @@ export type AuthScreen =
   | 'app'
 
 export type Priority = 'High' | 'Medium' | 'Low'
-export type ReqStatus = 'Open' | 'Reopen' | 'Hold' | 'Custom' | 'Active' | 'On Hold' | 'Closed'
+export type ReqStatus = 'Open' | 'Reopen' | 'Hold' | 'Custom' | 'Active' | 'On Hold' | 'Closed' | 'Assigned' | 'Unassigned'
 
 export interface Requirement {
   id: string
+  _id?: string
+  reqCode?: string
+  sourceClientJdId?: string
   title: string
   client: string
   priority: Priority
@@ -28,6 +31,8 @@ export interface Requirement {
   assignedLead?: string
   skills?: string[]
   clientEmail?: string
+  toEmails?: string[]
+  ccEmails?: string[]
   clientPhone?: string
   location?: string
   owner?: string
@@ -41,6 +46,18 @@ export interface Requirement {
   revokeRequestedBy?: string
   revokeRequestedAt?: string
   sla?: string
+  description?: string
+  employmentType?: string
+  workMode?: string
+  noticePeriod?: string
+  experienceLevel?: string
+  experience?: string
+  experienceRange?: { min: number; max: number }
+  mandatorySkills?: string[]
+  conversationId?: string
+  inReplyTo?: string
+  createdAt?: string
+  updatedAt?: string
 }
 
 export interface ActivityLogItem {
@@ -143,6 +160,12 @@ export interface Submission {
   email?: string
   phone?: string
   experience?: string
+  candidateId?: string
+  reqCode?: string
+  requirementId?: string
+  submittedAt?: string
+  createdAt?: string
+  updatedAt?: string
 }
 
 export interface Candidate {

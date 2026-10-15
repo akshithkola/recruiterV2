@@ -66,13 +66,13 @@ export function SignUpRequestStep1({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <TextField
-          label="Contact Number"
+          label="CONTACT NUMBER (Optional)"
           type="tel"
           inputMode="tel"
           icon={Phone}
           value={form.phone}
           onChange={v => set('phone', v)}
-          placeholder="+1 555 0100"
+          placeholder="+1 555 0100 (Optional)"
           autoComplete="tel"
         />
         <TextField
