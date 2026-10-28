@@ -1,3 +1,4 @@
+import { getSessionUser } from '../../store/session'
 import React, { useState } from 'react'
 import { X, Briefcase, Plus, Sparkles, DollarSign, Bookmark } from 'lucide-react'
 import { Priority, Requirement } from '../../types'
@@ -15,7 +16,7 @@ export function NewRequirementModal({ isOpen, onClose, onAdd }: NewRequirementMo
   const [priority, setPriority] = useState<Priority>('High')
   const [openings, setOpenings] = useState(2)
   const [budget, setBudget] = useState('$130k - $160k')
-  const [dueDate, setDueDate] = useState('Aug 30, 2026')
+  const [dueDate, setDueDate] = useState(new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }))
   const [skillsStr, setSkillsStr] = useState('React, TypeScript, Node.js')
 
   if (!isOpen) return null
@@ -174,7 +175,7 @@ export function NewRequirementModal({ isOpen, onClose, onAdd }: NewRequirementMo
                   type: 'requirement',
                   title: title || 'Draft Requirement',
                   subtitle: `Client: ${client || 'Internal'} • Priority: ${priority} • Budget: ${budget}`,
-                  createdBy: 'Harish Gadipally',
+                  createdBy: getSessionUser()?.name || '',
                   status: 'Saved for Later',
                   data: { title, client, priority, openings, budget, dueDate, skillsStr },
                 })

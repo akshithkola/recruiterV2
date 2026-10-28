@@ -2,7 +2,7 @@
  * Plain text from resume bytes (PDF / DOC / DOCX), with OCR fallback for
  * scanned/image-only PDFs and image files.
  */
-import pdfParse from 'pdf-parse';
+import { PDFParse } from 'pdf-parse';
 import mammoth from 'mammoth';
 import WordExtractor from 'word-extractor';
 
@@ -34,6 +34,50 @@ function isLikelyScannedPdf(text: string): boolean {
   const t = normalizeResumeText(text);
   return t.length < OCR_MIN_TEXT_THRESHOLD;
 }
+
+/**
+ * Queued OCR Processing with 30-second timeout (2026 Baseline requirement)
+ * Runs OCR tasks in a dedicated worker queue with a 30s timeout rather than unbounded execution.
+ */
+class OcrQueueWorker {
+  private queue: Array<() => Promise<void>> = [];
+  private running = 0;
+  private readonly maxConcurrency = 2;
+
+  enqueue<T>(task: () => Promise<T>, timeoutMs = 30000): Promise<T> {
+    return new Promise((resolve, reject) => {
+      const wrapped = async () => {
+        let timer: NodeJS.Timeout | undefined;
+        const timeoutPromise = new Promise<never>((_, rej) => {
+          timer = setTimeout(() => rej(new Error('OCR processing timed out after 30 seconds')), timeoutMs);
+        });
+        try {
+          const result = await Promise.race([task(), timeoutPromise]);
+          if (timer) clearTimeout(timer);
+          resolve(result);
+        } catch (err) {
+          if (timer) clearTimeout(timer);
+          reject(err);
+        }
+      };
+      this.queue.push(wrapped);
+      this.processNext();
+    });
+  }
+
+  private processNext() {
+    if (this.running >= this.maxConcurrency || this.queue.length === 0) return;
+    const next = this.queue.shift();
+    if (!next) return;
+    this.running++;
+    next().finally(() => {
+      this.running--;
+      this.processNext();
+    });
+  }
+}
+
+export const ocrQueueWorker = new OcrQueueWorker();
 
 async function ocrImageBuffer(buffer: Buffer): Promise<string> {
   const mod = (await import('tesseract.js')) as { recognize: OcrRecognize };
@@ -150,24 +194,34 @@ export async function extractPlainTextFromResumeBuffer(
 
   try {
     if (ext === '.pdf') {
-      let text = await extractTextWithPdfJs(buffer);
-      if (isLikelyScannedPdf(text)) {
-        try {
-          const data = await pdfParse(buffer);
-          const raw = typeof data.text === 'string' ? data.text : '';
-          const parsed = normalizeResumeText(raw);
-          if (!isLikelyScannedPdf(parsed)) {
-            text = parsed;
-          }
-        } catch {
-          // ignore
+      let text = '';
+      try {
+        const parser = new PDFParse({ data: buffer });
+        const data = await parser.getText();
+        await parser.destroy?.();
+        const raw = typeof data.text === 'string' ? data.text : '';
+        const parsed = normalizeResumeText(raw);
+        if (!isLikelyScannedPdf(parsed)) {
+          text = parsed;
+        }
+      } catch {
+        // ignore
+      }
+
+      // If pdf-parse failed or looks scanned, fall back to PDF.js layout extraction
+      if (!text || isLikelyScannedPdf(text)) {
+        const pdfJsText = await extractTextWithPdfJs(buffer);
+        if (!isLikelyScannedPdf(pdfJsText)) {
+          text = pdfJsText;
         }
       }
+
       if (!isLikelyScannedPdf(text)) {
         return { text };
       }
-      // OCR fallback for scanned/image-only PDFs.
-      const ocrText = await ocrPdfBuffer(buffer);
+
+      // OCR fallback for scanned/image-only PDFs via queued worker with 30s timeout
+      const ocrText = await ocrQueueWorker.enqueue(() => ocrPdfBuffer(buffer));
       if (!ocrText) {
         return {
           text: '',
@@ -195,7 +249,7 @@ export async function extractPlainTextFromResumeBuffer(
     }
 
     if (IMAGE_EXTS.has(ext)) {
-      const text = await ocrImageBuffer(buffer);
+      const text = await ocrQueueWorker.enqueue(() => ocrImageBuffer(buffer));
       if (!text) return { text: '', error: 'No text could be read from this image file.' };
       return { text };
     }

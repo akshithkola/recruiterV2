@@ -33,6 +33,8 @@ copy ..\.env.example .env
 npm install
 npm run build
 npm run start:dev
+# Swagger UI: http://localhost:3001/api/docs
+# Health:     http://localhost:3001/health
 
 # Optional AI gateway (http://localhost:3002)
 cd ai-service

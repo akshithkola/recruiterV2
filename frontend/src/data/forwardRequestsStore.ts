@@ -15,31 +15,6 @@ export interface ForwardRequest {
   reviewedAt?: string
 }
 
-const STORAGE_KEY = 'metaforge_forward_requests_v1'
-
-const INITIAL_FORWARD_REQUESTS: ForwardRequest[] = [
-  {
-    id: 'FREQ-101',
-    reqId: 'REQ-2026-08-12-001',
-    reqTitle: 'TPC - Requirement - C# Automation - Bangalore /Mysore - Embedded',
-    clientName: 'LTTS / L&T',
-    recruiterName: 'Harish Gadipally',
-    recruiterEmail: 'harish.g@metaforgeit.com',
-    candidateNames: ['Priyanka Sharma'],
-    requestedAt: '10 mins ago',
-    status: 'pending',
-    toRecipients: [
-      'Nikitha.S@Ltts.com',
-      'Deepashree.Bc_ext@Ltts.com',
-      'Bowya.Bowya_ext@Ltts.com',
-    ],
-    ccRecipients: [
-      'Ashwini.Kudi@Ltts.com',
-      'Kallol.Chakraborty@Ltts.com',
-    ],
-    bccRecipients: [],
-  },
-]
 
 let forwardMemory: ForwardRequest[] = []
 
@@ -59,8 +34,8 @@ export function createOrUpdateForwardRequest(
   recruiterName: string,
   recruiterEmail: string,
   candidateNames: string[],
-  toRecipients: string[] = ['Nikitha.S@Ltts.com', 'Deepashree.Bc_ext@Ltts.com', 'Bowya.Bowya_ext@Ltts.com'],
-  ccRecipients: string[] = ['Ashwini.Kudi@Ltts.com', 'Kallol.Chakraborty@Ltts.com'],
+  toRecipients: string[] = [],
+  ccRecipients: string[] = [],
   bccRecipients: string[] = []
 ): ForwardRequest {
   const requests = getForwardRequests()

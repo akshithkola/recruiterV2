@@ -1,6 +1,7 @@
 import type { AddCandidatePageProps } from './preamble'
-import { checkDuplicateSubmission } from '../../../data/submissionsStore'
+import { checkDuplicateSubmission, DuplicateCheckResult } from '../../../data/submissionsStore'
 import { getSavedDrafts, SavedDraftItem } from '../../../data/savedDraftsStore'
+import { candidatesService } from '../../../services/workspace.service'
 import { useState, useMemo, useEffect, useRef } from 'react'
 import React from 'react'
 
@@ -17,6 +18,7 @@ export function useAddCandidatePageState(props: AddCandidatePageProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [isParsing, setIsParsing] = useState(false)
   const [parsedFileName, setParsedFileName] = useState<string | null>(null)
+  const [resumeFileId, setResumeFileId] = useState<string | null>(null)
   const [showSuccessToast, setShowSuccessToast] = useState(false)
   const [showSaveDraftToast, setShowSaveDraftToast] = useState(false)
   const [toastMsg, setToastMsg] = useState<string | null>(null)
@@ -30,8 +32,8 @@ export function useAddCandidatePageState(props: AddCandidatePageProps) {
   const [draftsList, setDraftsList] = useState<SavedDraftItem[]>(() => getSavedDrafts())
 
   // Form Fields State (pre-filled with optional defaults matching screenshot)
-  const [candidateId, setCandidateId] = useState('CAND-2026-08-07-001')
-  const [submissionDate, setSubmissionDate] = useState('2026-08-07')
+  const [candidateId, setCandidateId] = useState(`CAND-${new Date().toISOString().slice(0, 10)}-001`)
+  const [submissionDate, setSubmissionDate] = useState(new Date().toISOString().slice(0, 10))
   const [candidateName, setCandidateName] = useState('')
   const [currentCompany, setCurrentCompany] = useState('')
   const [contactNumber, setContactNumber] = useState('')
@@ -62,18 +64,81 @@ export function useAddCandidatePageState(props: AddCandidatePageProps) {
 
   const [targetReqId, setTargetReqId] = useState<string>(selectedReqId || '')
 
-  // Real-time Duplicate Submission Check
-  const dupCheckResult = useMemo(() => {
-    if (!targetReqId || (!candidateName && !email && !contactNumber)) {
-      return { isDuplicate: false }
+  // Real-time Database Duplicate Check (Candidate Repository level)
+  const [dbDuplicate, setDbDuplicate] = useState<{
+    isDuplicate: boolean
+    duplicateField?: string
+    candidate?: any
+  }>({ isDuplicate: false })
+
+  useEffect(() => {
+    const cleanEmail = email.trim()
+    const cleanPhone = contactNumber.trim()
+    if (!cleanEmail && !cleanPhone) {
+      setDbDuplicate({ isDuplicate: false })
+      return
     }
-    return checkDuplicateSubmission(targetReqId, {
-      email,
-      phone: contactNumber,
-      candidateId,
-      name: candidateName,
-    })
-  }, [targetReqId, candidateName, email, contactNumber, candidateId])
+
+    let active = true
+    const timer = setTimeout(async () => {
+      try {
+        const payload: { email?: string; phone?: string } = {}
+        if (cleanEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) payload.email = cleanEmail
+        if (cleanPhone && cleanPhone.length >= 7) payload.phone = cleanPhone
+        if (!payload.email && !payload.phone) return
+
+        const res = await candidatesService.duplicateCheck(payload)
+        if (active) {
+          if (res?.isDuplicate) {
+            setDbDuplicate(res)
+          } else {
+            setDbDuplicate({ isDuplicate: false })
+          }
+        }
+      } catch {
+        // Non-blocking best effort check
+      }
+    }, 400)
+
+    return () => {
+      active = false
+      clearTimeout(timer)
+    }
+  }, [email, contactNumber])
+
+  // Real-time Duplicate Submission & Repository Check
+  const dupCheckResult = useMemo(() => {
+    // 1. Requirement submission duplicate check
+    if (targetReqId && (candidateName || email || contactNumber)) {
+      const reqDup = checkDuplicateSubmission(targetReqId, {
+        email,
+        phone: contactNumber,
+        candidateId,
+        name: candidateName,
+      })
+      if (reqDup.isDuplicate) {
+        return {
+          isDuplicate: true,
+          type: 'requirement' as const,
+          existingSubmission: reqDup.existingSubmission,
+          matchReason: reqDup.matchReason,
+        }
+      }
+    }
+
+    // 2. Candidate repository duplicate check
+    if (dbDuplicate.isDuplicate) {
+      return {
+        isDuplicate: true,
+        type: 'repository' as const,
+        existingCandidate: dbDuplicate.candidate,
+        duplicateField: dbDuplicate.duplicateField,
+        matchReason: `Already exists in repository with matching ${dbDuplicate.duplicateField} (${dbDuplicate.duplicateField === 'email' ? email : contactNumber})`,
+      }
+    }
+
+    return { isDuplicate: false }
+  }, [targetReqId, candidateName, email, contactNumber, candidateId, dbDuplicate])
 
   return {
     requirements,
@@ -89,6 +154,8 @@ export function useAddCandidatePageState(props: AddCandidatePageProps) {
     setIsParsing,
     parsedFileName,
     setParsedFileName,
+    resumeFileId,
+    setResumeFileId,
     showSuccessToast,
     setShowSuccessToast,
     showSaveDraftToast,
@@ -159,5 +226,6 @@ export interface BulkQueueItem {
   status: BulkQueueStatus
   data?: import('../../../services/workspace.service').ParsedResume
   error?: string
+  resumeFileId?: string
 }
 export type AddCandidateVmState = ReturnType<typeof useAddCandidatePageState>

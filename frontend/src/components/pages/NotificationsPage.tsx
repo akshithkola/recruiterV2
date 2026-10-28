@@ -15,10 +15,12 @@ import {
   Inbox,
   CheckCheck,
   Tag,
+  FileText,
 } from 'lucide-react'
 import { notificationsService } from '../../services/workspace.service'
 import { brand } from '../../theme'
 import { PaginationFooter } from '../ui/PaginationFooter'
+import { isAuditLogNotification, isRequirementNotification } from '../ui/NotificationPopover'
 
 interface StoredNotification {
   id: string
@@ -66,6 +68,7 @@ export function NotificationsPage() {
   const [loading, setLoading] = useState<boolean>(true)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState<string>('')
+  const [activeToggle, setActiveToggle] = useState<'all' | 'requirements' | 'audit_logs'>('all')
   const [statusFilter, setStatusFilter] = useState<'all' | 'unread' | 'read'>('all')
   const [categoryFilter, setCategoryFilter] = useState<string>('all')
   const [currentPage, setCurrentPage] = useState(1)
@@ -133,9 +136,15 @@ export function NotificationsPage() {
 
   const unreadCount = useMemo(() => notifications.filter(n => !n.read).length, [notifications])
   const readCount = useMemo(() => notifications.filter(n => n.read).length, [notifications])
+  const reqCount = useMemo(() => notifications.filter(n => isRequirementNotification(n as any)).length, [notifications])
+  const auditCount = useMemo(() => notifications.filter(n => isAuditLogNotification(n as any)).length, [notifications])
 
   const filteredNotifications = useMemo(() => {
     return notifications.filter(item => {
+      // Toggle filter
+      if (activeToggle === 'requirements' && !isRequirementNotification(item as any)) return false
+      if (activeToggle === 'audit_logs' && !isAuditLogNotification(item as any)) return false
+
       // Status filter
       if (statusFilter === 'unread' && item.read) return false
       if (statusFilter === 'read' && !item.read) return false
@@ -143,7 +152,11 @@ export function NotificationsPage() {
       // Category filter
       if (categoryFilter !== 'all') {
         const cat = item.type.toLowerCase()
-        if (!cat.includes(categoryFilter.toLowerCase())) return false
+        if (categoryFilter === 'attendance') {
+          if (!cat.includes('attendance') && !cat.includes('missing_login')) return false
+        } else if (!cat.includes(categoryFilter.toLowerCase())) {
+          return false
+        }
       }
 
       // Search query
@@ -156,7 +169,7 @@ export function NotificationsPage() {
 
       return true
     })
-  }, [notifications, statusFilter, categoryFilter, searchQuery])
+  }, [notifications, activeToggle, statusFilter, categoryFilter, searchQuery])
 
   const totalPages = Math.ceil(filteredNotifications.length / pageSize) || 1
   const paginatedNotifications = useMemo(() => {
@@ -207,6 +220,64 @@ export function NotificationsPage() {
             </button>
           )}
         </div>
+      </div>
+
+      {/* Toggle: All Notifications | Requirements | Audit Logs */}
+      <div className="flex items-center p-1.5 bg-slate-100 rounded-2xl border border-slate-200/80 gap-2 max-w-lg">
+        <button
+          type="button"
+          onClick={() => setActiveToggle('all')}
+          className={`flex-1 py-2 px-3 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center justify-center gap-2 ${
+            activeToggle === 'all'
+              ? 'bg-white text-slate-900 shadow-sm border border-slate-200/60'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <span>All</span>
+          <span className="px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-slate-200 text-slate-800">
+            {notifications.length}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveToggle('requirements')}
+          className={`flex-1 py-2 px-3 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center justify-center gap-2 ${
+            activeToggle === 'requirements'
+              ? 'bg-[#6B3BF6] text-white shadow-md shadow-purple-500/20'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <FileText className="w-3.5 h-3.5" />
+          <span>Requirements</span>
+          <span
+            className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+              activeToggle === 'requirements' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+            }`}
+          >
+            {reqCount}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveToggle('audit_logs')}
+          className={`flex-1 py-2 px-3 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center justify-center gap-2 ${
+            activeToggle === 'audit_logs'
+              ? 'bg-[#6B3BF6] text-white shadow-md shadow-purple-500/20'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <Clock className="w-3.5 h-3.5" />
+          <span>Audit Logs</span>
+          <span
+            className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+              activeToggle === 'audit_logs' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+            }`}
+          >
+            {auditCount}
+          </span>
+        </button>
       </div>
 
       {/* Metrics Summary Row */}
@@ -301,6 +372,7 @@ export function NotificationsPage() {
               className="bg-transparent focus:outline-none text-slate-800 font-semibold cursor-pointer"
             >
               <option value="all">All Categories</option>
+              <option value="attendance">Attendance & Login Alerts</option>
               <option value="requirement">Requirements</option>
               <option value="submission">Submissions</option>
               <option value="interview">Interviews</option>
@@ -344,7 +416,11 @@ export function NotificationsPage() {
               >
                 {/* Category Icon */}
                 <div className="mt-0.5 flex-shrink-0">
-                  {n.type.includes('interview') ? (
+                  {n.type.includes('attendance') || n.type.includes('missing_login') ? (
+                    <div className="w-9 h-9 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center border border-rose-200">
+                      <Clock className="w-4 h-4" />
+                    </div>
+                  ) : n.type.includes('interview') ? (
                     <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center border border-blue-200">
                       <Calendar className="w-4 h-4" />
                     </div>
@@ -367,6 +443,15 @@ export function NotificationsPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
                     <div className="flex items-center gap-2">
+                      {isAuditLogNotification(n as any) ? (
+                        <span className="px-2 py-0.5 rounded-md bg-rose-100 text-rose-800 text-[10px] font-extrabold border border-rose-200 font-mono">
+                          AUDIT LOG
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-md bg-purple-100 text-[#6B3BF6] text-[10px] font-extrabold border border-purple-200 font-mono">
+                          REQUIREMENT
+                        </span>
+                      )}
                       <h3 className="text-sm font-bold text-slate-900 font-sans">{n.title}</h3>
                       {!n.read ? (
                         <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-mono font-bold rounded-full border border-blue-200">

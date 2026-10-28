@@ -12,6 +12,9 @@ import { AuthService } from './auth.service';
 import { JwtStrategy } from './jwt.strategy';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { MailModule } from '../mail/mail.module';
+import { RecruiterAttendanceModule } from '../recruiter-attendance/recruiter-attendance.module';
+import { AuditModule } from '../audit/audit.module';
+import { resolveJwtSecret } from '../../common/security/secrets.util';
 
 @Module({
   imports: [
@@ -21,14 +24,16 @@ import { MailModule } from '../mail/mail.module';
       { name: RolePermission.name, schema: RolePermissionSchema },
     ]),
     MailModule,
+    RecruiterAttendanceModule,
+    AuditModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
-        secret: config.get<string>('JWT_SECRET') || 'super-secret-jwt-key-2026',
+        secret: resolveJwtSecret(config.get<string>('JWT_SECRET')),
         signOptions: {
-          expiresIn: config.get<string>('JWT_EXPIRES_IN') || '8h',
+          expiresIn: (config.get<string>('JWT_EXPIRES_IN') || '8h') as any,
         },
       }),
     }),

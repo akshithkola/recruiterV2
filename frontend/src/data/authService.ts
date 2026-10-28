@@ -1,7 +1,7 @@
 import { Role } from '../types'
 import { api, ApiError } from '../lib/api'
-import { setAccessToken, setSessionUser, SessionUser } from '../store/session'
-import { SEED_ACCOUNTS, seedAccountByEmail, titleForRole } from './seedCredentials'
+import { setSessionUser, SessionUser } from '../store/session'
+import { titleForRole } from './roleMeta'
 
 export interface ResolvedAccount {
   role: Role
@@ -17,9 +17,7 @@ export function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
 }
 
-export function findAccountByEmail(email: string): ResolvedAccount | null {
-  return seedAccountByEmail(email)
-}
+import { DEMO_ACCOUNTS, DemoAccount } from '../config/demoAccounts'
 
 export type AuthResult =
   | { ok: true; account: ResolvedAccount }
@@ -34,19 +32,17 @@ export async function authenticate(email: string, password: string, expectedRole
   try {
     const payload: { email: string; password: string; role?: Role } = { email: trimmed, password }
     if (expectedRole) payload.role = expectedRole
+    // Access/refresh JWTs are set as HttpOnly cookies by the API — never stored in JS.
     const res = await api.post<{
-      accessToken: string
       user: SessionUser & { role: Role }
     }>('/auth/login', payload)
-    setAccessToken(res.accessToken)
     const role = res.user.role
-    const hint = seedAccountByEmail(res.user.email)
     const account: ResolvedAccount = {
       role,
       email: res.user.email,
       name: res.user.name,
       password: '',
-      title: res.user.title || hint?.title || titleForRole(role),
+      title: res.user.title || titleForRole(role),
     }
     setSessionUser({ ...res.user, title: account.title })
     if (expectedRole && role !== expectedRole) {
@@ -61,6 +57,7 @@ export async function authenticate(email: string, password: string, expectedRole
         message: err.message || 'Invalid email or password. Check your credentials and try again.',
       }
     }
+
     return {
       ok: false,
       field: 'general',
@@ -69,11 +66,14 @@ export async function authenticate(email: string, password: string, expectedRole
   }
 }
 
+export async function quickDevLogin(account: DemoAccount): Promise<AuthResult> {
+  return authenticate(account.email, account.password, account.role)
+}
+
 export async function restoreSession(): Promise<SessionUser | null> {
   try {
     const user = await api.get<SessionUser>('/auth/me')
-    const hint = seedAccountByEmail(user.email)
-    const hydrated = { ...user, title: user.title || hint?.title || titleForRole(user.role as Role) }
+    const hydrated = { ...user, title: user.title || titleForRole(user.role as Role) }
     setSessionUser(hydrated)
     return hydrated
   } catch {
@@ -166,19 +166,17 @@ export async function verifyLoginOtp(email: string, code: string, expectedRole?:
     const payload: { email: string; code: string; role?: Role } = { email: trimmedEmail, code: trimmedCode }
     if (expectedRole) payload.role = expectedRole
     const res = await api.post<{
-      accessToken: string
       user: SessionUser & { role: Role }
     }>('/auth/verify-login-otp', payload)
 
-    setAccessToken(res.accessToken)
+    // Tokens arrive only as HttpOnly cookies from Set-Cookie.
     const role = res.user.role
-    const hint = seedAccountByEmail(res.user.email)
     const account: ResolvedAccount = {
       role,
       email: res.user.email,
       name: res.user.name,
       password: '',
-      title: res.user.title || hint?.title || titleForRole(role),
+      title: res.user.title || titleForRole(role),
     }
     setSessionUser({ ...res.user, title: account.title })
     return { ok: true, account }
@@ -204,4 +202,3 @@ export function generateVerificationCode(): string {
 
 export const VERIFICATION_CODE_LENGTH = 4
 
-export { SEED_ACCOUNTS }

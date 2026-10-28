@@ -1,5 +1,5 @@
 import React, { useRef } from 'react'
-import { Upload, Sparkles, Bookmark, FileText, CheckCircle2, X } from 'lucide-react'
+import { Upload, Sparkles, Bookmark, FileText, CheckCircle2, X, Trash2 } from 'lucide-react'
 import { AddCandidateVm } from './useAddCandidatePage'
 import type { BulkQueueItem, BulkQueueStatus } from './useAddCandidatePageState'
 
@@ -19,6 +19,8 @@ export function AddCandidateParser({ vm }: { vm: AddCandidateVm }) {
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const isBulk = importMode === 'bulk'
+  const activeQueueCount = bulkQueue.filter((q) => q.status !== 'submitted').length
+  const isQueueFull = isBulk && activeQueueCount >= 5
 
   const triggerFileSelect = () => {
     fileInputRef.current?.click()
@@ -87,10 +89,7 @@ export function AddCandidateParser({ vm }: { vm: AddCandidateVm }) {
               )}
             </h2>
             <p className="text-xs text-slate-600 mt-1 max-w-2xl leading-relaxed">
-              Drop one or many resumes (PDF, DOCX, DOC, TXT). Metaforge AI fills
-              candidate details automatically. In bulk mode, review and submit
-              each candidate — the queue keeps all parsed resumes until you
-              finish.
+              Drop resumes (PDF, DOCX, DOC, TXT) to auto-fill candidate details. In bulk mode, you can upload and parse up to 5 resumes at a time for fast AI processing and review.
             </p>
           </div>
 
@@ -114,7 +113,7 @@ export function AddCandidateParser({ vm }: { vm: AddCandidateVm }) {
                   : 'text-emerald-800 hover:text-emerald-900'
               }`}
             >
-              Bulk import
+              Bulk import (Max 5)
             </button>
             <button
               onClick={() => setImportMode('drafts')}
@@ -139,17 +138,31 @@ export function AddCandidateParser({ vm }: { vm: AddCandidateVm }) {
             className="w-full sm:w-80 border-2 border-dashed border-slate-300 hover:border-emerald-500 rounded-xl p-5 text-center bg-white cursor-pointer transition-all hover:shadow-sm group"
           >
             {isBulk ? (
-              <>
-                <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform">
-                  <Upload className="w-5 h-5" />
-                </div>
-                <p className="text-xs font-medium text-slate-700">
-                  Drop several resumes or <span className="text-blue-600 underline">browse</span>
-                </p>
-                <p className="text-[10px] text-slate-400 mt-1">
-                  PDF, DOC, DOCX, TXT, images • Max 15 MB each • Parsed automatically
-                </p>
-              </>
+              isQueueFull ? (
+                <>
+                  <div className="w-10 h-10 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-2">
+                    <Upload className="w-5 h-5" />
+                  </div>
+                  <p className="text-xs font-semibold text-amber-800">
+                    Bulk queue limit reached (5/5)
+                  </p>
+                  <p className="text-[10px] text-amber-700 mt-1">
+                    Review, submit, or clear resumes to add more
+                  </p>
+                </>
+              ) : (
+                <>
+                  <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform">
+                    <Upload className="w-5 h-5" />
+                  </div>
+                  <p className="text-xs font-medium text-slate-700">
+                    Drop up to 5 resumes or <span className="text-blue-600 underline">browse</span>
+                  </p>
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    PDF, DOC, DOCX, TXT, images • Max 5 resumes • Max 15 MB each • Parsed automatically
+                  </p>
+                </>
+              )
             ) : selectedFile ? (
               <div className="space-y-1">
                 <div className="w-10 h-10 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform">
@@ -222,15 +235,16 @@ const STATUS_STYLE: Record<BulkQueueStatus, string> = {
 
 function BulkSummary({ queue }: { queue: BulkQueueItem[] }) {
   const count = (s: BulkQueueStatus) => queue.filter((q) => q.status === s).length
+  const activeCount = queue.filter((q) => q.status !== 'submitted').length
   const busy = count('queued') + count('parsing')
   return (
     <div className="text-xs text-slate-600 shrink-0 text-right space-y-0.5">
       {queue.length === 0 ? (
-        <p>Drop resumes to start. Each one is parsed, then you review and submit it.</p>
+        <p>Drop up to 5 resumes to start. Each one is parsed, then you review and submit it.</p>
       ) : (
         <>
           <p className="font-semibold text-slate-800">
-            {count('submitted')} of {queue.length} submitted
+            {activeCount}/5 active in queue • {count('submitted')} submitted
           </p>
           <p>
             {count('parsed')} ready to review
@@ -244,16 +258,42 @@ function BulkSummary({ queue }: { queue: BulkQueueItem[] }) {
 }
 
 function BulkQueueList({ vm }: { vm: AddCandidateVm }) {
-  const { bulkQueue, activeQueueId, handleReviewQueueItem, handleRetryQueueItem, handleRemoveQueueItem, handleClearSubmitted } = vm
+  const {
+    bulkQueue,
+    activeQueueId,
+    handleReviewQueueItem,
+    handleRetryQueueItem,
+    handleRemoveQueueItem,
+    handleClearSubmitted,
+    handleClearAll,
+  } = vm
+  const activeCount = bulkQueue.filter((q) => q.status !== 'submitted').length
   return (
     <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
       <div className="flex items-center justify-between px-4 py-2">
-        <p className="text-xs font-bold text-slate-800">Bulk import queue</p>
-        {bulkQueue.some((q) => q.status === 'submitted') && (
-          <button type="button" onClick={handleClearSubmitted} className="text-[11px] text-slate-500 hover:text-slate-800">
-            Clear submitted
-          </button>
-        )}
+        <p className="text-xs font-bold text-slate-800">Bulk import queue ({activeCount}/5 max)</p>
+        <div className="flex items-center gap-3">
+          {bulkQueue.some((q) => q.status === 'submitted') && (
+            <button
+              type="button"
+              onClick={handleClearSubmitted}
+              className="text-[11px] text-slate-500 hover:text-slate-800 font-medium cursor-pointer"
+            >
+              Clear submitted
+            </button>
+          )}
+          {bulkQueue.length > 0 && (
+            <button
+              type="button"
+              onClick={handleClearAll}
+              className="text-[11px] font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-2 py-0.5 rounded transition-colors flex items-center gap-1 cursor-pointer"
+              title="Clear all resumes from the queue"
+            >
+              <Trash2 className="w-3 h-3 text-rose-500" />
+              <span>Clear all</span>
+            </button>
+          )}
+        </div>
       </div>
       {bulkQueue.map((q) => {
         const isActive = q.id === activeQueueId

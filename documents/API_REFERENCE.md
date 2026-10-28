@@ -3,6 +3,8 @@
 Base URL (dev): `http://localhost:3001/api/v1`  
 Proxied from the UI: `http://localhost:3000/api/v1` (Next rewrite) or Caddy `:8080`.
 
+**Swagger UI (dev):** [http://localhost:3001/api/docs](http://localhost:3001/api/docs) — OpenAPI JSON at `/api/docs-json`. Disabled by default in production (`SWAGGER_ENABLED=false`).
+
 All JSON endpoints except auth login/register/forgot/verify/reset and `/health*` require JWT:
 
 ```

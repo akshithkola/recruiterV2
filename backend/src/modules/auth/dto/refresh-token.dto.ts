@@ -1,7 +1,8 @@
-import { IsNotEmpty, IsString } from 'class-validator';
+import { IsOptional, IsString } from 'class-validator';
 
 export class RefreshTokenDto {
+  /** Optional when HttpOnly refresh_token cookie is present. */
+  @IsOptional()
   @IsString()
-  @IsNotEmpty({ message: 'Refresh token is required' })
-  refreshToken: string;
+  refreshToken?: string;
 }

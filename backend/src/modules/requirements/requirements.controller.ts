@@ -76,6 +76,12 @@ export class RequirementsController {
     return this.schedulerService.getStatus();
   }
 
+  /** GET /api/v1/requirements/:id/original-email */
+  @Get(':id/original-email')
+  async getOriginalEmail(@Param('id') id: string, @Req() req: any) {
+    return this.requirementsService.getOriginalEmail(id, req.user);
+  }
+
   /** GET /api/v1/requirements/:id */
   @Get(':id')
   async findOne(@Param('id') id: string, @Req() req: any) {

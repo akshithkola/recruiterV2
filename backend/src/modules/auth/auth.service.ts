@@ -10,13 +10,16 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { JwtService } from '@nestjs/jwt';
 import { Model, Types } from 'mongoose';
-import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
+import { hashPasswordArgon2id, verifyAndMigratePassword } from '../../common/security/password.util';
+import { allowDemoCredentials, resolveDemoPassword } from '../../common/security/secrets.util';
 
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { Organization, OrganizationDocument } from '../organizations/schemas/organization.schema';
 import { RolePermission, RolePermissionDocument } from '../users/schemas/role-permission.schema';
 import { MailService } from '../mail/mail.service';
+import { RecruiterAttendanceService } from '../recruiter-attendance/recruiter-attendance.service';
+import { AuditService } from '../audit/audit.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterRequestDto } from './dto/register-request.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
@@ -36,17 +39,30 @@ interface ResetTokenEntry {
   expiresAt: Date;
 }
 
-const DEMO_CREDENTIALS: Record<string, { password: string; role: string; name: string }> = {
-  'r.haines@talentflow.io': { password: 'Admin@2026', role: 'superadmin', name: 'Robert Haines' },
-  'd.park@talentflow.io': { password: 'Admin@2026', role: 'admin', name: 'David Park' },
-  'harish.g@metaforgeit.com': { password: 'Lead@2026', role: 'lead', name: 'Harish Gadipally' },
-  'm.chen@talentflow.io': { password: 'Rec@2026', role: 'recruiter', name: 'Marcus Chen' },
-  'dev.team@talentflow.io': { password: 'Dev@2026', role: 'devteam', name: 'Dev Team Engineer' },
-  'client@accenture.com': { password: 'Client@2026', role: 'client', name: 'Client Account Lead' },
+/** Demo account metadata only — passwords come from env (SEED_DEMO_PASSWORD / DEMO_PASSWORD_*). */
+const DEMO_ACCOUNT_META: Record<string, { role: string; name: string }> = {
+  'r.haines@talentflow.io': { role: 'superadmin', name: 'Robert Haines' },
+  'd.park@talentflow.io': { role: 'admin', name: 'David Park' },
+  'harish.g@metaforgeit.com': { role: 'lead', name: 'Harish Gadipally' },
+  'm.chen@talentflow.io': { role: 'recruiter', name: 'Marcus Chen' },
+  'dev.team@talentflow.io': { role: 'devteam', name: 'Dev Team Engineer' },
+  'client@accenture.com': { role: 'client', name: 'Client Account Lead' },
 };
+
+function getDemoCredentials(): Record<string, { password: string; role: string; name: string }> {
+  if (!allowDemoCredentials()) return {};
+  const out: Record<string, { password: string; role: string; name: string }> = {};
+  for (const [email, meta] of Object.entries(DEMO_ACCOUNT_META)) {
+    const password = resolveDemoPassword(meta.role) || resolveDemoPassword();
+    if (!password) continue;
+    out[email] = { ...meta, password };
+  }
+  return out;
+}
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
   private otpStore = new Map<string, OtpEntry>();
   private resetTokenStore = new Map<string, ResetTokenEntry>();
   private activeRefreshTokens = new Set<string>();
@@ -57,6 +73,8 @@ export class AuthService {
     @InjectModel(RolePermission.name) private readonly roleModel: Model<RolePermissionDocument>,
     private readonly jwtService: JwtService,
     private readonly mailService: MailService,
+    private readonly recruiterAttendanceService: RecruiterAttendanceService,
+    private readonly auditService: AuditService,
   ) {}
 
   private async permissionsFor(role: string, orgId?: Types.ObjectId | string | null): Promise<string[]> {
@@ -99,17 +117,19 @@ export class AuthService {
   }
 
   /**
-   * Authenticate user credentials against MongoDB users and DEMO_CREDENTIALS
+   * Authenticate user credentials against MongoDB users.
+   * Demo bootstrap (env passwords only) is disabled in production.
    */
   async validateUser(email: string, pass: string): Promise<UserDocument> {
     const normalizedEmail = email.trim().toLowerCase();
     let user = await this.userModel.findOne({ email: normalizedEmail, deletedAt: null }).exec();
+    const demoCredentials = getDemoCredentials();
 
-    if (!user && DEMO_CREDENTIALS[normalizedEmail]) {
-      const demoInfo = DEMO_CREDENTIALS[normalizedEmail];
+    if (!user && demoCredentials[normalizedEmail]) {
+      const demoInfo = demoCredentials[normalizedEmail];
       if (demoInfo.password === pass) {
         const orgId = await this.getDefaultOrgId();
-        const passwordHash = await bcrypt.hash(pass, 10);
+        const passwordHash = await hashPasswordArgon2id(pass);
         user = new this.userModel({
           orgId,
           userId: `user-${Date.now()}`,
@@ -128,17 +148,22 @@ export class AuthService {
         throw new UnauthorizedException('User account has been deactivated or deleted');
       }
 
-      let isMatch = await bcrypt.compare(pass, user.passwordHash);
+      const { isValid, needsRehash } = await verifyAndMigratePassword(pass, user.passwordHash);
 
-      // Support fallback demo account password check if bcrypt compare fails
+      let isMatch = isValid;
+      // Non-prod demo bootstrap only: allow env demo password to re-sync hash.
       if (!isMatch) {
-        const demoInfo = DEMO_CREDENTIALS[normalizedEmail];
+        const demoInfo = demoCredentials[normalizedEmail];
         if (demoInfo && demoInfo.password === pass) {
           isMatch = true;
-          // Upgrade password to standard bcrypt hash
-          user.passwordHash = await bcrypt.hash(pass, 10);
+          user.passwordHash = await hashPasswordArgon2id(pass);
           await user.save();
         }
+      } else if (needsRehash) {
+        // Silent migration from bcrypt to Argon2id without forced password reset
+        user.passwordHash = await hashPasswordArgon2id(pass);
+        await user.save();
+        this.logger.log(`[Security] Silently migrated password for ${user.email} from bcrypt to Argon2id`);
       }
 
       if (!isMatch) {
@@ -153,13 +178,69 @@ export class AuthService {
   /**
    * Login Endpoint — POST /auth/login
    */
-  async login(dto: LoginDto) {
-    const user = await this.validateUser(dto.email, dto.password);
-    this.enforceMatchingRole(user.role, dto.role);
+  async login(dto: LoginDto, reqMeta?: { ip?: string; userAgent?: string }) {
+    let user: UserDocument;
+    try {
+      user = await this.validateUser(dto.email, dto.password);
+      this.enforceMatchingRole(user.role, dto.role);
+    } catch (err) {
+      // Never log password / tokens — email + IP only.
+      await this.auditService
+        .recordSecurityAlert({
+          type: 'failed_login',
+          action: 'Failed password login attempt',
+          email: dto.email?.trim().toLowerCase(),
+          ipAddress: reqMeta?.ip,
+          userAgent: reqMeta?.userAgent,
+          details: {
+            reason: err instanceof UnauthorizedException ? 'invalid_credentials_or_role' : 'login_rejected',
+            attemptedRole: dto.role || null,
+          },
+        })
+        .catch(() => {});
+      throw err;
+    }
 
     // Update lastLoginAt timestamp
     user.lastLoginAt = new Date();
     await user.save();
+
+    const sessionId = crypto.randomUUID();
+    let loginHistorySessionId: string = sessionId;
+
+    try {
+      const loginRecord = await this.recruiterAttendanceService.recordLogin({
+        userId: user.userId,
+        userObjectId: user._id as Types.ObjectId,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        orgId: user.orgId as any,
+        ipAddress: reqMeta?.ip,
+        userAgent: reqMeta?.userAgent,
+        sessionId,
+      });
+      if (loginRecord?.sessionId) {
+        loginHistorySessionId = loginRecord.sessionId;
+      }
+    } catch (attErr: any) {
+      this.logger.error(`Failed to record login history for user ${user.userId}: ${attErr.message}`);
+    }
+
+    try {
+      await this.auditService.recordUserLogin({
+        userId: user.userId || user._id?.toString(),
+        userObjectId: user._id as Types.ObjectId,
+        userName: user.name,
+        userEmail: user.email,
+        role: user.role,
+        orgId: user.orgId as any,
+        ipAddress: reqMeta?.ip,
+        userAgent: reqMeta?.userAgent,
+      });
+    } catch (auditErr: any) {
+      this.logger.error(`Failed to record audit login for user ${user.userId}: ${auditErr.message}`);
+    }
 
     const permissions = await this.permissionsFor(user.role, user.orgId as any);
 
@@ -171,6 +252,7 @@ export class AuthService {
       orgId: user.orgId ? user.orgId.toString() : null,
       name: user.name,
       permissions,
+      sessionId: loginHistorySessionId,
     };
 
     const accessToken = this.jwtService.sign(payload);
@@ -191,6 +273,7 @@ export class AuthService {
         title: user.role,
         permissions,
         capabilities: user.capabilities || {},
+        sessionId: loginHistorySessionId,
       },
     };
   }
@@ -198,11 +281,39 @@ export class AuthService {
   /**
    * Logout Endpoint — POST /auth/logout
    */
-  async logout(refreshToken?: string) {
+  async logout(refreshToken?: string, currentUser?: any) {
     if (refreshToken) {
       this.activeRefreshTokens.delete(refreshToken);
     }
+    if (currentUser) {
+      try {
+        await this.recruiterAttendanceService.recordLogout({
+          userObjectId: currentUser._id || currentUser.id || currentUser.sub,
+          userId: currentUser.userId,
+          sessionId: currentUser.sessionId,
+        });
+      } catch (attErr: any) {
+        this.logger.error(`Failed to record logout for user: ${attErr.message}`);
+      }
+
+      try {
+        await this.auditService.recordUserLogout({
+          userObjectId: currentUser._id || currentUser.id || currentUser.sub,
+          userId: currentUser.userId,
+        });
+      } catch (auditErr: any) {
+        this.logger.error(`Failed to record audit logout for user: ${auditErr.message}`);
+      }
+    }
     return { message: 'Logged out successfully' };
+  }
+
+  decodeToken(token: string): any {
+    try {
+      return this.jwtService.decode(token);
+    } catch {
+      return null;
+    }
   }
 
   /**
@@ -218,7 +329,7 @@ export class AuthService {
 
     const orgId = await this.getDefaultOrgId();
     const rawPass = dto.password || crypto.randomBytes(16).toString('hex');
-    const passwordHash = await bcrypt.hash(rawPass, 10);
+    const passwordHash = await hashPasswordArgon2id(rawPass);
 
     const newUser = new this.userModel({
       orgId,
@@ -251,7 +362,7 @@ export class AuthService {
   async forgotPassword(dto: ForgotPasswordDto) {
     const normalizedEmail = dto.email.trim().toLowerCase();
     const user = await this.userModel.findOne({ email: normalizedEmail, deletedAt: null }).exec();
-    const isDemo = Boolean(DEMO_CREDENTIALS[normalizedEmail]);
+    const isDemo = Boolean(getDemoCredentials()[normalizedEmail]);
 
     if (!user && !isDemo) {
       return { message: 'If an account exists for this email, a recovery code has been issued.' };
@@ -322,13 +433,13 @@ export class AuthService {
     const email = entry.email;
     let user = await this.userModel.findOne({ email, deletedAt: null }).exec();
 
-    const newHash = await bcrypt.hash(dto.newPassword, 10);
+    const newHash = await hashPasswordArgon2id(dto.newPassword);
 
     if (user) {
       user.passwordHash = newHash;
       await user.save();
-    } else if (DEMO_CREDENTIALS[email]) {
-      const demoInfo = DEMO_CREDENTIALS[email];
+    } else if (getDemoCredentials()[email]) {
+      const demoInfo = getDemoCredentials()[email];
       const orgId = await this.getDefaultOrgId();
       user = new this.userModel({
         orgId,
@@ -390,6 +501,20 @@ export class AuthService {
    * Get Profile Endpoint — GET /auth/me
    */
   async getProfile(currentUser: any) {
+    if (currentUser) {
+      this.recruiterAttendanceService
+        .recordHeartbeat({
+          userObjectId: currentUser._id || currentUser.id || currentUser.sub,
+          sessionId: currentUser.sessionId,
+        })
+        .catch(() => {});
+      this.auditService
+        .recordUserHeartbeat({
+          userObjectId: currentUser._id || currentUser.id || currentUser.sub,
+          userId: currentUser.userId,
+        })
+        .catch(() => {});
+    }
     const user = await this.userModel.findById(currentUser.id || currentUser.userId).exec();
     if (!user) {
       throw new NotFoundException('User profile not found');
@@ -406,6 +531,7 @@ export class AuthService {
       permissions,
       capabilities: user.capabilities || {},
       lastLoginAt: user.lastLoginAt,
+      sessionId: currentUser.sessionId,
     };
   }
 
@@ -416,17 +542,17 @@ export class AuthService {
     const normalizedEmail = dto.email.trim().toLowerCase();
     let user = await this.userModel.findOne({ email: normalizedEmail, deletedAt: null }).exec();
 
-    if (!user && DEMO_CREDENTIALS[normalizedEmail]) {
-      const demoInfo = DEMO_CREDENTIALS[normalizedEmail];
+    const demoForOtp = getDemoCredentials()[normalizedEmail];
+    if (!user && demoForOtp) {
       const orgId = await this.getDefaultOrgId();
-      const passwordHash = await bcrypt.hash(demoInfo.password, 10);
+      const passwordHash = await hashPasswordArgon2id(demoForOtp.password);
       user = new this.userModel({
         orgId,
         userId: `user-${Date.now()}`,
-        name: demoInfo.name,
+        name: demoForOtp.name,
         email: normalizedEmail,
         passwordHash,
-        role: demoInfo.role,
+        role: demoForOtp.role,
         active: true,
       });
       await user.save();
@@ -455,9 +581,8 @@ export class AuthService {
 
     const otpCode = String(crypto.randomInt(1000, 10000));
 
-    // Hash OTP using bcrypt
-    const salt = await bcrypt.genSalt(10);
-    const hash = await bcrypt.hash(otpCode, salt);
+    // Hash OTP using Argon2id
+    const hash = await hashPasswordArgon2id(otpCode);
 
     // Store OTP hash, expiry (5 minutes), attempts (0), and last-sent timestamp
     user.loginOtpHash = hash;
@@ -505,7 +630,7 @@ export class AuthService {
   /**
    * Verify Login OTP Endpoint — POST /auth/verify-login-otp
    */
-  async verifyLoginOtp(dto: VerifyLoginOtpDto) {
+  async verifyLoginOtp(dto: VerifyLoginOtpDto, reqMeta?: { ip?: string; userAgent?: string }) {
     const normalizedEmail = dto.email.trim().toLowerCase();
     const code = (dto.code || '').trim();
 
@@ -515,17 +640,17 @@ export class AuthService {
 
     let user = await this.userModel.findOne({ email: normalizedEmail, deletedAt: null }).exec();
 
-    if (!user && DEMO_CREDENTIALS[normalizedEmail]) {
-      const demoInfo = DEMO_CREDENTIALS[normalizedEmail];
+    const demoForVerify = getDemoCredentials()[normalizedEmail];
+    if (!user && demoForVerify) {
       const orgId = await this.getDefaultOrgId();
-      const passwordHash = await bcrypt.hash(demoInfo.password, 10);
+      const passwordHash = await hashPasswordArgon2id(demoForVerify.password);
       user = new this.userModel({
         orgId,
         userId: `user-${Date.now()}`,
-        name: demoInfo.name,
+        name: demoForVerify.name,
         email: normalizedEmail,
         passwordHash,
-        role: demoInfo.role,
+        role: demoForVerify.role,
         active: true,
       });
       await user.save();
@@ -562,12 +687,28 @@ export class AuthService {
       throw new BadRequestException('OTP code has expired. Please request a new OTP.');
     }
 
-    // Compare code with stored bcrypt hash
-    const isMatch = await bcrypt.compare(code, user.loginOtpHash);
+    // Compare code with stored Argon2id/bcrypt hash
+    const { isValid: isMatch } = await verifyAndMigratePassword(code, user.loginOtpHash);
 
     if (!isMatch) {
       user.loginOtpAttempts = (user.loginOtpAttempts || 0) + 1;
       await user.save();
+
+      await this.auditService
+        .recordSecurityAlert({
+          type: 'failed_login',
+          action: 'Failed OTP login verification',
+          email: normalizedEmail,
+          orgId: user.orgId,
+          ipAddress: reqMeta?.ip,
+          userAgent: reqMeta?.userAgent,
+          details: {
+            reason: 'invalid_otp',
+            attempts: user.loginOtpAttempts,
+            // Never include OTP code or hash
+          },
+        })
+        .catch(() => {});
 
       if (user.loginOtpAttempts >= 5) {
         user.loginOtpHash = null;
@@ -591,6 +732,43 @@ export class AuthService {
     user.lastLoginAt = new Date();
     await user.save();
 
+    const sessionId = crypto.randomUUID();
+    let loginHistorySessionId: string = sessionId;
+
+    try {
+      const loginRecord = await this.recruiterAttendanceService.recordLogin({
+        userId: user.userId,
+        userObjectId: user._id as Types.ObjectId,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        orgId: user.orgId as any,
+        ipAddress: reqMeta?.ip,
+        userAgent: reqMeta?.userAgent,
+        sessionId,
+      });
+      if (loginRecord?.sessionId) {
+        loginHistorySessionId = loginRecord.sessionId;
+      }
+    } catch (attErr: any) {
+      this.logger.error(`Failed to record login history for user ${user.userId}: ${attErr.message}`);
+    }
+
+    try {
+      await this.auditService.recordUserLogin({
+        userId: user.userId || user._id?.toString(),
+        userObjectId: user._id as Types.ObjectId,
+        userName: user.name,
+        userEmail: user.email,
+        role: user.role,
+        orgId: user.orgId as any,
+        ipAddress: reqMeta?.ip,
+        userAgent: reqMeta?.userAgent,
+      });
+    } catch (auditErr: any) {
+      this.logger.error(`Failed to record audit login for user ${user.userId}: ${auditErr.message}`);
+    }
+
     // 3. Issue existing V2 JWT
     const permissions = await this.permissionsFor(user.role, user.orgId as any);
 
@@ -602,6 +780,7 @@ export class AuthService {
       orgId: user.orgId ? user.orgId.toString() : null,
       name: user.name,
       permissions,
+      sessionId: loginHistorySessionId,
     };
 
     const accessToken = this.jwtService.sign(payload);
@@ -622,6 +801,7 @@ export class AuthService {
         title: user.role,
         permissions,
         capabilities: user.capabilities || {},
+        sessionId: loginHistorySessionId,
       },
     };
   }

@@ -5,7 +5,7 @@ import { SubmitToLeadVm } from './useSubmitToLeadPage'
 export function SubmitToLeadHeader({ vm }: { vm: SubmitToLeadVm }) {
   const { onBack, requirement } = vm
   const titleText = requirement?.title || '/Title'
-  const clientEmailText = requirement?.clientEmail || requirement?.client || 'Kallol.Chakraborty@Ltts.com'
+  const clientEmailText = requirement?.clientEmail || requirement?.client || '—'
 
   return (
     <div className="flex items-center gap-3 border-b border-slate-200 pb-4">

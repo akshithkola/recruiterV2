@@ -1,6 +1,7 @@
-import React from 'react'
-import { ArrowLeft, Pencil, Briefcase, Calendar, Eye, User, UserPlus, RotateCcw } from 'lucide-react'
+import React, { useState } from 'react'
+import { ArrowLeft, Pencil, Briefcase, Calendar, Eye, User, UserPlus, RotateCcw, Mail } from 'lucide-react'
 import { RequirementDetailVm } from './useRequirementDetailOverview'
+import { OriginalRequirementModal } from '../../modals/OriginalRequirementModal'
 
 export function ReqDetailTop({ vm }: { vm: RequirementDetailVm }) {
   const {
@@ -15,7 +16,10 @@ export function ReqDetailTop({ vm }: { vm: RequirementDetailVm }) {
     isUnassigned,
     showToast,
   } = vm
+  const [isOriginalOpen, setIsOriginalOpen] = useState(false)
   const isHold = requirement.status === 'Hold' || requirement.status === 'On Hold'
+  // A pending revoke request puts the requirement On Hold; revoking must stay possible so it can be completed.
+  const revokeBlocked = isHold && !requirement.revokeRequested
   return (
     <>
       {/* 1. TOP BAR WITH BACK BUTTON AND ACTION BUTTONS */}
@@ -57,11 +61,11 @@ export function ReqDetailTop({ vm }: { vm: RequirementDetailVm }) {
 
           {onRevokeRequirement && !isUnassigned && (
             <button
-              disabled={isHold}
-              onClick={isHold ? undefined : onRevokeRequirement}
-              title={isHold ? 'Requirement is On Hold - revoke disabled' : 'Revoke Requirement'}
+              disabled={revokeBlocked}
+              onClick={revokeBlocked ? undefined : onRevokeRequirement}
+              title={revokeBlocked ? 'Requirement is On Hold - revoke disabled' : 'Revoke Requirement'}
               className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 border rounded-xl text-xs font-bold transition-all shadow-2xs ${
-                isHold
+                revokeBlocked
                   ? 'border-gray-200 text-gray-400 bg-gray-50 cursor-not-allowed opacity-50'
                   : 'border-rose-200 text-rose-700 bg-rose-50 hover:bg-rose-100 cursor-pointer'
               }`}
@@ -93,6 +97,15 @@ export function ReqDetailTop({ vm }: { vm: RequirementDetailVm }) {
               <span>Add Candidate</span>
             </button>
           )}
+
+          <button
+            onClick={() => setIsOriginalOpen(true)}
+            title="View the original requirement mail"
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 border rounded-xl text-xs font-semibold transition-all shadow-2xs border-gray-200/90 text-gray-700 bg-white hover:bg-gray-50 cursor-pointer"
+          >
+            <Mail className="w-3.5 h-3.5 text-gray-500" />
+            <span>Original Requirement</span>
+          </button>
 
           <button
             disabled={isHold}
@@ -166,7 +179,7 @@ export function ReqDetailTop({ vm }: { vm: RequirementDetailVm }) {
           <span className="flex items-center gap-1.5 bg-purple-50 text-[#6B3BF6] px-2.5 py-0.5 rounded-full border border-purple-200 font-extrabold">
             <User className="w-3.5 h-3.5 text-[#6B3BF6]" />
             <span>Assigned Recruiter: <strong>{requirement.owner || 'Unassigned'}</strong></span>
-            {!isRecruiter && onOpenAssignModal && (
+            {!isRecruiter && !isUnassigned && onOpenAssignModal && (
               <button
                 onClick={onOpenAssignModal}
                 className="text-blue-600 font-bold hover:underline cursor-pointer ml-1 text-[11px]"
@@ -189,6 +202,12 @@ export function ReqDetailTop({ vm }: { vm: RequirementDetailVm }) {
         </div>
       )}
 
+      <OriginalRequirementModal
+        isOpen={isOriginalOpen}
+        onClose={() => setIsOriginalOpen(false)}
+        requirementKey={requirement._id || requirement.id}
+        requirementLabel={requirement.id}
+      />
     </>
   )
 }

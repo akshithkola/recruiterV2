@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from 'react'
-import { Role } from '../../../types'
+import React, { useState, useMemo, useEffect } from 'react'
+import { Role, Recruiter } from '../../../types'
 import { UnifiedTeamMember } from './types'
-import { INITIAL_MEMBERS_DATA } from './members.data'
+import { usersService } from '../../../services/workspace.service'
 import { TeamsRecruitersHeader } from './TeamsRecruitersHeader'
 import { TeamsRecruitersFilters } from './TeamsRecruitersFilters'
 import { TeamsRecruitersList } from './TeamsRecruitersList'
@@ -11,10 +11,72 @@ import { CheckCircle2 } from 'lucide-react'
 
 interface TeamsRecruitersPageProps {
   role?: Role
+  /** Recruiter rows with backend-computed counts (submissions, interviews, assigned requirements). */
+  recruiters?: Recruiter[]
 }
 
-export function TeamsRecruitersPage({ role = 'superadmin' }: TeamsRecruitersPageProps) {
-  const [membersList, setMembersList] = useState<UnifiedTeamMember[]>(INITIAL_MEMBERS_DATA)
+export function TeamsRecruitersPage({ role = 'superadmin', recruiters = [] }: TeamsRecruitersPageProps) {
+  const [users, setUsers] = useState<any[]>([])
+  const [reloadKey, setReloadKey] = useState(0)
+  useEffect(() => {
+    let active = true
+    usersService
+      .list()
+      .then((data: any) => {
+        if (active) setUsers(Array.isArray(data) ? data : data?.items || data?.data || [])
+      })
+      .catch(() => active && setUsers([]))
+    return () => {
+      active = false
+    }
+  }, [reloadKey])
+
+  // Performance label from recorded numbers only.
+  const statusFor = (requirements: number, submissions: number, placements: number): UnifiedTeamMember['performanceStatus'] =>
+    placements > 0 ? 'Top Performer' : requirements > 0 && submissions === 0 ? 'Needs Attention' : 'On Track'
+
+  const membersList = useMemo<UnifiedTeamMember[]>(() => {
+    const active = users.filter(u => u && !u.deletedAt && u.active !== false)
+    const recruiterRows = recruiters.map(r => ({
+      id: r.id,
+      name: r.name,
+      email: r.email || '',
+      avatar: (r.name || '?').charAt(0).toUpperCase(),
+      role: 'Recruiter',
+      isTeamLead: false,
+      teamLead: r.lead || 'Unassigned',
+      clientNames: [(r as any).primaryClient].filter(Boolean) as string[],
+      totalRequirements: r.requirementsCount || 0,
+      totalSubmissions: r.submissions || 0,
+      tatDays: 0,
+      totalInterviews: r.interviews || 0,
+      performanceStatus: statusFor(r.requirementsCount || 0, r.submissions || 0, r.placements || 0),
+    }))
+    const leadRows = active
+      .filter(u => String(u.role || '').toLowerCase() === 'lead')
+      .map(u => {
+        const team = recruiters.filter(r => r.lead === u.name)
+        const sum = (f: (r: Recruiter) => number) => team.reduce((n, r) => n + (f(r) || 0), 0)
+        return {
+          id: String(u.userId || u.id || u._id),
+          name: u.name,
+          email: u.email || '',
+          avatar: (u.name || '?').charAt(0).toUpperCase(),
+          role: 'Team Lead',
+          isTeamLead: true,
+          teamLead: `${u.name} (Self)`,
+          clientNames: [...new Set(team.map(r => (r as any).primaryClient).filter(Boolean))] as string[],
+          totalRequirements: sum(r => r.requirementsCount),
+          totalSubmissions: sum(r => r.submissions),
+          tatDays: 0,
+          totalInterviews: sum(r => r.interviews),
+          performanceStatus: statusFor(sum(r => r.requirementsCount), sum(r => r.submissions), sum(r => r.placements)),
+          membersCount: team.length,
+          teamMembers: team.map(r => r.name),
+        }
+      })
+    return [...leadRows, ...recruiterRows]
+  }, [users, recruiters])
 
   // Filter & Toggle State
   const [roleToggle, setRoleToggle] = useState<'all' | 'leads' | 'recruiters'>('all')
@@ -29,10 +91,10 @@ export function TeamsRecruitersPage({ role = 'superadmin' }: TeamsRecruitersPage
   // Add Member Form State
   const [newMemberName, setNewMemberName] = useState('')
   const [newMemberEmail, setNewMemberEmail] = useState('')
-  const [newMemberRole, setNewMemberRole] = useState('Technical Recruiter')
+  const [newMemberRole, setNewMemberRole] = useState('')
+  const [newMemberPassword, setNewMemberPassword] = useState('')
   const [newIsTeamLead, setNewIsTeamLead] = useState(false)
-  const [newAssignedLead, setNewAssignedLead] = useState('Harish Gadipally')
-  const [newAssignedClient, setNewAssignedClient] = useState('Accenture')
+  const [newAssignedLead, setNewAssignedLead] = useState('')
   const [toastMsg, setToastMsg] = useState<string | null>(null)
 
   const showToast = (msg: string) => {
@@ -100,34 +162,27 @@ export function TeamsRecruitersPage({ role = 'superadmin' }: TeamsRecruitersPage
   }, [filteredMembers, currentPage, pageSize])
 
   // Form Submit Handler
-  const handleCreateMemberSubmit = (e: React.FormEvent) => {
+  // Creates the user account; the list reloads from the server.
+  const handleCreateMemberSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newMemberName.trim() || !newMemberEmail.trim()) return
-
-    const newRecord: UnifiedTeamMember = {
-      id: `mem-${Date.now()}`,
-      name: newMemberName.trim(),
-      email: newMemberEmail.trim(),
-      avatar: newMemberName.trim().charAt(0).toUpperCase(),
-      role: newMemberRole,
-      isTeamLead: newIsTeamLead,
-      teamLead: newIsTeamLead ? `${newMemberName.trim()} (Self)` : newAssignedLead,
-      clientNames: [newAssignedClient],
-      totalRequirements: 0,
-      totalSubmissions: 0,
-      tatDays: 2.0,
-      totalInterviews: 0,
-      performanceStatus: 'On Track',
+    if (!newMemberName.trim() || !newMemberEmail.trim() || !newMemberPassword) return
+    try {
+      await usersService.create({
+        name: newMemberName.trim(),
+        email: newMemberEmail.trim(),
+        password: newMemberPassword,
+        role: newIsTeamLead ? 'lead' : 'recruiter',
+      })
+      setReloadKey(k => k + 1)
+      setIsAddModalOpen(false)
+      showToast(`Added ${newIsTeamLead ? 'Team Lead' : 'Recruiter'}: ${newMemberName.trim()}`)
+      setNewMemberName('')
+      setNewMemberEmail('')
+      setNewMemberPassword('')
+      setNewIsTeamLead(false)
+    } catch (err: any) {
+      showToast(err?.message || 'Could not create the account')
     }
-
-    setMembersList([newRecord, ...membersList])
-    setIsAddModalOpen(false)
-    showToast(`Successfully added new ${newIsTeamLead ? 'Team Lead' : 'Recruiter'}: ${newMemberName}`)
-
-    // Reset Form
-    setNewMemberName('')
-    setNewMemberEmail('')
-    setNewIsTeamLead(false)
   }
 
   return (
@@ -177,8 +232,8 @@ export function TeamsRecruitersPage({ role = 'superadmin' }: TeamsRecruitersPage
         setNewIsTeamLead={setNewIsTeamLead}
         newAssignedLead={newAssignedLead}
         setNewAssignedLead={setNewAssignedLead}
-        newAssignedClient={newAssignedClient}
-        setNewAssignedClient={setNewAssignedClient}
+        newMemberPassword={newMemberPassword}
+        setNewMemberPassword={setNewMemberPassword}
         uniqueTeamLeads={uniqueTeamLeads}
       />
       <MemberDetailModal

@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Schema as MongooseSchema } from 'mongoose';
+import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import { DataScopePlugin } from '../../../database/plugins/data-scope.plugin';
 
 export type UserDocument = User & Document;
@@ -7,7 +7,7 @@ export type UserDocument = User & Document;
 @Schema({ timestamps: true, collection: 'users' })
 export class User {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Organization', required: true, index: true })
-  orgId: MongooseSchema.Types.ObjectId;
+  orgId: Types.ObjectId;
 
   @Prop({ required: true, trim: true })
   userId: string;
@@ -25,10 +25,10 @@ export class User {
   role: string;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Team', default: null })
-  teamId: MongooseSchema.Types.ObjectId;
+  teamId: Types.ObjectId;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Client', default: null })
-  clientId: MongooseSchema.Types.ObjectId;
+  clientId: Types.ObjectId;
 
   @Prop({ default: null })
   avatarUrl: string;

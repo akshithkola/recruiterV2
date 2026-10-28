@@ -65,6 +65,134 @@ CANDIDATE_TEMPLATE_HEADINGS = {
     "billing rate",
 }
 
+# A line that is itself another field ("Location - Pune", "Notice Period:") ends an empty label's value.
+_CORE_LABEL_RX = re.compile(
+    r"(?i)^\s*[-*•]?\s*(?:"
+    + "|".join(sorted({re.escape(l) for v in FIELD_LABEL_SYNONYMS.values() for l in v}, key=len, reverse=True))
+    + r")\s*[:=\-–—|]"
+)
+# Side facts clients put between a label and its list ("Work hrs – 12 PM – 10 PM", "Customer discussion – No").
+_SIDE_LABEL_RX = re.compile(
+    r"(?i)^\s*[-*•]?\s*(?:work(?:ing)?\s*h(?:ou)?rs?|shift(?:\s*timings?)?|timings?|customer\s*discussion|"
+    r"qualification(?:\s*criteria)?|education|interview(?:\s*mode)?|mode\s*of\s*interview|bgv|joining|duration|tenure)"
+    r"\b[^:=\-–—|]{0,15}[:=\-–—|]"
+)
+_GENERIC_ROLE_WORDS = {
+    "engineer", "engineers", "application", "applications", "developer", "analyst", "consultant", "lead",
+    "manager", "senior", "junior", "sr", "jr", "architect", "specialist", "associate", "executive", "tester",
+    "administrator", "admin", "support", "expert", "professional", "trainee", "intern", "head", "principal",
+    "staff", "technician", "officer", "role", "position", "requirement", "resource",
+}
+_STRONG_TITLE_LABEL_RX = re.compile(
+    r"(?i)^\s*[-*•]?\s*(?:job\s*title|role\s*title|position\s*title|position\s*/\s*title|designation)\b"
+)
+
+
+def is_junk_skill(skill: Any, job_title: str | None = None) -> bool:
+    """Values that are never skills: clock times, shift hours, bare role words."""
+    low = re.sub(r"\s+", " ", str(skill or "")).strip(" .:-–—|\t•·*").lower()
+    if not low:
+        return True
+    # Section headings.
+    if low in {"job description", "jd", "detailed jd", "key responsibilities", "responsibilities", "requirements",
+               "qualifications", "roles & responsibilities", "roles and responsibilities", "skills", "mandatory skills"}:
+        return True
+    if re.fullmatch(r"\d{1,2}(?:[:.]\d{2})?\s*(?:am|pm|hrs?|hours?)", low):
+        return True
+    if re.search(r"\bwork(?:ing)?\s*h(?:ou)?rs?\b|\bshift\s*timings?\b|\d{1,2}\s*(?:am|pm)\s*(?:-|to|–)\s*\d{1,2}\s*(?:am|pm)", low):
+        return True
+    if low in _GENERIC_ROLE_WORDS:
+        return True
+    # Instructions, rates and fragments that sit near skill lines but are not skills.
+    if re.search(
+        r"supplier comments|mandatory while sharing|sharing the profile|customer round|\btpc rates?\b|"
+        r"\bbill rate\b|^\(?\d+\s*\+?\s*(?:yrs?|years?)\)?$|\b\d{1,2}\s*\+?\s*(?:-\s*\d{1,2}\s*)?(?:yrs?|years?)\s*[-–—:]\s*\d",
+        low,
+    ):
+        return True
+    if re.fullmatch(r"[\d\s,.:/()+\-–—]+", low):
+        return True
+    # Pieces of a split "(Y/N): Yes" answer.
+    if re.fullmatch(r"[yn]\)?\s*:?\s*(?:yes|no)?|.*\(y", low):
+        return True
+    # A skill equal to the title is kept: client tables often have a "Skill" column that names the role
+    # ("SAP Profitability & Performance Mgt PaPM").
+    return False
+
+
+def _value_after_empty_label(text_from_value: str) -> str | None:
+    """
+    The label had nothing on its own line ("Mandatory Skills –"). Take the first following line that is a
+    plain value, skipping side facts like "Work hrs – 12 PM – 10 PM"; another field's label means the
+    label is empty.
+    """
+    for ln in [l.strip() for l in text_from_value.splitlines() if l.strip()][:4]:
+        if _CORE_LABEL_RX.match(ln) or re.match(r"^\s*[-*•]?\s*[A-Za-z][^:|]{0,50}:\s*$", ln):
+            return None
+        if _SIDE_LABEL_RX.match(ln):
+            continue
+        return ln.strip(" :-–—|\t") or None
+    return None
+
+
+_EXP_SEGMENT_RX = re.compile(
+    r"(?i)\b\d{1,2}(?:\.\d)?\s*\+?\s*(?:(?:-|–|—|to)\s*\d{1,2}(?:\.\d)?\s*)?(?:yrs?|years?)\b"
+)
+_BUDGET_TIER_RX = re.compile(
+    r"(?i)^\s*[-*•]?\s*\d{1,2}(?:\.\d)?\s*\+?\s*(?:(?:-|–|—|to)\s*\d{1,2}(?:\.\d)?\s*)?(?:yrs?|years?)\b"
+    r".*?(?:\d+(?:\.\d+)?\s*(?:k|l|lpa|lakhs?|cr)\b|\d{5,}|\d[\d,]{4,})"
+)
+
+
+_BUDGET_TIER_LABEL_RX = re.compile(
+    r"(?i)^\s*[-*•]?\s*\d{1,2}(?:\.\d)?\s*\+?\s*(?:(?:-|–|—|to)\s*\d{1,2}(?:\.\d)?\s*)?(?:yrs?|years?)\s*[-–—:]?\s*$"
+)
+_BUDGET_AMOUNT_ONLY_RX = re.compile(r"(?i)^\s*[-–—:]?\s*\d+(?:\.\d+)?\s*(?:k|l|lpa|lakhs?|cr)\b|^\s*[-–—:]?\s*\d[\d,]{4,}")
+
+
+def _budget_tier_continuation(clean_block: str, first_value: str) -> list[str]:
+    """
+    Lines right after the budget value that are further experience tiers with an amount. A tier may be
+    broken over two lines ("5 - 7 yrs" / "- 1.25 L").
+    """
+    norm = lambda t: re.sub(r"\s+", " ", t.replace("\xa0", " ")).strip()
+    lines = [norm(l) for l in clean_block.splitlines()]
+    target = norm(first_value).lower()
+    for i, ln in enumerate(lines):
+        if not (target and target in ln.lower()):
+            continue
+        out: list[str] = []
+        j = i + 1
+        while j < len(lines) and len(out) < 6:
+            nxt = lines[j]
+            if not nxt:
+                j += 1
+                continue
+            if _BUDGET_TIER_RX.match(nxt):
+                out.append(nxt.strip(" -–—*•"))
+                j += 1
+            elif _BUDGET_TIER_LABEL_RX.match(nxt) and j + 1 < len(lines) and _BUDGET_AMOUNT_ONLY_RX.match(lines[j + 1]):
+                out.append(f"{nxt.strip(' -–—*•:')} - {lines[j + 1].strip(' -–—:')}")
+                j += 2
+            else:
+                break
+        return out
+    return []
+
+
+def _labelled_evidence(field: str, det_quote: Any, clean_block: str) -> bool:
+    """The deterministic value comes from the client's own label line in this block."""
+    q = str(det_quote or "").strip()
+    if not q:
+        return False
+    first = q.splitlines()[0]
+    norm = lambda t: re.sub(r"\s+", " ", t).strip().lower()
+    if norm(first) not in norm(clean_block):
+        return False
+    if field == "job_title":
+        return bool(_STRONG_TITLE_LABEL_RX.match(first))
+    return True
+
 
 def _find_verbatim_quote(val_str: str, block_text: str) -> str | None:
     """Find exact or case-insensitive verbatim quote in the block text."""
@@ -143,8 +271,9 @@ def parse_budget_details(raw_budget: str | None) -> dict[str, Any]:
         return res
 
     b_text = str(raw_budget).strip()
+    # Experience-tiered rates ("3 – 4 yrs – 95 K / 5 + yrs – 1.3 L") are longer than a plain budget.
     is_body_like = (
-        len(b_text) > 80
+        len(b_text) > (220 if _EXP_SEGMENT_RX.search(b_text) else 80)
         or "\n" in b_text
         or any(w in b_text.lower() for w in ("dear", "kindly", "hello", "hi ", "regards", "candidate", "partner", "submission", "resume", "pls ensure", "subject line"))
     )
@@ -176,21 +305,27 @@ def parse_budget_details(raw_budget: str | None) -> dict[str, Any]:
 
     # Extract digits: range or single (strip commas between digits like 80,000)
     clean_digits_text = re.sub(r"(?<=\d),(?=\d)", "", b_text)
-    m_tiered = re.findall(r"(?:(\d+(?:\.\d+)?)\s*k\b|(\d+(?:\.\d+)?)\s*(?:l\b|lakhs?))", clean_digits_text, re.I)
-    if ("rate" in lower or "tpc" in lower or "tier" in lower) and len(m_tiered) >= 2:
-        vals = []
-        for kv, lv in m_tiered:
-            if kv:
-                vals.append(float(kv) * 1000)
-            elif lv:
-                vals.append(float(lv) * 100000)
-        if vals:
-            res["budget_currency"] = "INR"
-            res["monthly_budget_min"] = min(vals)
-            res["monthly_budget_max"] = max(vals)
-            res["monthly_budget"] = max(vals)
-            res["budget_text"] = f"{int(min(vals)):,} - {int(max(vals)):,} / month"
-            return res
+    # Experience tiers ("3 – 4 yrs", "8 to 10 years", "5 + yrs") are not amounts.
+    is_tiered = bool(_EXP_SEGMENT_RX.search(clean_digits_text))
+    amount_text = _EXP_SEGMENT_RX.sub(" ", clean_digits_text)
+    tier_vals: list[float] = []
+    for kv, lv, plain in re.findall(r"(\d+(?:\.\d+)?)\s*k\b|(\d+(?:\.\d+)?)\s*(?:l\b|lakhs?\b)|(\d{5,7}(?:\.\d+)?)", amount_text, re.I):
+        if kv:
+            tier_vals.append(float(kv) * 1000)
+        elif lv:
+            tier_vals.append(float(lv) * 100000)
+        elif plain:
+            tier_vals.append(float(plain))
+    if (is_tiered or "rate" in lower or "tpc" in lower or "tier" in lower) and len(tier_vals) >= 2 and not is_yearly:
+        # One requirement, several experience bands: the monthly range spans all bands; the text keeps them.
+        res["budget_currency"] = res["budget_currency"] or "INR"
+        res["monthly_budget_min"] = min(tier_vals)
+        res["monthly_budget_max"] = max(tier_vals)
+        res["monthly_budget"] = max(tier_vals)
+        if not res["budget_text"]:
+            res["budget_text"] = f"{int(min(tier_vals)):,} - {int(max(tier_vals)):,} / month"
+        return res
+    clean_digits_text = amount_text if is_tiered else clean_digits_text
 
     m_range = re.search(r"(\d+(?:\.\d+)?)\s*(?:-|to|–|—)\s*(\d+(?:\.\d+)?)", clean_digits_text)
     m_k = re.search(r"(\d+(?:\.\d+)?)\s*k\b", clean_digits_text, re.I)
@@ -264,7 +399,7 @@ def deterministic_extract_block(block_text: str, client_name: str | None = None)
     Extracts all 8 fields using label synonyms and boundary patterns on isolated clean requirement block.
     Returns field values, parsed subfields, and exact verbatim quotes.
     """
-    clean_block = strip_all_exclusion_zones(block_text)
+    clean_block = strip_all_exclusion_zones(block_text).replace("\xa0", " ")  # non-breaking spaces break label matching
     quotes: dict[str, str] = {}
     extracted: dict[str, Any] = {
         "job_title": None,
@@ -297,7 +432,9 @@ def deterministic_extract_block(block_text: str, client_name: str | None = None)
     def extract_label_value(labels: tuple[str, ...]) -> tuple[str | None, str | None]:
         is_pos_query = any("position" in l or "headcount" in l or "opening" in l for l in labels)
         for lbl in labels:
-            pat = rf"(?i)^\s*(?:[-*•]\s*)?{re.escape(lbl)}\s*[:=\-–—|]\s*(.+)$"
+            # A label may carry a note before its separator: "Bill Rate per month for TPC (in terms of INR) –".
+            lbl_rx = re.escape(lbl) + r"(?:[ \t]*\([^)\n]*\))?"
+            pat = rf"(?i)^\s*(?:[-*•]\s*)?{lbl_rx}\s*[:=\-–—|]\s*(.+)$"
             for line in lines:
                 m = re.match(pat, line)
                 if m:
@@ -307,7 +444,8 @@ def deterministic_extract_block(block_text: str, client_name: str | None = None)
                             continue
                         return val, m.group(0)
             # Multiline lookup on same line
-            m_multi = re.search(rf"(?im)^\s*(?:[-*•]\s*)?{re.escape(lbl)}\s*[:=\-–—|]\s*([^\n\r]+)", clean_block)
+            # Value on the label's own line only; an empty label is handled by the next-line lookup below.
+            m_multi = re.search(rf"(?im)^[ \t]*(?:[-*•][ \t]*)?{lbl_rx}[ \t]*[:=\-–—|][ \t]*([^\n\r]*\S)", clean_block)
             if m_multi:
                 val = m_multi.group(1).strip()
                 if val and not is_placeholder(val):
@@ -315,17 +453,20 @@ def deterministic_extract_block(block_text: str, client_name: str | None = None)
                         continue
                     return val, m_multi.group(0)
             # Multiline lookup with value on next line or separated across lines (e.g. Overall exp\n–\n5-8 Years)
-            m_nl = re.search(rf"(?im)^\s*(?:[-*•]\s*)?{re.escape(lbl)}\s*(?:[:=\-–—|]\s*)?(?:\r?\n\s*[:=\-–—|]?\s*)+([^\r\n]+)", clean_block)
+            m_nl = re.search(rf"(?im)^\s*(?:[-*•]\s*)?{lbl_rx}[ \t]*(?:[:=\-–—|][ \t]*)?(?:\r?\n\s*[:=\-–—|]?\s*)+([^\r\n]+)", clean_block)
             if m_nl:
                 # An empty form label ("Location:") followed by another label ("Notice Period in days:")
                 # has no value; don't take the next label as the answer.
                 if re.match(r"^\s*[-*•]?\s*[A-Za-z][^:|]{0,50}:\s*$", m_nl.group(1)):
                     continue
-                val = m_nl.group(1).strip(" :-–—|\t")
+                val = _value_after_empty_label(clean_block[m_nl.start(1):])
                 if val and not is_placeholder(val):
                     if not is_pos_query and re.search(r"(?i)\b(?:open\s*positions?|positions?\s*[-:]?\s*\d)\b", m_nl.group(0)):
                         continue
-                    return val, m_nl.group(0)
+                    # Quote from the label through the line the value came from (side facts may sit between).
+                    val_at = clean_block.find(val, m_nl.start(1))
+                    quote = clean_block[m_nl.start():val_at + len(val)].strip() if val_at >= 0 else m_nl.group(0)
+                    return val, quote
         return None, None
 
     # 1. Job Title
@@ -370,7 +511,19 @@ def deterministic_extract_block(block_text: str, client_name: str | None = None)
             or any(w in raw_bgt.lower() for w in ("dear", "kindly", "hello", "hi ", "regards", "candidate", "partner", "submission", "resume"))
         )
         if not is_bl:
+            # Tiered rates continue on the next lines ("3 – 4 yrs – 90 K" / "5 + yrs – 1.3 L"): keep every tier.
+            tiers = _budget_tier_continuation(clean_block, raw_bgt)
+            if tiers:
+                raw_bgt = " / ".join([raw_bgt] + tiers)
+                quote_bgt = "\n".join([quote_bgt or ""] + tiers).strip()
             bgt_dict = parse_budget_details(raw_bgt)
+            # "Bill Rate per month for TPC – 2.1 L": the label states the period the value leaves out.
+            label_line = str(quote_bgt or "").splitlines()[0] if quote_bgt else ""
+            if re.search(r"(?i)per\s*month|/\s*month|monthly|/\s*pm\b|\bpm\b", label_line) and not bgt_dict.get("monthly_budget_min"):
+                monthly = parse_budget_details(f"{raw_bgt} per month")
+                if monthly.get("monthly_budget_min"):
+                    monthly["budget_text"] = bgt_dict.get("budget_text") or raw_bgt
+                    bgt_dict = monthly
             extracted.update(bgt_dict)
             extracted["budget"] = bgt_dict.get("budget_text") or raw_bgt
             quotes["budget"] = quote_bgt or raw_bgt
@@ -504,7 +657,7 @@ def reconcile_two_way(
     Two-Way Verification (V2) & Recall Guard (V3).
     Returns (reconciled_item, review_required, review_reasons).
     """
-    clean_block = strip_all_exclusion_zones(block_text)
+    clean_block = strip_all_exclusion_zones(block_text).replace("\xa0", " ")  # non-breaking spaces break label matching
     reconciled = dict(ai_item)
     review_required = False
     review_reasons: list[str] = []
@@ -604,30 +757,40 @@ def reconcile_two_way(
 
         # Case 3: Different values -> preserve best candidate, do not store NULL!
         elif ai_norm is not None and det_norm is not None and ai_norm != det_norm:
-            if isinstance(ai_val, list) and isinstance(det_val, list):
-                merged_list = [x for x in ai_val if str(x).lower().strip() not in CANDIDATE_TEMPLATE_HEADINGS]
-                for d_item in det_val:
-                    if str(d_item).lower().strip() in CANDIDATE_TEMPLATE_HEADINGS:
+            # Two different answers are never merged (that mixes data, e.g. subject region + body city).
+            # The client's own labelled line wins; otherwise the AI value stays. The conflict is recorded.
+            def _no_headings(v: Any) -> Any:
+                if not isinstance(v, list):
+                    return v
+                return [x for x in v if str(x).lower().strip() not in CANDIDATE_TEMPLATE_HEADINGS]
+
+            det_wins = _labelled_evidence(field, det_quotes.get(field), clean_block)
+            det_pick = _no_headings(det_val)
+            if field in ("mandatory_skills", "skills"):
+                # Skills from the same requirement block complement each other (the labelled line plus the
+                # JD's specifics): combine them, dropping junk. Scalars below are never combined.
+                combined: list[Any] = []
+                seen_sk: set[str] = set()
+                for x in (ai_val if isinstance(ai_val, list) else [ai_val]) + (det_pick if isinstance(det_pick, list) else [det_pick]):
+                    k = re.sub(r"\s+", " ", str(x or "")).strip().lower()
+                    if not k or k in seen_sk or k in CANDIDATE_TEMPLATE_HEADINGS or is_junk_skill(x):
                         continue
-                    if str(d_item).lower().strip() not in [str(x).lower().strip() for x in merged_list]:
-                        merged_list.append(d_item)
-                reconciled[field] = merged_list
-            elif isinstance(ai_val, list) and isinstance(det_val, str):
-                cleaned_ai = [x for x in ai_val if str(x).lower().strip() not in CANDIDATE_TEMPLATE_HEADINGS]
-                if det_val.lower().strip() in [str(x).lower().strip() for x in cleaned_ai] or det_val.lower().strip() in CANDIDATE_TEMPLATE_HEADINGS:
-                    reconciled[field] = cleaned_ai
-                else:
-                    reconciled[field] = cleaned_ai + [det_val]
-            elif isinstance(ai_val, str) and isinstance(det_val, list):
-                cleaned_det = [x for x in det_val if str(x).lower().strip() not in CANDIDATE_TEMPLATE_HEADINGS]
-                if ai_val.lower().strip() in [str(x).lower().strip() for x in cleaned_det]:
-                    reconciled[field] = cleaned_det
-                elif ai_val.lower().strip() in CANDIDATE_TEMPLATE_HEADINGS:
-                    reconciled[field] = cleaned_det
-                else:
-                    reconciled[field] = [ai_val] + cleaned_det
+                    seen_sk.add(k)
+                    combined.append(x)
+                reconciled[field] = combined
+            elif det_wins:
+                reconciled[field] = det_pick
+                if field == "experience":
+                    for ek in ("experience_text", "experience_min_years", "experience_max_years"):
+                        if det_item.get(ek) is not None:
+                            reconciled[ek] = det_item.get(ek)
+                elif field == "budget":
+                    for bk in ["budget_text", "yearly_budget", "yearly_budget_min", "yearly_budget_max", "monthly_budget", "monthly_budget_min", "monthly_budget_max", "budget_currency"]:
+                        reconciled[bk] = det_item.get(bk)
+                elif field == "work_mode" and det_item.get("work_mode_text"):
+                    reconciled["work_mode_text"] = det_item.get("work_mode_text")
             else:
-                reconciled[field] = ai_val
+                reconciled[field] = _no_headings(ai_val)
 
             quote = det_quotes.get(field) or _find_verbatim_quote(str(ai_val), clean_block) or _find_verbatim_quote(str(det_val), clean_block)
             if quote:
@@ -670,7 +833,7 @@ def reconcile_two_way(
                 reconciled[bk] = val_bk
     for bk in ("budget", "budget_text"):
         val_str = str(reconciled.get(bk) or "")
-        if val_str and (len(val_str) > 80 or "\n" in val_str or any(w in val_str.lower() for w in ("dear", "kindly", "hello", "hi ", "regards", "candidate", "partner"))):
+        if val_str and (len(val_str) > (220 if _EXP_SEGMENT_RX.search(val_str) else 80) or "\n" in val_str or any(w in val_str.lower() for w in ("dear", "kindly", "hello", "hi ", "regards", "candidate", "partner"))):
             if reconciled.get("monthly_budget"):
                 reconciled[bk] = f"{int(reconciled['monthly_budget']):,} / month"
             elif reconciled.get("yearly_budget"):
@@ -706,6 +869,7 @@ def reconcile_two_way(
                     "current location", "job location", "s/r num", "vendor name", "position title"
                 ))
             ]
+            reconciled[sk] = [s for s in reconciled[sk] if not is_junk_skill(s, reconciled.get("job_title"))]
 
     reconciled["recovered_by"] = recovered_by
     reconciled["review_candidates"] = review_candidates
@@ -726,7 +890,7 @@ def verify_stored_requirement(payload: dict[str, Any], block_text: str) -> tuple
     Re-reads stored field values against stored source block.
     Returns status ("verified" | "failed") and failed fields list.
     """
-    clean_block = strip_all_exclusion_zones(block_text)
+    clean_block = strip_all_exclusion_zones(block_text).replace("\xa0", " ")  # non-breaking spaces break label matching
     failed_fields: list[str] = []
 
     fields_to_verify = [

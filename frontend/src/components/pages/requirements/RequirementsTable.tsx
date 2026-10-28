@@ -244,7 +244,7 @@ export function RequirementsTable({ vm }: { vm: RequirementsVm }) {
                         <div className="space-y-1.5">
                           <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                             <Clock className="w-3.5 h-3.5 text-[#6B3BF6] shrink-0" />
-                            <span>{req.emailArrivedTime || 'Aug 6, 2026, 11:05 AM'}</span>
+                            <span>{req.emailArrivedTime || '—'}</span>
                           </div>
                           <div className="inline-flex items-center gap-1 text-[11px] font-extrabold text-[#5B51D8] bg-[#EEF2FF] border border-[#C7D2FE] px-2.5 py-0.5 rounded-lg shadow-2xs">
                             <span className="text-slate-500 font-bold text-[10px] uppercase tracking-wider">Open Since:</span>

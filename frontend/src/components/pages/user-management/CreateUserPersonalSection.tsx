@@ -43,7 +43,7 @@ export function CreateUserPersonalSection({
                 <label className="block text-slate-700 font-bold text-xs mb-1.5">Mobile Contact Number</label>
                 <input
                   type="text"
-                  placeholder="+91 98765 43210"
+                  placeholder="+91 XXXXX XXXXX"
                   value={newUserPhone}
                   onChange={e => setNewUserPhone(e.target.value)}
                   className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:border-[#6B3BF6]"

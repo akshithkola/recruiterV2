@@ -1,7 +1,9 @@
 import type { RequirementDetailOverviewProps } from './preamble'
 import { useState, useMemo, useEffect, useRef } from 'react'
 import React from 'react'
-import { workspaceService } from '../../../services/workspace.service'
+import { workspaceService, submissionsService } from '../../../services/workspace.service'
+import { getSessionUser } from '../../../store/session'
+import { mapBackendSubmission, ScreenshotSubmission } from '../submissions/preamble'
 import { apiErrorMessage } from '../../../services/candidatePayload'
 
 export interface PipelineCandidateItem {
@@ -72,100 +74,7 @@ export function useRequirementDetailOverviewState(props: RequirementDetailOvervi
   const [isAddCandidateModalOpen, setIsAddCandidateModalOpen] = useState(false)
 
   // Candidate Pipeline Interactive State
-  const [pipelineCandidates, setPipelineCandidates] = useState<PipelineCandidateItem[]>([
-    {
-      id: 'pipe-1',
-      name: 'MUNTAZAR SAYED',
-      exp: '8 Years 2 Months',
-      company: '—',
-      notice: '—',
-      status: 'COMPLETED',
-      activity: 'Just now',
-      action: 'Schedule Interview',
-      l1Status: 'selected',
-      l2Status: 'skipped',
-      finalStatus: 'completed',
-      offerLetterStatus: 'ready_to_release',
-    },
-    {
-      id: 'pipe-2',
-      name: 'Nikhil Joshte',
-      exp: '10 Years 4 Months',
-      company: '—',
-      notice: '—',
-      status: 'Submitted to Client',
-      activity: '19/06/2026, 19:29',
-      action: 'Schedule Interview',
-      l1Status: 'active',
-      l2Status: 'locked',
-      finalStatus: 'locked',
-    },
-    {
-      id: 'pipe-3',
-      name: 'Pratibha Kale',
-      exp: '10 Years 5 Months',
-      company: '—',
-      notice: '—',
-      status: 'Submitted to Client',
-      activity: '19/06/2026, 18:45',
-      action: 'Schedule Interview',
-      l1Status: 'active',
-      l2Status: 'locked',
-      finalStatus: 'locked',
-    },
-    {
-      id: 'pipe-4',
-      name: 'SANDEEP YADAV',
-      exp: '13 Years 1 Month',
-      company: '—',
-      notice: '—',
-      status: 'Submitted to Client',
-      activity: '19/06/2026, 18:38',
-      action: 'View only',
-      l1Status: 'active',
-      l2Status: 'locked',
-      finalStatus: 'locked',
-    },
-    {
-      id: 'pipe-5',
-      name: 'Akshay Soni',
-      exp: '3 Years 6 Months',
-      company: '—',
-      notice: '—',
-      status: 'Submitted to Client',
-      activity: '19/06/2026, 18:33',
-      action: 'Schedule Interview',
-      l1Status: 'active',
-      l2Status: 'locked',
-      finalStatus: 'locked',
-    },
-    {
-      id: 'pipe-6',
-      name: 'Sima Borokar',
-      exp: '4 Years 5 Months',
-      company: '—',
-      notice: '—',
-      status: 'Submitted to Client',
-      activity: '19/06/2026, 17:56',
-      action: 'Schedule Interview',
-      l1Status: 'active',
-      l2Status: 'locked',
-      finalStatus: 'locked',
-    },
-    {
-      id: 'pipe-7',
-      name: 'Puttapaka Saiteja',
-      exp: '5 years',
-      company: 'Metaforge it solutions',
-      notice: '30 days ,last working 29 April 2026.',
-      status: 'Submitted to Client',
-      activity: '19/06/2026, 17:50',
-      action: 'Schedule Interview',
-      l1Status: 'active',
-      l2Status: 'locked',
-      finalStatus: 'locked',
-    },
-  ])
+  const [pipelineCandidates, setPipelineCandidates] = useState<PipelineCandidateItem[]>([])
 
   const [rejectionModalData, setRejectionModalData] = useState<{
     candidateId: string
@@ -296,72 +205,73 @@ export function useRequirementDetailOverviewState(props: RequirementDetailOvervi
     setRejectionModalData(null)
   }
 
-  const currentUserName = useMemo(() => {
-    if (isSuperAdminOrAdmin) return 'Harish Gadipally'
-    if (normalizedRole === 'lead') return 'Sarah Kim'
-    if (isRecruiter) return 'Marcus Chen'
-    return 'Marcus Chen'
-  }, [normalizedRole, isRecruiter, isSuperAdminOrAdmin])
+  const currentUserName = getSessionUser()?.name || ''
+  const currentUserEmail = (getSessionUser()?.email || '').toLowerCase()
+
+  // Submissions made against this requirement (matched by its code or database id).
+  const [reqSubmissions, setReqSubmissions] = useState<ScreenshotSubmission[]>([])
+  useEffect(() => {
+    let active = true
+    const keys = new Set(
+      [requirement?.id, (requirement as any)?.reqCode, (requirement as any)?._id, (requirement as any)?.displayId]
+        .filter(Boolean)
+        .map(String),
+    )
+    submissionsService
+      .list()
+      .then((data: any) => {
+        if (!active) return
+        const list: any[] = Array.isArray(data) ? data : data?.items || []
+        setReqSubmissions(
+          list.map(mapBackendSubmission).filter(sub => {
+            const rid = sub.raw?.requirementId
+            return keys.has(String(sub.reqId)) || keys.has(String(rid?._id || rid?.id || rid || ''))
+          }),
+        )
+      })
+      .catch(() => active && setReqSubmissions([]))
+    return () => {
+      active = false
+    }
+  }, [requirement?.id])
+
+  useEffect(() => {
+    setPipelineCandidates(
+      reqSubmissions.map(sub => ({
+        id: String(sub.id),
+        name: sub.candidateName,
+        exp: sub.experience || '—',
+        company: sub.currentCompany || '—',
+        notice: sub.noticePeriod || '—',
+        status: sub.status,
+        activity: sub.submittedOn,
+        action: 'Schedule Interview' as const,
+        l1Status: 'active' as const,
+        l2Status: 'locked' as const,
+        finalStatus: 'locked' as const,
+      })),
+    )
+  }, [reqSubmissions])
 
   const rawHistorySubmissions = useMemo(
-    () => [
-      {
-        subId: 'SUB-197',
-        avatar: 'MS',
-        name: 'MUNTAZAR SAYED',
-        email: 'sayedmuntazar1996@gmail.com',
-        submittedBy: 'Marcus Chen',
-        submitterEmail: 'm.chen@talentflow.io',
-        submittedOn: '06/19/2026, 07:29 PM',
-        status: 'Submitted to Client',
-        canSchedule: true,
-      },
-      {
-        subId: 'SUB-196',
-        avatar: 'NJ',
-        name: 'Nikhil Joshte',
-        email: 'nikhiljoshte@gmail.com',
-        submittedBy: 'Marcus Chen',
-        submitterEmail: 'm.chen@talentflow.io',
-        submittedOn: '06/19/2026, 07:29 PM',
-        status: 'Submitted to Client',
-        canSchedule: true,
-      },
-      {
-        subId: 'SUB-195',
-        avatar: 'PK',
-        name: 'Pratibha Kale',
-        email: 'pratibhakale13@yahoo.com',
-        submittedBy: 'Harish Gadipally',
-        submitterEmail: 'harish.g@metaforgeit.com',
-        submittedOn: '06/19/2026, 06:45 PM',
-        status: 'Submitted to Client',
-        canSchedule: true,
-      },
-      {
-        subId: 'SUB-194',
-        avatar: 'SY',
-        name: 'SANDEEP YADAV',
-        email: 'sandeep886441@gmail.com',
-        submittedBy: 'Saiteja Puttapaka',
-        submitterEmail: 'saiteja.p@metaforgeit.com',
-        submittedOn: '06/19/2026, 06:38 PM',
-        status: 'Submitted to Client',
-        canSchedule: false,
-      },
-      {
-        subId: 'SUB-193',
-        avatar: 'AS',
-        name: 'Akshay Soni',
-        email: 'akkisoni12123@gmail.com',
-        submittedBy: 'Harish Gadipally',
-        submitterEmail: 'harish.g@metaforgeit.com',
-        submittedOn: '06/19/2026, 06:33 PM',
-        status: 'Submitted to Client',
-        canSchedule: true,
-      },
-    ],
-    []
+    () =>
+      reqSubmissions.map(sub => ({
+        subId: String(sub.submissionId || sub.id),
+        avatar: (sub.candidateName || '?')
+          .split(/\s+/)
+          .map(w => w.charAt(0))
+          .join('')
+          .slice(0, 2)
+          .toUpperCase(),
+        name: sub.candidateName,
+        email: sub.email,
+        submittedBy: sub.submittedBy,
+        submitterEmail: String(sub.raw?.recruiterId?.email || sub.raw?.recruiterEmail || ''),
+        submittedOn: sub.submittedOn,
+        status: sub.status,
+        canSchedule: !/interview|offer|placed|rejected/i.test(sub.status || ''),
+      })),
+    [reqSubmissions],
   )
 
   const filteredHistoryRows = useMemo(() => {
@@ -369,9 +279,8 @@ export function useRequirementDetailOverviewState(props: RequirementDetailOvervi
       // For recruiter module, ONLY show their own submissions!
       if (isRecruiter) {
         const isOwnSubmission =
-          row.submittedBy === 'Marcus Chen' ||
-          row.submitterEmail === 'm.chen@talentflow.io' ||
-          row.submittedBy === currentUserName
+          (currentUserEmail && row.submitterEmail.toLowerCase() === currentUserEmail) ||
+          (currentUserName && row.submittedBy === currentUserName)
         if (!isOwnSubmission) return false
       }
 
@@ -392,7 +301,8 @@ export function useRequirementDetailOverviewState(props: RequirementDetailOvervi
     })
   }, [role, currentUserName, historyTabFilter, historySearchQuery, rawHistorySubmissions])
 
-  const isUnassigned = !requirement.owner || requirement.owner === 'Unassigned'
+  const isUnassigned =
+    requirement.assignmentStatus === 'Unassigned' || !requirement.owner || requirement.owner === 'Unassigned'
 
   const mandatorySkills = useMemo(() => {
     if (requirement.mandatorySkills && requirement.mandatorySkills.length > 0) {
@@ -450,6 +360,7 @@ export function useRequirementDetailOverviewState(props: RequirementDetailOvervi
     availableTabs,
     currentUserName,
     rawHistorySubmissions,
+    reqSubmissions,
     filteredHistoryRows,
     isUnassigned,
     showToast,

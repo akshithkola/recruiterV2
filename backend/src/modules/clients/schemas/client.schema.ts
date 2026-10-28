@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Schema as MongooseSchema } from 'mongoose';
+import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import { DataScopePlugin } from '../../../database/plugins/data-scope.plugin';
 
 export type ClientDocument = Client & Document;
@@ -7,7 +7,7 @@ export type ClientDocument = Client & Document;
 @Schema({ timestamps: true, collection: 'clients' })
 export class Client {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Organization', required: true, index: true })
-  orgId: MongooseSchema.Types.ObjectId;
+  orgId: Types.ObjectId;
 
   @Prop({ required: true, trim: true })
   clientId: string;
@@ -31,7 +31,7 @@ export class Client {
   pocContacts: Array<{ name: string; email: string; phone?: string; designation?: string }>;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', default: null })
-  accountLeadId: MongooseSchema.Types.ObjectId;
+  accountLeadId: Types.ObjectId;
 
   @Prop({ default: 0.0 })
   deliveryGapScore: number;

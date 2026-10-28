@@ -1,3 +1,4 @@
+import * as crypto from 'crypto';
 import { extractPlainTextFromResumeBuffer } from './extractResumeText';
 import {
   parseCoreFieldsFromResumeText,
@@ -68,11 +69,12 @@ function mapMetaforgeResult(parsed: MetaforgeParsed, sourceFile: string): Parsed
   const skills = joinList(parsed.skills);
   const technology = joinList(parsed.technology);
   const role = cleanAndValidateRoleOrTechnologies(parsed.role);
+  // Form field "Technologies" stores designation/role only (not skills/tech list).
 
   return {
     candidateName: (parsed.full_name ?? '').trim() || null,
     email: (parsed.email ?? '').trim() || null,
-    contactNumber: (parsed.contact ?? '').trim() || null,
+    contactNumber: (parsed.contact ?? '').replace(/\s+/g, '').trim() || null,
     linkedinUrl: normalizeLinkedInUrl(parsed.linkedin),
     highestQualification: (parsed.qualification ?? '').trim() || null,
     skillsRaw: skills ?? technology,
@@ -215,7 +217,7 @@ export function applyEvidenceLock(
     finalSkillsRaw = deduped.length > 0 ? deduped.join(', ') : null;
   }
 
-  // 4. ROLE / DESIGNATION / DOMAIN / TECHNOLOGIES
+  // 4. ROLE / DESIGNATION → form field "Technologies"
   const verbatimFromText = rawText.trim()
     ? cleanAndValidateRoleOrTechnologies(extractVerbatimDesignation(rawText, candidate.currentEmployer))
     : null;
@@ -252,6 +254,44 @@ export function applyEvidenceLock(
   };
 }
 
+interface CachedParseResult {
+  data: ParsedCandidateResume;
+  timestamp: number;
+}
+
+const parseResultCache = new Map<string, CachedParseResult>();
+const MAX_CACHE_SIZE = 200;
+const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+function getCacheKey(buffer: Buffer, filename: string, mode: string): string {
+  const hash = crypto.createHash('sha256').update(buffer).digest('hex');
+  return `${hash}:${filename}:${mode}`;
+}
+
+export function getCachedParsedResume(buffer: Buffer, filename: string, mode: string): ParsedCandidateResume | null {
+  const key = getCacheKey(buffer, filename, mode);
+  const cached = parseResultCache.get(key);
+  if (!cached) return null;
+  if (Date.now() - cached.timestamp > CACHE_TTL_MS) {
+    parseResultCache.delete(key);
+    return null;
+  }
+  return { ...cached.data };
+}
+
+export function setCachedParsedResume(buffer: Buffer, filename: string, mode: string, data: ParsedCandidateResume): void {
+  if (parseResultCache.size >= MAX_CACHE_SIZE) {
+    const oldestKey = parseResultCache.keys().next().value;
+    if (oldestKey) parseResultCache.delete(oldestKey);
+  }
+  const key = getCacheKey(buffer, filename, mode);
+  parseResultCache.set(key, { data: { ...data }, timestamp: Date.now() });
+}
+
+export function clearParseCache(): void {
+  parseResultCache.clear();
+}
+
 export async function parseResumeBufferWithMetaforge(
   buffer: Buffer,
   filename: string,
@@ -268,7 +308,14 @@ export async function parseResumeBufferWithMetaforge(
     parsed = await parseResumeFromText(extracted.data);
   }
 
-  const { text: rawText } = await extractPlainTextFromResumeBuffer(buffer, filename);
+  // Avoid redundant re-extraction of text for text-based documents (docx, doc, txt)
+  let rawText = '';
+  if (extracted.type === 'text') {
+    rawText = extracted.data;
+  } else {
+    const textRes = await extractPlainTextFromResumeBuffer(buffer, filename);
+    rawText = textRes.text;
+  }
   const textForEvidence = rawText || (extracted.type === 'text' ? extracted.data : '');
 
   const mapped = mapMetaforgeResult(parsed, filename);
@@ -283,6 +330,16 @@ export async function parseResumeBufferWithMetaforge(
       }
     } catch {
       // ignore AI fallback failure
+    }
+  }
+  if (!mapped.email && textForEvidence) {
+    try {
+      const legacyCore = parseCoreFieldsFromResumeText(textForEvidence);
+      if (legacyCore.email) {
+        mapped.email = legacyCore.email;
+      }
+    } catch {
+      // ignore legacy extraction error
     }
   }
   return applyEvidenceLock(mapped, textForEvidence);
@@ -305,9 +362,18 @@ export async function parseResumeBuffer(
   buffer: Buffer,
   filename: string,
 ): Promise<ParsedCandidateResume> {
+  const mode = isMetaforgeParserAvailable() && !aiParsingSuspended ? 'ai' : 'legacy';
+  const cached = getCachedParsedResume(buffer, filename, mode);
+  if (cached) {
+    return cached;
+  }
+
+  let result: ParsedCandidateResume;
   if (isMetaforgeParserAvailable() && !aiParsingSuspended) {
     try {
-      return await parseResumeBufferWithMetaforge(buffer, filename);
+      result = await parseResumeBufferWithMetaforge(buffer, filename);
+      setCachedParsedResume(buffer, filename, 'ai', result);
+      return result;
     } catch (err) {
       if (isQuotaOrRateLimitError(err)) {
         aiParsingSuspended = true;
@@ -323,29 +389,48 @@ export async function parseResumeBuffer(
     }
   }
 
-  return parseResumeBufferLegacy(buffer, filename);
+  result = await parseResumeBufferLegacy(buffer, filename);
+  setCachedParsedResume(buffer, filename, 'legacy', result);
+  return result;
 }
 
 export async function parseResumeBuffersBulk(
   files: { buffer: Buffer; filename: string }[],
 ): Promise<BulkParseItemResult[]> {
-  const results: BulkParseItemResult[] = [];
+  const results: BulkParseItemResult[] = new Array(files.length);
+  const isAiActive = isMetaforgeParserAvailable() && !aiParsingSuspended;
 
-  for (let i = 0; i < files.length; i++) {
-    const { buffer, filename } = files[i]!;
-    try {
-      const data = await parseResumeBuffer(buffer, filename);
-      results.push({ sourceFile: filename, status: 'done', data });
-    } catch (err) {
-      results.push({
-        sourceFile: filename,
-        status: 'error',
-        error: err instanceof Error ? err.message : 'Failed to parse resume',
-      });
-    }
+  // Safe concurrency:
+  // - Local deterministic mode: full concurrency (all files parallel) since there are no external rate limits
+  // - AI mode: concurrency 2 (or process.env.RESUME_PARSER_CONCURRENCY) with safe inter-batch cooldown to respect Gemini RPM quotas
+  const maxConcurrency = isAiActive
+    ? Math.max(1, Math.min(3, parseInt(process.env.RESUME_PARSER_CONCURRENCY || '2', 10)))
+    : files.length || 1;
 
-    if (i < files.length - 1 && isMetaforgeParserAvailable() && !aiParsingSuspended) {
-      await new Promise((r) => setTimeout(r, 800));
+  const cooldownMs = isAiActive
+    ? Math.max(0, parseInt(process.env.RESUME_PARSER_COOLDOWN_MS || '400', 10))
+    : 0;
+
+  for (let i = 0; i < files.length; i += maxConcurrency) {
+    const chunk = files.slice(i, i + maxConcurrency);
+    await Promise.all(
+      chunk.map(async (file, chunkIdx) => {
+        const originalIndex = i + chunkIdx;
+        try {
+          const data = await parseResumeBuffer(file.buffer, file.filename);
+          results[originalIndex] = { sourceFile: file.filename, status: 'done', data };
+        } catch (err) {
+          results[originalIndex] = {
+            sourceFile: file.filename,
+            status: 'error',
+            error: err instanceof Error ? err.message : 'Failed to parse resume',
+          };
+        }
+      }),
+    );
+
+    if (i + maxConcurrency < files.length && cooldownMs > 0 && isMetaforgeParserAvailable() && !aiParsingSuspended) {
+      await new Promise((r) => setTimeout(r, cooldownMs));
     }
   }
 

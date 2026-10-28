@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
   Optional,
   ServiceUnavailableException,
@@ -26,9 +27,16 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { getClientEmailDefaults, isAccentureClient, sanitizeEmailList } from '../../common/constants/client-email-defaults';
 import { MailService } from '../mail/mail.service';
 import { reqCodeCandidates } from '../../common/requirement-id';
+import {
+  assertCanAccessSubmission,
+  orgScope,
+  requireOrgId,
+} from '../../common/security/resource-access.util';
 
 @Injectable()
 export class SubmissionsService {
+  private readonly logger = new Logger(SubmissionsService.name);
+
   constructor(
     @InjectModel(Submission.name)
     private readonly submissionModel: Model<SubmissionDocument>,
@@ -146,9 +154,7 @@ export class SubmissionsService {
       search?: string;
     },
   ) {
-    const orgId = currentUser?.orgId
-      ? new Types.ObjectId(currentUser.orgId.toString())
-      : new Types.ObjectId('6ab4f38ff2e0e1823c038948');
+    const orgId = requireOrgId(currentUser);
     const role = (currentUser?.role || 'recruiter').toLowerCase();
     const userObjectId = currentUser?.id || currentUser?.userId
       ? new Types.ObjectId((currentUser.id || currentUser.userId).toString())
@@ -232,35 +238,41 @@ export class SubmissionsService {
     return items.map((item) => this.sanitizeSubmission(item));
   }
 
-  /** GET /api/v1/submissions/:id */
-  async findById(id: string, currentUser: any) {
+  /** Load submission by Mongo id or business id, scoped to caller org + role. */
+  private async loadSubmissionForUser(
+    id: string,
+    currentUser: any,
+    populate = false,
+  ): Promise<SubmissionDocument> {
+    const scope = orgScope(currentUser);
+    const applyPopulate = (q: any) => {
+      if (!populate) return q;
+      return q
+        .populate('candidateId', 'name email phone skills totalExperienceYears')
+        .populate('requirementId', 'title reqCode clientName status')
+        .populate('clientId', 'clientName domain')
+        .populate('recruiterId', 'name email')
+        .populate('leadId', 'name email');
+    };
     let doc: SubmissionDocument | null = null;
-
     if (Types.ObjectId.isValid(id)) {
-      doc = await this.submissionModel
-        .findOne({ _id: id, deletedAt: null })
-        .populate('candidateId', 'name email phone skills totalExperienceYears')
-        .populate('requirementId', 'title reqCode clientName status')
-        .populate('clientId', 'clientName domain')
-        .populate('recruiterId', 'name email')
-        .populate('leadId', 'name email')
-        .exec();
+      doc = await applyPopulate(this.submissionModel.findOne({ _id: id, ...scope })).exec();
     }
-
     if (!doc) {
-      doc = await this.submissionModel
-        .findOne({ submissionId: id, deletedAt: null })
-        .populate('candidateId', 'name email phone skills totalExperienceYears')
-        .populate('requirementId', 'title reqCode clientName status')
-        .populate('clientId', 'clientName domain')
-        .populate('recruiterId', 'name email')
-        .populate('leadId', 'name email')
-        .exec();
+      doc = await applyPopulate(
+        this.submissionModel.findOne({ submissionId: id, ...scope }),
+      ).exec();
     }
-
     if (!doc) {
       throw new NotFoundException(`Submission '${id}' not found`);
     }
+    assertCanAccessSubmission(doc, currentUser);
+    return doc;
+  }
+
+  /** GET /api/v1/submissions/:id */
+  async findById(id: string, currentUser: any) {
+    const doc = await this.loadSubmissionForUser(id, currentUser, true);
 
     const sanitized = this.sanitizeSubmission(doc);
 
@@ -279,9 +291,7 @@ export class SubmissionsService {
 
   /** POST /api/v1/submissions */
   async create(dto: CreateSubmissionDto, currentUser: any) {
-    const orgId = currentUser?.orgId
-      ? new Types.ObjectId(currentUser.orgId.toString())
-      : new Types.ObjectId('6ab4f38ff2e0e1823c038948');
+    const orgId = requireOrgId(currentUser);
     const performedBy = currentUser?.id || currentUser?.userId
       ? new Types.ObjectId((currentUser.id || currentUser.userId).toString())
       : new Types.ObjectId();
@@ -340,9 +350,14 @@ export class SubmissionsService {
       );
     }
 
-    // Lookup Requirement to resolve clientId & leadId if not provided
-    const reqDoc = await this.requirementModel.findById(requirementObjectId).exec();
-    if (reqDoc && (reqDoc.status === 'On Hold' || reqDoc.status === 'Hold')) {
+    // Lookup Requirement to resolve clientId & leadId if not provided (org-scoped)
+    const reqDoc = await this.requirementModel
+      .findOne({ _id: requirementObjectId, orgId, deletedAt: null })
+      .exec();
+    if (!reqDoc) {
+      throw new NotFoundException('Requirement not found');
+    }
+    if (reqDoc.status === 'On Hold' || reqDoc.status === 'Hold') {
       throw new BadRequestException(`Cannot submit candidate: Requirement '${reqDoc.reqCode || reqDoc.title}' is On Hold`);
     }
     const clientId = dto.clientId && Types.ObjectId.isValid(dto.clientId)
@@ -450,17 +465,7 @@ export class SubmissionsService {
 
   /** PUT /api/v1/submissions/:id/stage */
   async updateStage(id: string, dto: UpdateStageDto, currentUser: any) {
-    let doc: SubmissionDocument | null = null;
-    if (Types.ObjectId.isValid(id)) {
-      doc = await this.submissionModel.findOne({ _id: id, deletedAt: null }).exec();
-    }
-    if (!doc) {
-      doc = await this.submissionModel.findOne({ submissionId: id, deletedAt: null }).exec();
-    }
-
-    if (!doc) {
-      throw new NotFoundException(`Submission '${id}' not found`);
-    }
+    const doc = await this.loadSubmissionForUser(id, currentUser);
 
     const previousStage = doc.stage;
     const performedBy = currentUser?.id || currentUser?.userId
@@ -509,17 +514,7 @@ export class SubmissionsService {
 
   /** POST /api/v1/submissions/:id/lead-approval */
   async leadApproval(id: string, dto: LeadApprovalDto, currentUser: any) {
-    let doc: SubmissionDocument | null = null;
-    if (Types.ObjectId.isValid(id)) {
-      doc = await this.submissionModel.findOne({ _id: id, deletedAt: null }).exec();
-    }
-    if (!doc) {
-      doc = await this.submissionModel.findOne({ submissionId: id, deletedAt: null }).exec();
-    }
-
-    if (!doc) {
-      throw new NotFoundException(`Submission '${id}' not found`);
-    }
+    const doc = await this.loadSubmissionForUser(id, currentUser);
 
     const previousStage = doc.stage;
     const performedBy = currentUser?.id || currentUser?.userId
@@ -578,17 +573,7 @@ export class SubmissionsService {
 
   /** POST /api/v1/submissions/:id/forward-client */
   async forwardClient(id: string, dto: ForwardClientDto, currentUser: any) {
-    let doc: SubmissionDocument | null = null;
-    if (Types.ObjectId.isValid(id)) {
-      doc = await this.submissionModel.findOne({ _id: id, deletedAt: null }).exec();
-    }
-    if (!doc) {
-      doc = await this.submissionModel.findOne({ submissionId: id, deletedAt: null }).exec();
-    }
-
-    if (!doc) {
-      throw new NotFoundException(`Submission '${id}' not found`);
-    }
+    const doc = await this.loadSubmissionForUser(id, currentUser);
 
     const previousStage = doc.stage;
     const performedBy = currentUser?.id || currentUser?.userId
@@ -651,6 +636,17 @@ export class SubmissionsService {
     emailGreeting?: string;
     emailIntroduction?: string;
   }) {
+    const allowRequirementEmails =
+      process.env.ENABLE_REQUIREMENT_EMAILS === 'true' ||
+      process.env.ENABLE_SUBMISSION_EMAILS === 'true';
+
+    if (!allowRequirementEmails) {
+      this.logger.log(
+        `Outbound requirement submission email blocked by policy (ENABLE_REQUIREMENT_EMAILS=false). Skipping email dispatch for requirement ${input.requirementId}.`,
+      );
+      return;
+    }
+
     if (!this.mailService) {
       throw new ServiceUnavailableException('Email service is not available');
     }
@@ -883,12 +879,8 @@ export class SubmissionsService {
 
   /** DELETE /api/v1/submissions/:id */
   async softDelete(id: string, currentUser: any) {
-    let targetId: string = id;
-    if (!Types.ObjectId.isValid(id)) {
-      const doc = await this.submissionModel.findOne({ submissionId: id, deletedAt: null }).exec();
-      if (!doc) throw new NotFoundException(`Submission '${id}' not found`);
-      targetId = doc._id.toString();
-    }
+    const existing = await this.loadSubmissionForUser(id, currentUser);
+    const targetId = existing._id.toString();
 
     const deleted = await this.submissionRepository.softDelete(targetId, currentUser);
     const performedBy = currentUser?.id || currentUser?.userId

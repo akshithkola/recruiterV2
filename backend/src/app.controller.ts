@@ -1,7 +1,9 @@
 import { Controller, Get } from '@nestjs/common';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { InjectConnection } from '@nestjs/mongoose';
 import { Connection } from 'mongoose';
 
+@ApiTags('Health')
 @Controller('health')
 export class AppController {
   constructor(
@@ -10,6 +12,7 @@ export class AppController {
   ) {}
 
   @Get()
+  @ApiOperation({ summary: 'Process health' })
   check() {
     return {
       status: 'ok',
@@ -19,6 +22,7 @@ export class AppController {
   }
 
   @Get('db')
+  @ApiOperation({ summary: 'MongoDB connectivity' })
   checkDatabase() {
     const state = this.connection.readyState;
 

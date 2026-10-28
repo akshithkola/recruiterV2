@@ -63,12 +63,21 @@ export function ReqDetailInterviewsOffers({ vm }: { vm: RequirementDetailVm }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 bg-white">
-                  <tr>
-                    <td className="py-3.5 px-3 font-bold text-gray-900">MUNTAZAR SAYED</td>
-                    <td className="py-3.5 px-3 text-gray-400">—</td>
-                    <td className="py-3.5 px-3 text-gray-400">—</td>
-                    <td className="py-3.5 px-3 text-gray-400">—</td>
-                  </tr>
+                  {vm.reqSubmissions.filter(sub => /offer|placed|joined/i.test(sub.status || '')).length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="py-3.5 px-3 text-gray-400">No offers for this requirement yet.</td>
+                    </tr>
+                  )}
+                  {vm.reqSubmissions
+                    .filter(sub => /offer|placed|joined/i.test(sub.status || ''))
+                    .map(sub => (
+                      <tr key={String(sub.id)}>
+                        <td className="py-3.5 px-3 font-bold text-gray-900">{sub.candidateName}</td>
+                        <td className="py-3.5 px-3 text-gray-600">{sub.status}</td>
+                        <td className="py-3.5 px-3 text-gray-400">{sub.expectedSalary || '—'}</td>
+                        <td className="py-3.5 px-3 text-gray-400">—</td>
+                      </tr>
+                    ))}
                 </tbody>
               </table>
             </div>

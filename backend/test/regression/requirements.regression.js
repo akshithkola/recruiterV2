@@ -131,7 +131,7 @@ async function waitForBackend(proc) {
     assert(admin, 'seeded admin user not found in test database');
     token = jwt.sign(
       { sub: String(admin._id), userId: String(admin.userId || admin._id), email: admin.email, role: admin.role, orgId: String(admin.orgId) },
-      process.env.JWT_SECRET || 'super-secret-jwt-key-2026',
+      process.env.JWT_SECRET || (() => { throw new Error('JWT_SECRET must be set'); })(),
       { expiresIn: '1h' },
     );
     const live = (f = {}) => reqs.countDocuments({ deletedAt: null, ...f });
@@ -371,6 +371,19 @@ async function waitForBackend(proc) {
       eq((await api(`/requirements/${encodeURIComponent(doc.reqCode)}`))._id, String(doc._id), 'lookup by stored ID');
       const noRef = (await api('/requirements')).find((r) => !r.sourceClientJdId && /^\d{4}-\d{2}-\d{2}-\d{3}$/.test(r.reqCode));
       if (noRef) eq(noRef.id, noRef.reqCode, 'no brackets when the client gave no ID');
+    });
+
+    await check(23, '"5+ years" is stored as a minimum with no maximum and shown as "5+ yrs"', async () => {
+      const res = await ingest({
+        job_title: 'Senior Embedded Validation Engineer', requirement_from: 'LTTS', client_jd_id: 'EXP-PLUS-1',
+        overall_experience: '5 + Years', location: 'Pune', mandatory_skills: ['Python', 'HIL/SIL'],
+        source_sender_email: 'demands@ltts.com', receivedDateTime: '2030-03-01T05:00:00Z', graphMessageId: 'exp-plus-1',
+      });
+      const doc = await reqs.findOne({ sourceClientJdId: 'EXP-PLUS-1', deletedAt: null });
+      assert(doc, `requirement created (${JSON.stringify(res).slice(0, 120)})`);
+      eq(doc.experienceRange, { min: 5, max: null }, 'open maximum');
+      const ws = await api('/workspace');
+      eq((ws.requirements || []).find((r) => r.reqCode === doc.reqCode).experience, '5+ yrs', 'workspace label');
     });
   } catch (e) {
     console.log('SUITE ERROR', e.message, '\n--- backend log tail ---\n', backendLog.slice(-3000));

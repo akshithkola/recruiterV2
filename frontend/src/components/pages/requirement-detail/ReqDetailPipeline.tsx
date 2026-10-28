@@ -285,7 +285,7 @@ export function ReqDetailPipeline({ vm }: { vm: RequirementDetailVm }) {
                           onClick={() => {
                             setSchedulingCandidateRow({
                               name: row.name,
-                              email: `${row.name.toLowerCase().replace(/\s+/g, '.')}@gmail.com`,
+                              email: String(vm.reqSubmissions.find(sub => String(sub.id) === String(row.id))?.email || ''),
                               requirementId: requirement.id,
                               position: requirement.title,
                               client: requirement.client,

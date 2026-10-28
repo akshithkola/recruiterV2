@@ -1,8 +1,13 @@
+'use client'
+
 import React from 'react'
+import { useScrollReveal } from '../../../lib/animations'
 
 function SectionHeading({ eyebrow, title, subtitle }: { eyebrow: string; title: string; subtitle: string }) {
+  const ref = useScrollReveal<HTMLDivElement>({ y: 18, duration: 0.55 })
+
   return (
-    <div className="max-w-2xl mb-10 sm:mb-12">
+    <div ref={ref} className="max-w-2xl mb-10 sm:mb-12">
       <span className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-blue-50 border border-blue-200/80 text-blue-700 text-[11px] font-mono font-bold uppercase tracking-wider mb-4">
         {eyebrow}
       </span>

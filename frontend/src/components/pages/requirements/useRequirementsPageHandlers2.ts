@@ -31,15 +31,17 @@ export function useRequirementsPageHandlers2(s: RequirementsVmState) {
         r.id === reqId
           ? {
               ...r,
-              status: 'On Hold' as const,
-              revokeRequested: true,
+              owner: 'Unassigned',
+              assignmentStatus: 'Unassigned' as const,
+              status: 'Open' as const,
+              revokeRequested: false,
               revokeReason: reason,
-              revokeRequestedBy: currentUserName,
-              revokeRequestedAt: 'Just now',
+              revokeRequestedBy: undefined,
+              revokeRequestedAt: undefined,
             }
           : r
       )
-      showToast(`Requirement ${reqId} revoke submitted. Status set to On Hold.`)
+      showToast(`Requirement ${reqId} revoked. Status set to Unassigned.`)
       onAddActivityLog?.({
         id: `LOG-${Date.now()}`,
         timestamp: 'Just now',
@@ -54,7 +56,7 @@ export function useRequirementsPageHandlers2(s: RequirementsVmState) {
         clientName: target?.client,
         ipAddress: '192.168.1.45',
         status: 'Success',
-        details: `Reason for revocation: ${reason}. Previous owner was ${oldOwner}. Requirement placed On Hold.`,
+        details: `Reason for revocation: ${reason}. Previous owner was ${oldOwner}. Requirement reverted to Unassigned.`,
       })
     } else {
       updated = localRequirements.map(r =>
@@ -96,10 +98,18 @@ export function useRequirementsPageHandlers2(s: RequirementsVmState) {
     }
   }
 
-  const handleGrantRevokeApproval = (reqId: string) => {
+  const handleGrantRevokeApproval = async (reqId: string) => {
     const target = localRequirements.find(r => r.id === reqId)
     const requester = target?.revokeRequestedBy || 'Recruiter'
     const reason = target?.revokeReason || 'Revoke request approved'
+
+    try {
+      // Approving re-runs revoke as an admin, which detaches recruiters server-side.
+      await workspaceService.revokeRequirement(target?._id || reqId, { reason })
+    } catch (err: any) {
+      showToast(err instanceof ApiError ? err.message : err?.message || 'Failed to approve revoke request')
+      return
+    }
 
     const updated = localRequirements.map(r =>
       r.id === reqId
@@ -107,6 +117,7 @@ export function useRequirementsPageHandlers2(s: RequirementsVmState) {
             ...r,
             owner: 'Unassigned',
             assignmentStatus: 'Unassigned' as const,
+            status: 'Open' as const,
             revokeRequested: false,
             revokeReason: undefined,
             revokeRequestedBy: undefined,

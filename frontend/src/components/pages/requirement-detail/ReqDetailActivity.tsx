@@ -8,6 +8,7 @@ export function ReqDetailActivity({ vm }: { vm: RequirementDetailVm }) {
     role,
     activeTab,
     isSuperAdminOrAdmin,
+    reqSubmissions,
   } = vm
   return (
     <>
@@ -38,21 +39,21 @@ export function ReqDetailActivity({ vm }: { vm: RequirementDetailVm }) {
               <div className="bg-gradient-to-br from-blue-50/80 to-slate-50 border border-blue-100 rounded-2xl p-4 space-y-1.5 shadow-2xs">
                 <div className="text-[10px] font-extrabold text-blue-600 uppercase tracking-wider">1. CREATION & DEMAND</div>
                 <div className="font-extrabold text-slate-900 text-sm">{requirement.id}</div>
-                <div className="text-[11px] text-slate-600 font-medium">Arrived: <span className="font-bold text-slate-800">{requirement.emailArrivedTime || 'Aug 1, 2026, 10:45 AM'}</span></div>
-                <div className="text-[11px] text-slate-600 font-medium">Client: <span className="font-bold text-slate-800">{requirement.client}</span> ({requirement.openings || 4} openings)</div>
+                <div className="text-[11px] text-slate-600 font-medium">Arrived: <span className="font-bold text-slate-800">{requirement.emailArrivedTime || '—'}</span></div>
+                <div className="text-[11px] text-slate-600 font-medium">Client: <span className="font-bold text-slate-800">{requirement.client}</span> ({requirement.openings ?? '—'} openings)</div>
               </div>
 
               <div className="bg-gradient-to-br from-purple-50/80 to-slate-50 border border-purple-100 rounded-2xl p-4 space-y-1.5 shadow-2xs">
                 <div className="text-[10px] font-extrabold text-purple-600 uppercase tracking-wider">2. ASSIGNMENT & LEAD</div>
-                <div className="font-extrabold text-slate-900 text-sm">{requirement.owner || 'Marcus Chen'}</div>
-                <div className="text-[11px] text-slate-600 font-medium">Assigned Lead: <span className="font-bold text-slate-800">{requirement.assignedLead || 'Sarah Kim'}</span></div>
-                <div className="text-[11px] text-slate-600 font-medium">Status: <span className="font-bold text-emerald-700">{requirement.assignmentStatus || 'Assigned'}</span></div>
+                <div className="font-extrabold text-slate-900 text-sm">{requirement.owner || '—'}</div>
+                <div className="text-[11px] text-slate-600 font-medium">Assigned Lead: <span className="font-bold text-slate-800">{requirement.assignedLead || '—'}</span></div>
+                <div className="text-[11px] text-slate-600 font-medium">Status: <span className="font-bold text-emerald-700">{requirement.assignmentStatus || '—'}</span></div>
               </div>
 
               <div className="bg-gradient-to-br from-emerald-50/80 to-slate-50 border border-emerald-100 rounded-2xl p-4 space-y-1.5 shadow-2xs">
                 <div className="text-[10px] font-extrabold text-emerald-600 uppercase tracking-wider">3. SUBMISSIONS & PIPELINE</div>
-                <div className="font-extrabold text-slate-900 text-sm">{requirement.submissions || 7} Candidates Submitted</div>
-                <div className="text-[11px] text-slate-600 font-medium">Interviews: <span className="font-bold text-slate-800">{requirement.interviews || 3}</span> &nbsp;|&nbsp; Placed: <span className="font-bold text-emerald-700">{requirement.placed || 1}</span></div>
+                <div className="font-extrabold text-slate-900 text-sm">{reqSubmissions.length} Candidates Submitted</div>
+                <div className="text-[11px] text-slate-600 font-medium">Interviews: <span className="font-bold text-slate-800">{requirement.interviews ?? 0}</span> &nbsp;|&nbsp; Placed: <span className="font-bold text-emerald-700">{requirement.placed || 1}</span></div>
                 <div className="text-[11px] text-slate-600 font-medium">Match Score Avg: <span className="font-bold text-slate-800">96%</span></div>
               </div>
 
@@ -89,16 +90,16 @@ export function ReqDetailActivity({ vm }: { vm: RequirementDetailVm }) {
                         <span>Demand Email Received & Requirement Created</span>
                         <span className="px-2 py-0.5 bg-blue-100 text-blue-800 text-[10px] font-extrabold rounded-md uppercase">REQ.CREATED</span>
                       </span>
-                      <span className="text-[11px] font-semibold text-slate-400">{requirement.emailArrivedTime || 'Aug 1, 2026, 10:45 AM'}</span>
+                      <span className="text-[11px] font-semibold text-slate-400">{requirement.emailArrivedTime || '—'}</span>
                     </div>
                     <p className="text-slate-600 leading-relaxed text-xs">
-                      Requirement <strong className="text-slate-900">{requirement.id}</strong> for position <strong className="text-slate-900">{requirement.title}</strong> was parsed from client demand email sent by <strong className="text-slate-900">{requirement.client}</strong> ({requirement.clientEmail || 'recruiting@client.com'}).
+                      Requirement <strong className="text-slate-900">{requirement.id}</strong> for position <strong className="text-slate-900">{requirement.title}</strong> was parsed from client demand email sent by <strong className="text-slate-900">{requirement.client}</strong> ({requirement.clientEmail || '—'}).
                     </p>
                     <div className="flex flex-wrap items-center gap-4 text-[11px] text-slate-500 font-medium pt-1 border-t border-slate-200/60">
-                      <span>Openings: <strong className="text-slate-800">{requirement.openings || 4}</strong></span>
-                      <span>Budget: <strong className="text-slate-800">{requirement.budget || '$140k - $175k'}</strong></span>
-                      <span>Location: <strong className="text-slate-800">{requirement.location || 'Dallas, TX'}</strong></span>
-                      <span>Priority: <strong className="text-red-600 font-bold">{requirement.priority || 'High'}</strong></span>
+                      <span>Openings: <strong className="text-slate-800">{requirement.openings ?? '—'}</strong></span>
+                      <span>Budget: <strong className="text-slate-800">{requirement.budget || '—'}</strong></span>
+                      <span>Location: <strong className="text-slate-800">{requirement.location || '—'}</strong></span>
+                      <span>Priority: <strong className="text-red-600 font-bold">{requirement.priority || '—'}</strong></span>
                     </div>
                   </div>
                 </div>
@@ -114,10 +115,10 @@ export function ReqDetailActivity({ vm }: { vm: RequirementDetailVm }) {
                         <span>Assigned to Recruiter & Team Lead</span>
                         <span className="px-2 py-0.5 bg-purple-100 text-purple-800 text-[10px] font-extrabold rounded-md uppercase">REQ.ASSIGNED</span>
                       </span>
-                      <span className="text-[11px] font-semibold text-slate-400">Aug 2, 2026, 09:15 AM</span>
+                      
                     </div>
                     <p className="text-slate-600 leading-relaxed text-xs">
-                      Assigned to Team Lead <strong className="text-slate-900">{requirement.assignedLead || 'Sarah Kim'}</strong> and primary recruiter <strong className="text-slate-900">{requirement.owner || 'Marcus Chen'}</strong> by Super Admin <strong className="text-slate-900">Harish Gadipally</strong>.
+                      Assigned to Team Lead <strong className="text-slate-900">{requirement.assignedLead || '—'}</strong> and primary recruiter <strong className="text-slate-900">{requirement.owner || '—'}</strong>.
                     </p>
                   </div>
                 </div>
@@ -133,17 +134,20 @@ export function ReqDetailActivity({ vm }: { vm: RequirementDetailVm }) {
                         <span>Candidate Sourcing & Submissions Pipeline</span>
                         <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-extrabold rounded-md uppercase">SUBMISSIONS.LOG</span>
                       </span>
-                      <span className="text-[11px] font-semibold text-slate-400">Aug 3 – Aug 12, 2026</span>
+                      
                     </div>
                     <p className="text-slate-600 leading-relaxed text-xs">
-                      Recruiters sourced and submitted <strong className="text-slate-900">{requirement.submissions || 7} candidates</strong> for client review:
+                      Recruiters sourced and submitted <strong className="text-slate-900">{reqSubmissions.length} candidates</strong> for client review:
                     </p>
                     <div className="space-y-2 pt-1">
-                      {[
-                        { name: 'MUNTAZAR SAYED', role: 'Senior React Engineer', exp: '8 Yrs', status: 'Submitted to Client', time: 'Aug 06, 2026' },
-                        { name: 'Rania Khalil', role: 'Java / Microservices Specialist', exp: '11 Yrs', status: 'In Client Review', time: 'Aug 05, 2026' },
-                        { name: 'Ben Wallace', role: 'DevOps / Kubernetes Specialist', exp: '10 Yrs', status: 'Interview Scheduled', time: 'Aug 04, 2026' },
-                      ].map((c, cIdx) => (
+                      {reqSubmissions.length === 0 && <p className="text-xs text-slate-400">No submissions yet.</p>}
+                      {reqSubmissions.map(sub => ({
+                        name: sub.candidateName,
+                        role: sub.currentCompany || '—',
+                        exp: sub.experience || '—',
+                        status: sub.status,
+                        time: sub.submittedOn,
+                      })).map((c, cIdx) => (
                         <div key={cIdx} className="bg-white border border-slate-200/80 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs">
                           <div className="space-y-0.5">
                             <div className="font-bold text-slate-900 text-xs">{c.name} <span className="text-slate-400 font-normal text-[11px]">({c.exp} exp)</span></div>
@@ -171,13 +175,13 @@ export function ReqDetailActivity({ vm }: { vm: RequirementDetailVm }) {
                           <span>Revoke Permission Requested by Recruiter</span>
                           <span className="px-2 py-0.5 bg-amber-200 text-amber-900 text-[10px] font-extrabold rounded-md uppercase">REVOKE.PENDING</span>
                         </span>
-                        <span className="text-[11px] font-semibold text-amber-700">{requirement.revokeRequestedAt || 'Today at 01:15 PM'}</span>
+                        <span className="text-[11px] font-semibold text-amber-700">{requirement.revokeRequestedAt || '—'}</span>
                       </div>
                       <p className="text-amber-900 leading-relaxed text-xs">
-                        Recruiter <strong className="text-amber-950">{requirement.revokeRequestedBy || requirement.owner || 'Marcus Chen'}</strong> submitted a request to revoke assignment for requirement <strong className="text-amber-950">{requirement.id}</strong>.
+                        Recruiter <strong className="text-amber-950">{requirement.revokeRequestedBy || requirement.owner || '—'}</strong> submitted a request to revoke assignment for requirement <strong className="text-amber-950">{requirement.id}</strong>.
                       </p>
                       <div className="bg-white/80 border border-amber-200 rounded-xl p-3 text-xs text-amber-900 font-medium">
-                        <strong className="font-bold text-amber-950">Revocation Reason:</strong> "{requirement.revokeReason || 'Client JD requirements pending clarification & candidate salary expectation mismatch'}"
+                        <strong className="font-bold text-amber-950">Revocation Reason:</strong> "{requirement.revokeReason || '—'}"
                       </div>
                     </div>
                   </div>
@@ -197,7 +201,7 @@ export function ReqDetailActivity({ vm }: { vm: RequirementDetailVm }) {
                       <span className="text-[11px] font-medium text-slate-400">Live System State</span>
                     </div>
                     <p className="text-slate-300 leading-relaxed text-xs">
-                      Requirement <strong className="text-white">{requirement.id}</strong> is currently assigned to <strong className="text-white">{requirement.owner || 'Marcus Chen'}</strong> with <strong className="text-white">{requirement.submissions || 7} total submissions</strong> and active client interviews in progress.
+                      Requirement <strong className="text-white">{requirement.id}</strong> is currently assigned to <strong className="text-white">{requirement.owner || '—'}</strong> with <strong className="text-white">{requirement.submissions || 7} total submissions</strong> and active client interviews in progress.
                     </p>
                   </div>
                 </div>

@@ -26,6 +26,24 @@ for p in [str(ROOT), str(ROOT / "src"), str(ROOT / "src" / "email_extraction")]:
 os.environ.setdefault("METAFORGE_MODE", "api")
 os.environ.setdefault("METAFORGE_API_URL", "http://127.0.0.1:9")  # never reached: calls are mocked
 os.environ["OUTBOUND_EMAIL_ENABLED"] = "false"
+# Tests never read the live mailbox; the reconcile step (which lists real inbox mail) stays off.
+os.environ["MAIL_RECONCILE_ENABLED"] = "false"
+
+# Tests never call the real AI model (it costs quota and makes results depend on the network).
+# Any model call fails with a non-network error, so extraction takes its deterministic paths.
+import openai  # noqa: E402
+
+
+class _NoAIInTests:
+    def __init__(self, *args, **kwargs):
+        self.chat = self
+        self.completions = self
+
+    def create(self, *args, **kwargs):
+        raise AssertionError("tests must not call the real AI model")
+
+
+openai.OpenAI = _NoAIInTests
 
 import main  # noqa: E402
 from config import Settings  # noqa: E402
@@ -406,6 +424,111 @@ class FailureRecovery(unittest.TestCase):
             self.assertIn(("fail-1", "processing_failed_repeatedly"), reviews, "failing mail is parked for review, not lost")
             self.assertTrue(store.pipeline_should_skip("fail-1"))
             self.assertGreaterEqual(store.get_watermark() or "", "2026-10-21T05:00:00Z", "watermark advances once the failure is quarantined")
+
+    def test_ai_unavailable_holds_mail_and_resumes_when_back(self):
+        """Quota used up: nothing is saved or quarantined; the same mail is processed once the AI is back."""
+        import scripts.sync_to_backend as sync
+        from llm_health import LLMUnavailable
+
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        db = str(Path(tmp.name) / "processed.db")
+        msg = raw_message("held-1", "asha.client@iexcel.co.in", "Accenture Open demands C", f"Hi\nPFB\n{HEADER}\n{ROW_A}\n", received="2026-10-22T05:00:00Z")
+        sent: list[str] = []
+        ai_down = {"on": True}
+        real_extract = main.extract_and_map
+
+        def extract(*a, **k):
+            if ai_down["on"]:
+                raise LLMUnavailable("429 RESOURCE_EXHAUSTED: quota exceeded")
+            return real_extract(*a, **k)
+
+        def send(payload, settings):
+            sent.append(payload.get("client_jd_id"))
+            return "2026-10-22-001"
+
+        env = {"PROCESSED_DB": db, "METAFORGE_MODE": "api", "MAIL_EXTRACTION_MAX_ATTEMPTS": "2", "INGEST_START_DATETIME": "2026-09-01T00:00:00Z"}
+        with mock.patch.dict(os.environ, env), \
+                mock.patch.object(sync, "acquire_token_from_env", return_value="t"), \
+                mock.patch.object(sync, "iter_inbox_messages", side_effect=lambda *a, **k: iter([msg])), \
+                mock.patch.object(main, "extract_and_map", side_effect=extract), \
+                mock.patch.object(main, "send_to_metaforge", side_effect=send), \
+                mock.patch.object(main, "send_status_update", return_value={"matched": True}), \
+                mock.patch.object(sys, "argv", ["sync_to_backend.py", "--limit", "25"]):
+            for _ in range(3):  # more runs than MAIL_EXTRACTION_MAX_ATTEMPTS while the AI is down
+                self.assertEqual(sync.main(), 0)
+            self.assertEqual(sent, [], "nothing is saved from a degraded extraction")
+            with ProcessedStore(db) as store:
+                self.assertFalse(store.pipeline_should_skip("held-1"), "held mail is not finalized")
+                self.assertEqual(store._conn.execute("SELECT COUNT(*) FROM pending_reviews").fetchone()[0], 0, "not quarantined")
+                self.assertLess(store.get_watermark() or "", "2026-10-22T05:00:00Z", "watermark stays before held mail")
+            ai_down["on"] = False
+            self.assertEqual(sync.main(), 0)
+        self.assertEqual(sent, ["301001-1"], "processed normally once the AI is back")
+
+
+class FieldAccuracy(unittest.TestCase):
+    """Skill, work-mode and conflict rules from the 2026-10-16 accuracy pass."""
+
+    def test_junk_values_are_not_skills(self):
+        from two_way_verifier import is_junk_skill
+
+        for junk in ("12 PM", "Work hrs 12 PM - 10 PM", "engineer"):
+            self.assertTrue(is_junk_skill(junk, "Data Engineer"), junk)
+        for skill in ("Java", "SAP ABAP", "Spring Boot", "Data Engineer"):
+            self.assertFalse(is_junk_skill(skill, "Data Engineer"), skill)
+
+    def test_body_work_mode_needs_an_explicit_statement(self):
+        from field_mapper import _classify_body_work_mode
+
+        self.assertIsNone(_classify_body_work_mode("RPP (Remote power panel) experience"))
+        self.assertIsNone(_classify_body_work_mode("2 days interview process"))
+        self.assertEqual(_classify_body_work_mode("Work Mode: Hybrid"), "Hybrid")
+        self.assertEqual(_classify_body_work_mode("3 days from office"), "Hybrid")
+        self.assertEqual(_classify_body_work_mode("This is a fully remote role"), "Remote")
+        self.assertEqual(_classify_body_work_mode("Location: Pune, WFO"), "On-site")
+
+    def test_empty_skill_label_skips_side_facts(self):
+        from two_way_verifier import deterministic_extract_block
+
+        block = "Job Title: Java Developer\nMandatory Skills –\nWork hrs – 12 PM – 10 PM\nJava, Spring Boot\nLocation - Pune\n"
+        det = deterministic_extract_block(block)
+        self.assertEqual(det.get("mandatory_skills"), ["Java", "Spring Boot"])
+        self.assertTrue(det["quotes"]["mandatory_skills"].endswith("Java, Spring Boot"))
+
+    def test_empty_label_followed_by_another_field_stays_empty(self):
+        from two_way_verifier import deterministic_extract_block
+
+        det = deterministic_extract_block("Job Title: Java Developer\nMandatory Skills –\nLocation - Pune\n")
+        self.assertFalse(det.get("mandatory_skills"))
+
+    def test_conflicting_values_are_not_merged(self):
+        from two_way_verifier import deterministic_extract_block, reconcile_two_way
+
+        block = "Job Title: Java Developer\nLocation: Pune\nMandatory Skills: Java, Spring Boot\n"
+        det = deterministic_extract_block(block)
+        ai = {"job_title": "Java Developer", "location": ["South India"], "mandatory_skills": ["Java", "Spring Boot"]}
+        rec, _review, _reasons = reconcile_two_way(ai, det, block)
+        self.assertEqual(rec["location"], ["Pune"], "the client's labelled line wins, values are not mixed")
+
+    def test_tiered_budget_keeps_every_tier(self):
+        from two_way_verifier import deterministic_extract_block
+
+        block = (
+            "Job Title - Mould Design Engineer\nBill Rate per month for TPC (in terms of INR)-\n"
+            "3 – 4 yrs – 90 K\n4 – 5 yrs – 1.2 L\n5 + yrs - 1.3 L\nWork location – Chennai\n"
+        )
+        det = deterministic_extract_block(block)
+        self.assertIn("90 K", det.get("budget") or "")
+        self.assertIn("1.3 L", det.get("budget") or "", "the last tier is not dropped")
+        self.assertNotIn("Chennai", det.get("budget") or "")
+
+    def test_experience_keeps_decimals_and_open_maximum(self):
+        from field_mapper import extract_min_max_experience
+
+        self.assertEqual(extract_min_max_experience("7.5 Yrs"), (7.5, 7.5))
+        self.assertEqual(extract_min_max_experience("5 + Years"), (5, None))
+        self.assertEqual(extract_min_max_experience("3 – 7 years"), (3, 7))
 
 
 if __name__ == "__main__":

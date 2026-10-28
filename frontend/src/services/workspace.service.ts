@@ -10,6 +10,20 @@ import type {
   Submission,
 } from '../types'
 
+export interface OriginalRequirementEmail {
+  requirementId: string
+  subject: string | null
+  from: string | null
+  fromName: string | null
+  to: string[]
+  cc: string[]
+  receivedAt: string | null
+  bodyText: string | null
+  bodyHtml: string | null
+  hasOriginal: boolean
+  fallbackDescription: string | null
+}
+
 export interface WorkspaceUser {
   id: string
   _id?: string
@@ -67,6 +81,8 @@ export const workspaceService = {
     api.post(`/requirements/${encodeURIComponent(id)}/assign`, body),
   revokeRequirement: (id: string, body: { reason: string }) =>
     api.post(`/requirements/${encodeURIComponent(id)}/revoke`, body),
+  getOriginalEmail: (id: string) =>
+    api.get<OriginalRequirementEmail>(`/requirements/${encodeURIComponent(id)}/original-email`),
   createSubmission: (body: Submission) => api.post('/submissions', body),
   saveInterviewFeedback: (id: string, status: string, notes: string) =>
     api.post(`/interviews/${encodeURIComponent(id)}/feedback`, {
@@ -116,7 +132,8 @@ export const candidatesService = {
   list: () => api.get<any>('/candidates'),
   create: (body: unknown) => api.post('/candidates', body),
   update: (id: string, body: unknown) => api.put(`/candidates/${encodeURIComponent(id)}`, body),
-  duplicateCheck: (body: unknown) => api.post('/candidates/duplicate-check', body),
+  duplicateCheck: (body: unknown) =>
+    api.post<{ isDuplicate: boolean; duplicateField?: string; candidate?: any }>('/candidates/duplicate-check', body),
 }
 
 export const teamsService = {
@@ -261,16 +278,35 @@ export interface FilesListResponse {
   limit: number
 }
 
+export function uploadedFileId(file: { id?: string; _id?: string } | null | undefined): string {
+  const id = String(file?.id || file?._id || '').trim()
+  if (!id) throw new Error('Resume upload did not return a file id')
+  return id
+}
+
 export const filesService = {
   list: (query = '') => api.get<FilesListResponse>(`/files${query}`),
   getById: (id: string) => api.get<FileMetadata>(`/files/${encodeURIComponent(id)}`),
   upload: (file: File) => {
     const formData = new FormData()
     formData.append('file', file)
-    return api.upload<FileMetadata>('/files', formData)
+    return api.upload<FileMetadata & { downloadUrl?: string; downloadExpiresAt?: string }>('/files', formData)
   },
   remove: (id: string) => api.delete<{ success: boolean; message: string }>(`/files/${encodeURIComponent(id)}`),
+  /** Mint a short-lived HMAC download URL (preferred). */
+  createSignedDownload: (id: string, expiresInSeconds = 300) =>
+    api.post<{ url: string; expiresAt: string; token: string }>(
+      `/files/${encodeURIComponent(id)}/signed-url`,
+      { expiresInSeconds },
+    ),
+  /** @deprecated Prefer createSignedDownload — this path 302s to a signed URL. */
   downloadUrl: (id: string) => `/api/v1/files/${encodeURIComponent(id)}/download`,
+  async download(id: string): Promise<void> {
+    const signed = await filesService.createSignedDownload(id)
+    if (typeof window !== 'undefined') {
+      window.location.assign(signed.url)
+    }
+  },
 }
 
 export interface AISearchPayload {
@@ -317,7 +353,7 @@ export const resumeParserService = {
   },
   parseBulk: (files: File[]) => {
     const form = new FormData()
-    files.forEach((f) => form.append('resumes', f))
+    files.slice(0, RESUME_BULK_BATCH).forEach((f) => form.append('resumes', f))
     return api.upload<{ success: boolean; results: BulkParseResult[]; notice?: string | null }>('/resume-parser/parse/bulk', form)
   },
 }
@@ -330,7 +366,85 @@ export const aiService = {
   matchScores: (query = '') => api.get<any>(`/ai/match-scores${query}`),
 }
 
+export interface UserAuditLogItem {
+  id: string
+  _id?: string
+  userId: string
+  userName: string
+  userEmail: string
+  role: string
+  date: string
+  firstLoginTime: string | null
+  latestLogoutTime: string | null
+  firstLoginFormattedIST: string | null
+  latestLogoutFormattedIST: string | null
+  status: 'Active' | 'Logged Out' | 'Session Expired'
+  ipAddress?: string
+  userAgent?: string
+  loginCount?: number
+  lastActiveAt?: string
+  createdAt?: string
+}
 
+export interface UserAuditLogsResponse {
+  success: boolean
+  data: UserAuditLogItem[]
+  meta: {
+    total: number
+    page: number
+    limit: number
+    totalPages: number
+  }
+}
 
+export const auditService = {
+  getUserLogs: (params: {
+    date?: string
+    startDate?: string
+    endDate?: string
+    role?: string
+    status?: string
+    search?: string
+    page?: number
+    limit?: number
+  } = {}) => {
+    const searchParams = new URLSearchParams()
+    if (params.date) searchParams.set('date', params.date)
+    if (params.startDate) searchParams.set('startDate', params.startDate)
+    if (params.endDate) searchParams.set('endDate', params.endDate)
+    if (params.role && params.role !== 'All Roles') searchParams.set('role', params.role)
+    if (params.status && params.status !== 'All Statuses') searchParams.set('status', params.status)
+    if (params.search && params.search.trim()) searchParams.set('search', params.search.trim())
+    if (params.page) searchParams.set('page', String(params.page))
+    if (params.limit) searchParams.set('limit', String(params.limit))
+    const query = searchParams.toString() ? `?${searchParams.toString()}` : ''
+    return api.get<UserAuditLogsResponse>(`/audit/user-logs${query}`)
+  },
+  downloadCsv: async (params: {
+    date?: string
+    startDate?: string
+    endDate?: string
+    role?: string
+    status?: string
+    search?: string
+  } = {}) => {
+    const searchParams = new URLSearchParams()
+    if (params.date) searchParams.set('date', params.date)
+    if (params.startDate) searchParams.set('startDate', params.startDate)
+    if (params.endDate) searchParams.set('endDate', params.endDate)
+    if (params.role && params.role !== 'All Roles') searchParams.set('role', params.role)
+    if (params.status && params.status !== 'All Statuses') searchParams.set('status', params.status)
+    if (params.search && params.search.trim()) searchParams.set('search', params.search.trim())
+    const query = searchParams.toString() ? `?${searchParams.toString()}` : ''
 
-
+    const blob = await api.getBlob(`/audit/export-csv${query}`)
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `audit_logs_${params.date || new Date().toISOString().slice(0, 10)}.csv`
+    document.body.appendChild(a)
+    a.click()
+    window.URL.revokeObjectURL(url)
+    document.body.removeChild(a)
+  },
+}

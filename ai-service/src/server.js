@@ -1,7 +1,7 @@
 const http = require('http')
 
 const PORT = Number(process.env.PORT || 3002)
-const TOKEN = process.env.AI_GATEWAY_TOKEN || ''
+const TOKEN = process.env.AI_GATEWAY_TOKEN || 'metaforge-ai-internal-service-token-2026'
 
 function send(res, status, body) {
   const payload = JSON.stringify(body)
@@ -32,10 +32,11 @@ function extract(text, pattern) {
 
 const server = http.createServer(async (req, res) => {
   const url = req.url || '/'
-  if (TOKEN) {
+  // Service-token verification on all endpoints except health
+  if (url !== '/health') {
     const auth = req.headers.authorization || ''
-    if (auth !== `Bearer ${TOKEN}` && url !== '/health') {
-      return send(res, 401, { error: 'unauthorized' })
+    if (auth !== `Bearer ${TOKEN}`) {
+      return send(res, 401, { error: 'unauthorized', message: 'Valid AI Gateway service token required' })
     }
   }
 
@@ -79,6 +80,6 @@ const server = http.createServer(async (req, res) => {
   send(res, 404, { error: 'not_found' })
 })
 
-server.listen(PORT, () => {
-  console.log(`V2 AI gateway listening on http://localhost:${PORT}`)
+server.listen(PORT, '127.0.0.1', () => {
+  console.log(`V2 AI gateway listening on http://127.0.0.1:${PORT} (internal only)`)
 })

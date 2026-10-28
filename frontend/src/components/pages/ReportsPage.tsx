@@ -1,3 +1,4 @@
+import { getSessionUser } from '../../store/session'
 import React, { useState, useMemo } from 'react'
 import {
   FileText,
@@ -41,12 +42,6 @@ import {
 } from 'lucide-react'
 import { Role, Requirement, Submission, Interview, Recruiter } from '../../types'
 import { PaginationFooter } from '../ui/PaginationFooter'
-import { RecruiterPerformanceChart } from '../ui/RecruiterPerformanceChart'
-import { RequirementCoverageChart } from '../ui/RequirementCoverageChart'
-import { MonthlyTimelinePerformanceChart } from '../ui/MonthlyTimelinePerformanceChart'
-import { StagePipelinePerformanceChart } from '../ui/StagePipelinePerformanceChart'
-import { ClientPOCSubmissionChart } from '../ui/ClientPOCSubmissionChart'
-import { DomainWiseSubmissionChart } from '../ui/DomainWiseSubmissionChart'
 import {
   RecruiterDetailAnalyticsPage,
   RecruiterDetailData,
@@ -55,7 +50,6 @@ import {
   ClientDetailAnalyticsPage,
   ClientPerformanceData,
 } from './ClientDetailAnalyticsPage'
-import { ClientWiseTeamPerformanceChart } from '../ui/ClientWiseTeamPerformanceChart'
 import { HistoryPage } from './HistoryPage'
 import { ActivityLogsPage } from './ActivityLogsPage'
 import { SubmissionsPage } from './SubmissionsPage'
@@ -181,11 +175,11 @@ export interface RecruiterReqDashboardItem {
 }
 
 export function calculateTAT(receivedTime?: string, firstSubmissionTime?: string): string {
-  if (!receivedTime || !firstSubmissionTime) return '3h 30m'
+  if (!receivedTime || !firstSubmissionTime) return '—'
   try {
     const d1 = new Date(receivedTime)
     const d2 = new Date(firstSubmissionTime)
-    if (isNaN(d1.getTime()) || isNaN(d2.getTime())) return '3h 30m'
+    if (isNaN(d1.getTime()) || isNaN(d2.getTime())) return '—'
     const diffMs = Math.max(0, d2.getTime() - d1.getTime())
     const diffHrs = Math.floor(diffMs / (1000 * 60 * 60))
     const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60))
@@ -196,252 +190,127 @@ export function calculateTAT(receivedTime?: string, firstSubmissionTime?: string
     }
     return `${diffHrs}h ${diffMins}m`
   } catch {
-    return '3h 30m'
+    return '—'
   }
 }
 
-const RECRUITER_REQ_SUBMISSION_DASHBOARD_DATA: RecruiterReqDashboardItem[] = [
-  {
-    id: 'dash-01',
-    recruiterName: 'Harish Gadipally',
-    recruiterRole: 'Team Lead / Senior Recruiter',
-    teamLead: 'Harish Gadipally',
-    reqId: 'REQ-2026-08-12-001',
-    jobTitle: 'TPC - Requirement - C# Automation - Embedded',
-    positions: 5,
-    clientName: 'LTTS / L&T',
-    submissionsCount: 14,
-    timestamp: '21 Aug 2026, 10:15 AM',
-    receivedTime: '12 Aug 2026, 05:30 AM',
-    firstSubmissionTime: '12 Aug 2026, 09:30 AM',
-    tat: '4h 00m',
-    status: 'In Progress',
-  },
-  {
-    id: 'dash-02',
-    recruiterName: 'Harish Gadipally',
-    recruiterRole: 'Team Lead / Senior Recruiter',
-    teamLead: 'Harish Gadipally',
-    reqId: 'REQ-2026-08-12-003',
-    jobTitle: 'Senior React / Fullstack Architect',
-    positions: 3,
-    clientName: 'Accenture Enterprise',
-    submissionsCount: 18,
-    timestamp: '20 Aug 2026, 04:45 PM',
-    receivedTime: '13 Aug 2026, 08:00 AM',
-    firstSubmissionTime: '13 Aug 2026, 11:15 AM',
-    tat: '3h 15m',
-    status: 'Target Achieved',
-  },
-  {
-    id: 'dash-03',
-    recruiterName: 'Marcus Chen',
-    recruiterRole: 'Senior Technical Recruiter',
-    teamLead: 'Harish Gadipally',
-    reqId: 'REQ-701',
-    jobTitle: 'Lead Java Full Stack Developer',
-    positions: 8,
-    clientName: 'Accenture Enterprise',
-    submissionsCount: 24,
-    timestamp: '21 Aug 2026, 09:50 AM',
-    receivedTime: '10 Aug 2026, 07:00 AM',
-    firstSubmissionTime: '10 Aug 2026, 10:00 AM',
-    tat: '3h 00m',
-    status: 'In Progress',
-  },
-  {
-    id: 'dash-04',
-    recruiterName: 'Marcus Chen',
-    recruiterRole: 'Senior Technical Recruiter',
-    teamLead: 'Harish Gadipally',
-    reqId: 'REQ-702',
-    jobTitle: 'Senior React Native Mobile Dev',
-    positions: 4,
-    clientName: 'Accenture Enterprise',
-    submissionsCount: 24,
-    timestamp: '19 Aug 2026, 03:20 PM',
-    receivedTime: '11 Aug 2026, 09:15 AM',
-    firstSubmissionTime: '11 Aug 2026, 02:45 PM',
-    tat: '5h 30m',
-    status: 'Target Achieved',
-  },
-  {
-    id: 'dash-05',
-    recruiterName: 'Priya Sharma',
-    recruiterRole: 'IT Recruiter',
-    teamLead: 'Harish Gadipally',
-    reqId: 'REQ-2026-08-06-005',
-    jobTitle: 'Java Cloud Architect',
-    positions: 6,
-    clientName: 'Goldman Sachs',
-    submissionsCount: 18,
-    timestamp: '20 Aug 2026, 06:10 PM',
-    receivedTime: '07 Aug 2026, 09:00 AM',
-    firstSubmissionTime: '07 Aug 2026, 01:20 PM',
-    tat: '4h 20m',
-    status: 'In Progress',
-  },
-  {
-    id: 'dash-06',
-    recruiterName: 'Lakshmi V',
-    recruiterRole: 'Lead Technical Recruiter',
-    teamLead: 'Tom Walsh',
-    reqId: 'REQ-2026-08-07-006',
-    jobTitle: 'Automotive Embedded Systems Engineer',
-    positions: 10,
-    clientName: 'Tesla Mobility',
-    submissionsCount: 22,
-    timestamp: '21 Aug 2026, 08:30 AM',
-    receivedTime: '08 Aug 2026, 08:30 AM',
-    firstSubmissionTime: '08 Aug 2026, 10:45 AM',
-    tat: '2h 15m',
-    status: 'In Progress',
-  },
-  {
-    id: 'dash-07',
-    recruiterName: 'Suresh Kulkarni',
-    recruiterRole: 'ERP Technical Recruiter',
-    teamLead: 'Harish Gadipally',
-    reqId: 'REQ-2026-08-12-004',
-    jobTitle: 'PLM / PDM Lead Engineer',
-    positions: 4,
-    clientName: 'Accenture',
-    submissionsCount: 18,
-    timestamp: '19 Aug 2026, 05:00 PM',
-    receivedTime: '14 Aug 2026, 06:45 AM',
-    firstSubmissionTime: '14 Aug 2026, 12:00 PM',
-    tat: '5h 15m',
-    status: 'In Progress',
-  },
-  {
-    id: 'dash-08',
-    recruiterName: 'Lingoji Pavani',
-    recruiterRole: 'Technical Sourcing Lead',
-    teamLead: 'Tom Walsh',
-    reqId: 'REQ-2026-06-08-001',
-    jobTitle: '.NET Core Backend Architect',
-    positions: 2,
-    clientName: 'LTTS Mobility',
-    submissionsCount: 12,
-    timestamp: '18 Aug 2026, 02:15 PM',
-    receivedTime: '09 Aug 2026, 08:00 AM',
-    firstSubmissionTime: '09 Aug 2026, 11:30 AM',
-    tat: '3h 30m',
-    status: 'Submissions Completed',
-  },
-  {
-    id: 'dash-09',
-    recruiterName: 'rahimoon Shaik',
-    recruiterRole: 'Automotive Sourcing Specialist',
-    teamLead: 'Tom Walsh',
-    reqId: 'REQ-2026-08-07-007',
-    jobTitle: 'BIW Sheet Metal Product Design Lead',
-    positions: 5,
-    clientName: 'Continental Automotive',
-    submissionsCount: 15,
-    timestamp: '20 Aug 2026, 01:40 PM',
-    receivedTime: '10 Aug 2026, 11:00 AM',
-    firstSubmissionTime: '10 Aug 2026, 04:10 PM',
-    tat: '5h 10m',
-    status: 'In Progress',
-  },
-  {
-    id: 'dash-10',
-    recruiterName: 'Harini Sindey',
-    recruiterRole: 'Enterprise Systems Specialist',
-    teamLead: 'Tom Walsh',
-    reqId: 'REQ-2026-07-20-009',
-    jobTitle: 'SAP MM + Ariba Functional Lead',
-    positions: 3,
-    clientName: 'ITC Infotech',
-    submissionsCount: 18,
-    timestamp: '21 Aug 2026, 09:15 AM',
-    receivedTime: '21 Jul 2026, 07:30 AM',
-    firstSubmissionTime: '21 Jul 2026, 10:00 AM',
-    tat: '2h 30m',
-    status: 'Target Achieved',
-  },
-  {
-    id: 'dash-11',
-    recruiterName: 'Marcus Chen',
-    recruiterRole: 'Senior Technical Recruiter',
-    teamLead: 'Harish Gadipally',
-    reqId: 'REQ-2026-08-04-002',
-    jobTitle: 'DevOps / Kubernetes Cloud Engineer',
-    positions: 5,
-    clientName: 'Goldman Sachs',
-    submissionsCount: 16,
-    timestamp: '21 Aug 2026, 11:30 AM',
-    receivedTime: '05 Aug 2026, 10:00 AM',
-    firstSubmissionTime: '05 Aug 2026, 02:15 PM',
-    tat: '4h 15m',
-    status: 'In Progress',
-  },
-  {
-    id: 'dash-12',
-    recruiterName: 'Marcus Chen',
-    recruiterRole: 'Senior Technical Recruiter',
-    teamLead: 'Harish Gadipally',
-    reqId: 'REQ-2026-08-01-010',
-    jobTitle: 'Cybersecurity Threat Analyst',
-    positions: 2,
-    clientName: 'Tesla Mobility',
-    submissionsCount: 9,
-    timestamp: '18 Aug 2026, 05:10 PM',
-    receivedTime: '02 Aug 2026, 07:00 AM',
-    firstSubmissionTime: '02 Aug 2026, 09:00 AM',
-    tat: '2h 00m',
-    status: 'Submissions Completed',
-  },
-  {
-    id: 'dash-13',
-    recruiterName: 'Marcus Chen',
-    recruiterRole: 'Senior Technical Recruiter',
-    teamLead: 'Harish Gadipally',
-    reqId: 'REQ-703',
-    jobTitle: 'Senior Staff AI / ML Engineer',
-    positions: 4,
-    clientName: 'Accenture Enterprise',
-    submissionsCount: 15,
-    timestamp: '20 Aug 2026, 03:45 PM',
-    receivedTime: '15 Aug 2026, 08:30 AM',
-    firstSubmissionTime: '15 Aug 2026, 10:30 AM',
-    tat: '2h 00m',
-    status: 'In Progress',
-  },
-  {
-    id: 'dash-14',
-    recruiterName: 'Marcus Chen',
-    recruiterRole: 'Senior Technical Recruiter',
-    teamLead: 'Harish Gadipally',
-    reqId: 'REQ-704',
-    jobTitle: 'Principal Distributed Systems Engineer',
-    positions: 3,
-    clientName: 'Goldman Sachs',
-    submissionsCount: 12,
-    timestamp: '15 Aug 2026, 11:20 AM',
-    receivedTime: '10 Aug 2026, 06:00 AM',
-    firstSubmissionTime: '10 Aug 2026, 09:15 AM',
-    tat: '3h 15m',
-    status: 'Target Achieved',
-  },
-  {
-    id: 'dash-15',
-    recruiterName: 'Marcus Chen',
-    recruiterRole: 'Senior Technical Recruiter',
-    teamLead: 'Harish Gadipally',
-    reqId: 'REQ-705',
-    jobTitle: 'Lead Data Platform Architect',
-    positions: 6,
-    clientName: 'Tesla Mobility',
-    submissionsCount: 20,
-    timestamp: '25 Jul 2026, 04:00 PM',
-    receivedTime: '20 Jul 2026, 08:00 AM',
-    firstSubmissionTime: '20 Jul 2026, 11:00 AM',
-    tat: '3h 00m',
-    status: 'Submissions Completed',
-  },
-]
+const fmtStamp = (v?: string | Date | null) => {
+  if (!v) return ''
+  const d = v instanceof Date ? v : new Date(v)
+  if (Number.isNaN(d.getTime())) return typeof v === 'string' ? v : ''
+  const date = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+  const time = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+  return `${date}, ${time}`
+}
+
+const ownersOf = (r: Requirement) => (r.owner || '').split(',').map(n => n.trim()).filter(n => n && n !== 'Unassigned')
+const isOwnedBy = (r: Requirement, name: string) => ownersOf(r).includes(name)
+const subsFor = (r: Requirement, submissions: Submission[]) =>
+  submissions.filter(s => s.req === r.id || s.reqCode === r.id || s.requirementId === (r as any)._id || s.reqCode === (r as any).reqCode)
+
+/** One row per requirement and submitting recruiter: received time, first submission and TAT. */
+function buildReqSubmissionDashboard(requirements: Requirement[], submissions: Submission[], recruiters: Recruiter[]): RecruiterReqDashboardItem[] {
+  const rows: RecruiterReqDashboardItem[] = []
+  for (const r of requirements) {
+    const subs = subsFor(r, submissions)
+    const byRecruiter = new Map<string, Submission[]>()
+    for (const s of subs) byRecruiter.set(s.recruiter || '—', [...(byRecruiter.get(s.recruiter || '—') || []), s])
+    for (const [name, list] of byRecruiter) {
+      const times = list.map(s => new Date(s.submittedAt || s.createdAt || s.date)).filter(d => !Number.isNaN(d.getTime())).sort((a, b) => a.getTime() - b.getTime())
+      const received = (r as any).firstDetectedAt || r.emailArrivedTime || r.createdAt
+      const first = times[0]
+      const positions = r.openings || 0
+      rows.push({
+        id: `dash-${r.id}-${name}`,
+        recruiterName: name,
+        recruiterRole: 'Recruiter',
+        teamLead: recruiters.find(x => x.name === name)?.lead || '—',
+        reqId: r.id,
+        jobTitle: r.title,
+        positions,
+        clientName: r.client,
+        submissionsCount: list.length,
+        timestamp: fmtStamp(times[times.length - 1]),
+        receivedTime: fmtStamp(received),
+        firstSubmissionTime: fmtStamp(first),
+        tat: calculateTAT(received, first ? first.toISOString() : undefined),
+        status: positions > 0 && list.length >= positions ? 'Target Achieved' : 'Active Sourcing',
+      })
+    }
+  }
+  return rows
+}
+
+/** Per-recruiter performance from recorded counts and assigned requirements. */
+function buildRecruiterPerformance(recruiters: Recruiter[], requirements: Requirement[]): RecruiterDetailData[] {
+  return recruiters.map(r => {
+    const reqs = requirements.filter(q => isOwnedBy(q, r.name))
+    const worked = reqs.filter(q => (q.submissions || 0) > 0)
+    const subs = r.submissions || 0
+    return {
+      id: r.id,
+      name: r.name,
+      role: 'Recruiter',
+      team: r.lead ? `${r.lead}'s team` : '—',
+      avatar: (r.name || '?').charAt(0).toUpperCase(),
+      requirementsCount: reqs.length,
+      workedReqs: worked.length,
+      nonWorkedReqs: reqs.length - worked.length,
+      submissionsCount: subs,
+      shortlistedCount: 0,
+      noSubmissionsCount: reqs.length - worked.length,
+      interviewsCount: r.interviews || 0,
+      hiresCount: r.placements || 0,
+      conversionRate: subs ? `${(((r.placements || 0) / subs) * 100).toFixed(1)}%` : '0%',
+      dailyTaskStatus: '—',
+      weeklyProgress: '—',
+      weeklyProgressPct: 0,
+      teamLead: r.lead || '—',
+      primaryClient: (r as any).primaryClient || '—',
+      status: reqs.length > 0 && worked.length === 0 ? 'Critical' : 'On Track',
+      requirementsList: reqs.map(q => ({
+        id: q.id,
+        title: q.title,
+        client: q.client,
+        status: ((q.submissions || 0) > 0 ? 'Worked' : 'Non-Worked') as 'Worked' | 'Non-Worked',
+        submissions: q.submissions || 0,
+        interviews: q.interviews || 0,
+        positions: q.openings,
+      })),
+    }
+  })
+}
+
+/** Per-client performance from the live requirements. */
+function buildClientPerformance(requirements: Requirement[]): ClientPerformanceData[] {
+  const byClient = new Map<string, Requirement[]>()
+  for (const r of requirements) byClient.set(r.client || '—', [...(byClient.get(r.client || '—') || []), r])
+  return [...byClient.entries()].map(([clientName, reqs], i) => {
+    const subs = reqs.reduce((n, r) => n + (r.submissions || 0), 0)
+    const assigned = reqs.filter(r => ownersOf(r).length > 0)
+    const closed = reqs.filter(r => r.status === 'Closed')
+    return {
+      id: `cli-${i + 1}`,
+      clientName,
+      reqSent: reqs.length,
+      reqAssigned: assigned.length,
+      submissions: subs,
+      subRatio: reqs.length ? Math.round((subs / reqs.length) * 10) / 10 : 0,
+      openReqs: reqs.length - closed.length,
+      closedReqs: closed.length,
+      activeRecruiters: new Set(reqs.flatMap(ownersOf)).size,
+      requirementsList: reqs.map(r => ({
+        id: r.id,
+        title: r.title,
+        assignedRecruiter: ownersOf(r).join(', ') || 'Unassigned',
+        submissions: r.submissions || 0,
+        status: (r.status === 'Closed' ? 'Closed' : (r.submissions || 0) > 0 ? 'In Progress' : 'Open') as 'Open' | 'Closed' | 'In Progress',
+        createdDate: r.createdAt ? new Date(r.createdAt).toISOString().slice(0, 10) : '',
+      })),
+    }
+  }).sort((a, b) => b.reqSent - a.reqSent)
+}
+
 
 export interface ReportsPageProps {
   role?: Role
@@ -780,6 +649,9 @@ export function ReportsPage({
   onUpdateRequirements,
 }: ReportsPageProps) {
   const [reportsTopTab, setReportsTopTab] = useState<'reports' | 'submissions' | 'interviews'>(initialReportsTab)
+  const RECRUITER_REQ_SUBMISSION_DASHBOARD_DATA = useMemo(() => buildReqSubmissionDashboard(requirements, submissions, recruiters), [requirements, submissions, recruiters])
+  const recruitersPerformanceList = useMemo(() => buildRecruiterPerformance(recruiters, requirements), [recruiters, requirements])
+  const clientPerformanceList = useMemo(() => buildClientPerformance(requirements), [requirements])
   const [selectedReqForDetail, setSelectedReqForDetail] = useState<Requirement | null>(null)
 
   React.useEffect(() => {
@@ -801,19 +673,19 @@ export function ReportsPage({
   const [dashSearchQuery, setDashSearchQuery] = useState('')
   const [dashRecruiterFilter, setDashRecruiterFilter] = useState('All Recruiters')
   const [dashClientFilter, setDashClientFilter] = useState('All Clients')
-  const [dashDateFilter, setDashDateFilter] = useState<'today' | 'yesterday' | '7_days' | '1_month' | 'all'>('today')
+  const [dashDateFilter, setDashDateFilter] = useState<'today' | 'yesterday' | '7_days' | '1_month' | 'all'>('all')
 
   // Dashboard 1: Team Lead Individual Dashboard State
   const [dash1SearchQuery, setDash1SearchQuery] = useState('')
   const [dash1ClientFilter, setDash1ClientFilter] = useState('All Clients')
-  const [dash1DateFilter, setDash1DateFilter] = useState<'today' | 'yesterday' | '7_days' | '1_month' | 'all'>('today')
+  const [dash1DateFilter, setDash1DateFilter] = useState<'today' | 'yesterday' | '7_days' | '1_month' | 'all'>('all')
   const [dash1Page, setDash1Page] = useState(1)
 
   // Dashboard 2: Overall Team Recruiters Dashboard State (Excludes Lead Individual Data)
   const [dash2SearchQuery, setDash2SearchQuery] = useState('')
   const [dash2RecruiterFilter, setDash2RecruiterFilter] = useState('All Recruiters')
   const [dash2ClientFilter, setDash2ClientFilter] = useState('All Clients')
-  const [dash2DateFilter, setDash2DateFilter] = useState<'today' | 'yesterday' | '7_days' | '1_month' | 'all'>('today')
+  const [dash2DateFilter, setDash2DateFilter] = useState<'today' | 'yesterday' | '7_days' | '1_month' | 'all'>('all')
   const [dash2Page, setDash2Page] = useState(1)
 
   // Team Lead Module Dashboard Toggle: 'team_members' (Team Members Submissions - Mates) | 'individual' (Team Lead Individual Submissions)
@@ -856,73 +728,8 @@ export function ReportsPage({
 
   const fullAssignedReqs = useMemo(() => {
     if (!workedReqsModalRecruiter) return []
-    const r = workedReqsModalRecruiter
     const activeClientForModal = clientFilter !== 'All Clients' ? clientFilter : null
-
-    let targetCount = r.requirementsCount || 1
-    if (activeClientForModal) {
-      const metrics = getRecruiterClientMetrics(r, activeClientForModal)
-      targetCount = metrics.reqsCount
-    }
-
-    const existing = r.requirementsList.filter(req => {
-      if (activeClientForModal) {
-        return req.client && req.client.toLowerCase().includes(activeClientForModal.toLowerCase())
-      }
-      return true
-    })
-
-    if (existing.length >= targetCount) {
-      return existing.slice(0, targetCount)
-    }
-
-    const clientDomainMap: Record<string, string[]> = {
-      'Accenture': ['Senior Java Full Stack Lead', 'React Native Mobile Architect', 'Cloud DevOps Specialist', 'Spring Boot Developer', 'Full Stack Engineer', 'Microservices Architect', 'API Gateway Developer', 'Kafka Event Streaming Specialist'],
-      'LTTS Automotive': ['AUTOSAR Software Architect', 'C# Automation Engineer', 'Embedded Firmware Engineer', 'Hardware QA Tester', 'Catia V5 Mechanical Engineer', 'ECU Developer', 'CAN Bus Protocol Specialist'],
-      'Goldman Sachs': ['Risk Systems Developer', 'FinTech Quant Analyst', 'Python Data Engineer', 'High Frequency Trading Dev', 'Cyber Security Consultant', 'Kafka Streaming Lead', 'Algorithmic Execution Dev'],
-      'Morgan Stanley': ['Cloud Infrastructure Director', 'SAP HANA Lead Consultant', 'AWS Solutions Architect', 'Enterprise ERP Specialist', 'Database Admin', 'DevSecOps Specialist'],
-      'Infosys': ['Cloud Solutions Architect', 'Angular Frontend Specialist', 'Node.js Backend Dev', 'ServiceNow Developer', 'UI/UX Designer', 'Salesforce Admin'],
-      'ITC Infotech': ['SAP MM Functional Lead', 'FICO Module Consultant', 'ABAP Developer', 'Supply Chain Analyst', 'BI Reporting Specialist', 'Data Warehousing Lead'],
-      'Tesla Mobility': ['Automotive Embedded Systems', 'Battery Mgmt Systems Engineer', 'AI Computer Vision Engineer', 'ROS Robotics Specialist', 'Firmware Engineer', 'Vehicle Software Dev'],
-      'JPMorgan Chase': ['Risk Systems Developer', 'Core Banking Java Lead', 'Financial Cloud Architect', 'Security Analyst', 'Equity Trading Dev'],
-      'Wipro': ['Junior QA Automation Tester', 'Mainframe Developer', 'IT Support Specialist', 'Network Engineer'],
-      'HCL Technologies': ['Cyber Security Analyst', 'Infrastructure Support Lead', 'Cloud Migration Specialist']
-    }
-
-    const clientListKeys = Object.keys(clientDomainMap)
-    const recruiterInitials = r.name.split(' ').map(n => n[0]).join('').toUpperCase()
-    const workedTarget = Math.max(0, Math.floor(targetCount * 0.8))
-
-    const result = [...existing]
-
-    for (let i = result.length; i < targetCount; i++) {
-      const isWorked = i < workedTarget
-      const primaryClient = activeClientForModal
-        ? activeClientForModal
-        : r.primaryClient && r.primaryClient !== '—'
-        ? r.primaryClient
-        : clientListKeys[i % clientListKeys.length]
-
-      const titles =
-        clientDomainMap[primaryClient] ||
-        clientDomainMap['Accenture'] ||
-        clientDomainMap[clientListKeys[i % clientListKeys.length]]
-      const title = titles[i % titles.length]
-      const reqNum = (i + 1).toString().padStart(2, '0')
-
-      result.push({
-        id: `REQ-${recruiterInitials}${reqNum}`,
-        title: title,
-        client: primaryClient,
-        status: isWorked ? 'Worked' : 'Non-Worked',
-        submissions: isWorked ? Math.floor(4 + ((i * 5) % 18)) : 0,
-        interviews: isWorked ? Math.floor(1 + ((i * 2) % 6)) : 0,
-        positions: Math.floor(2 + (i % 5)),
-        reasonNote: isWorked ? undefined : 'JD clarification / client budget review pending',
-      })
-    }
-
-    return result
+    return workedReqsModalRecruiter.requirementsList.filter(req => !activeClientForModal || req.client === activeClientForModal)
   }, [workedReqsModalRecruiter, clientFilter])
 
   const filteredModalReqs = useMemo(() => {
@@ -947,493 +754,62 @@ export function ReportsPage({
   }
 
   // Active Logged-In Recruiter Personal Profile Data (or Team Lead Individual Profile Data)
-  const [myPersonalProfile, setMyPersonalProfile] = useState<RecruiterDetailData>(() => {
-    if (role === 'lead') {
-      return {
-        id: 'rec-lead-0',
-        name: 'Harish Gadipally',
-        role: 'Team Lead',
-        team: 'Engineering Pod',
-        avatar: 'H',
-        requirementsCount: 45,
-        workedReqs: 38,
-        nonWorkedReqs: 7,
-        submissionsCount: 142,
-        shortlistedCount: 48,
-        noSubmissionsCount: 12,
-        interviewsCount: 36,
-        hiresCount: 11,
-        conversionRate: '22.9%',
-        dailyTaskStatus: 'Done (5/5)',
-        weeklyProgress: '22 / 25',
-        weeklyProgressPct: 88,
-        status: 'On Track',
-        requirementsList: [
-          { id: 'REQ-2026-08-12-001', title: 'TPC - Requirement - C# Automation - Embedded', client: 'LTTS / L&T', status: 'Worked', submissions: 14, interviews: 4, positions: 5 },
-          { id: 'REQ-2026-08-12-003', title: 'Senior React / Fullstack Architect', client: 'Accenture Enterprise', status: 'Worked', submissions: 18, interviews: 5, positions: 4 },
-          { id: 'REQ-701', title: 'Lead Java Full Stack Developer', client: 'Accenture', status: 'Worked', submissions: 42, interviews: 12, positions: 10 },
-          { id: 'REQ-702', title: 'Senior React Native Mobile Dev', client: 'LTTS Automotive', status: 'Worked', submissions: 36, interviews: 10, positions: 8 },
-          { id: 'REQ-703', title: 'Cloud Solutions Architect', client: 'Infosys', status: 'Worked', submissions: 28, interviews: 8, positions: 6 },
-          { id: 'REQ-704', title: 'Cyber Security Analyst', client: 'HCL Technologies', status: 'Non-Worked', submissions: 0, interviews: 0, positions: 3, reasonNote: 'Low CTC budget approval from client' },
-          { id: 'REQ-705', title: 'Lead Data Platform Architect', client: 'Tesla Mobility', status: 'Non-Worked', submissions: 0, interviews: 0, positions: 4, reasonNote: 'Priority shifted to urgent LTTS REQ' },
-        ],
-      }
-    }
+  const sessionName = getSessionUser()?.name || ''
+  const ownProfile = useMemo<RecruiterDetailData>(() => {
+    const mine = recruitersPerformanceList.find(r => r.name === sessionName)
+    if (mine) return mine
+    // A lead's own figures: the requirements assigned to the lead plus the team's recorded totals.
+    const team = recruitersPerformanceList.filter(r => r.teamLead === sessionName)
+    const reqs = requirements.filter(q => isOwnedBy(q, sessionName) || (q as any).assignedLead === sessionName)
+    const worked = reqs.filter(q => (q.submissions || 0) > 0)
+    const sum = (f: (r: RecruiterDetailData) => number) => team.reduce((n, r) => n + f(r), 0)
     return {
-      id: 'rec-m1',
-      name: 'Marcus Chen',
-      role: 'Senior Technical Recruiter',
-      team: 'Engineering Pod',
-      avatar: 'M',
-      requirementsCount: 14,
-      workedReqs: 12,
-      nonWorkedReqs: 2,
-      submissionsCount: 48,
-      shortlistedCount: 18,
-      noSubmissionsCount: 3,
-      interviewsCount: 12,
-      hiresCount: 4,
-      conversionRate: '25.0%',
-      dailyTaskStatus: 'Done (5/5)',
-      weeklyProgress: '20 / 25',
-      weeklyProgressPct: 80,
+      id: 'me',
+      name: sessionName,
+      role: role === 'lead' ? 'Team Lead' : 'Recruiter',
+      team: '—',
+      avatar: (sessionName || '?').charAt(0).toUpperCase(),
+      requirementsCount: reqs.length,
+      workedReqs: worked.length,
+      nonWorkedReqs: reqs.length - worked.length,
+      submissionsCount: sum(r => r.submissionsCount),
+      shortlistedCount: 0,
+      noSubmissionsCount: reqs.length - worked.length,
+      interviewsCount: sum(r => r.interviewsCount),
+      hiresCount: sum(r => r.hiresCount),
+      conversionRate: '—',
+      dailyTaskStatus: '—',
+      weeklyProgress: '—',
+      weeklyProgressPct: 0,
       status: 'On Track',
-      requirementsList: [
-        { id: 'REQ-701', title: 'Lead Java Full Stack Developer', client: 'Accenture', status: 'Worked', submissions: 24, interviews: 8, positions: 8 },
-        { id: 'REQ-702', title: 'Senior React Native Mobile Dev', client: 'Accenture', status: 'Worked', submissions: 24, interviews: 4, positions: 6 },
-        { id: 'REQ-704', title: 'AI Data Engineer', client: 'Metaforge IT', status: 'Non-Worked', submissions: 0, interviews: 0, positions: 4, reasonNote: 'Awaiting client technical specification updates' },
-      ],
+      requirementsList: reqs.map(q => ({
+        id: q.id,
+        title: q.title,
+        client: q.client,
+        status: ((q.submissions || 0) > 0 ? 'Worked' : 'Non-Worked') as 'Worked' | 'Non-Worked',
+        submissions: q.submissions || 0,
+        interviews: q.interviews || 0,
+        positions: q.openings,
+      })),
     }
-  })
+  }, [recruitersPerformanceList, requirements, sessionName, role])
+  const [myPersonalProfile, setMyPersonalProfile] = useState<RecruiterDetailData>(ownProfile)
+  React.useEffect(() => setMyPersonalProfile(ownProfile), [ownProfile])
 
   // Super Admin KPI Data
   const superAdminKPIs = {
-    totalHires: 124,
-    totalSourced: 1480,
-    offerAcceptanceRate: '89.2%',
-    avgTimeToHire: '16 Days',
-    overallConversion: '26.4%',
+    totalHires: recruiters.reduce((n, r) => n + (r.placements || 0), 0),
+    totalSourced: submissions.length,
+    offerAcceptanceRate: '—',
+    avgTimeToHire: '—',
+    overallConversion: submissions.length
+      ? `${((recruiters.reduce((n, r) => n + (r.placements || 0), 0) / submissions.length) * 100).toFixed(1)}%`
+      : '0%',
   }
 
   // Client Performance Data Matching Reference Screenshot
-  const clientPerformanceList: ClientPerformanceData[] = [
-    {
-      id: 'cli-1',
-      clientName: 'METAFORGE (INTERNAL)',
-      reqSent: 49,
-      reqAssigned: 3,
-      submissions: 6,
-      subRatio: 0.12,
-      openReqs: 49,
-      closedReqs: 0,
-      activeRecruiters: 2,
-      requirementsList: [
-        { id: 'REQ-M01', title: 'Internal Operations Associate', assignedRecruiter: 'lakshmi.v Recruiter', submissions: 4, status: 'In Progress', createdDate: '01 Aug 2026' },
-        { id: 'REQ-M02', title: 'Talent Acquisition Coordinator', assignedRecruiter: 'Suresh kulkarni', submissions: 2, status: 'Open', createdDate: '05 Aug 2026' },
-      ],
-    },
-    {
-      id: 'cli-2',
-      clientName: 'OTHER',
-      reqSent: 104,
-      reqAssigned: 6,
-      submissions: 7,
-      subRatio: 0.07,
-      openReqs: 104,
-      closedReqs: 0,
-      activeRecruiters: 3,
-      requirementsList: [
-        { id: 'REQ-O01', title: 'Generic Sourcing Request', assignedRecruiter: 'Harini Sindey', submissions: 4, status: 'Open', createdDate: '28 Jul 2026' },
-        { id: 'REQ-O02', title: 'Technical Consultant', assignedRecruiter: 'rahimoon Shaik', submissions: 3, status: 'In Progress', createdDate: '02 Aug 2026' },
-      ],
-    },
-    {
-      id: 'cli-3',
-      clientName: 'OTHER COMPANY / SOURCE',
-      reqSent: 31,
-      reqAssigned: 1,
-      submissions: 1,
-      subRatio: 0.03,
-      openReqs: 31,
-      closedReqs: 0,
-      activeRecruiters: 1,
-      requirementsList: [
-        { id: 'REQ-OCS01', title: 'External Partner Developer', assignedRecruiter: 'Charlie Darwin', submissions: 1, status: 'Open', createdDate: '04 Aug 2026' },
-      ],
-    },
-    {
-      id: 'cli-4',
-      clientName: 'LTTS',
-      reqSent: 204,
-      reqAssigned: 105,
-      submissions: 291,
-      subRatio: 1.43,
-      openReqs: 203,
-      closedReqs: 1,
-      activeRecruiters: 6,
-      requirementsList: [
-        { id: 'REQ-L01', title: 'Senior Java Full Stack Lead', assignedRecruiter: 'Harish Gadipally', submissions: 42, status: 'Closed', createdDate: '12 Jul 2026' },
-        { id: 'REQ-L02', title: 'AUTOSAR Software Architect', assignedRecruiter: 'rahimoon Shaik', submissions: 22, status: 'In Progress', createdDate: '20 Jul 2026' },
-        { id: 'REQ-L03', title: 'Catia V5 Mechanical Engineer', assignedRecruiter: 'Lingoji Pavani', submissions: 14, status: 'In Progress', createdDate: '01 Aug 2026' },
-      ],
-    },
-    {
-      id: 'cli-5',
-      clientName: 'ITC',
-      reqSent: 69,
-      reqAssigned: 21,
-      submissions: 28,
-      subRatio: 0.41,
-      openReqs: 69,
-      closedReqs: 0,
-      activeRecruiters: 3,
-      requirementsList: [
-        { id: 'REQ-I01', title: 'SAP MM Functional Lead', assignedRecruiter: 'Suresh kulkarni', submissions: 18, status: 'In Progress', createdDate: '25 Jul 2026' },
-        { id: 'REQ-I02', title: 'FICO Module Consultant', assignedRecruiter: 'Lingoji Pavani', submissions: 10, status: 'Open', createdDate: '03 Aug 2026' },
-      ],
-    },
-    {
-      id: 'cli-6',
-      clientName: 'KPMG',
-      reqSent: 41,
-      reqAssigned: 9,
-      submissions: 10,
-      subRatio: 0.24,
-      openReqs: 41,
-      closedReqs: 0,
-      activeRecruiters: 2,
-      requirementsList: [
-        { id: 'REQ-K01', title: 'Cyber Risk Advisory Lead', assignedRecruiter: 'Arvind GR', submissions: 6, status: 'In Progress', createdDate: '30 Jul 2026' },
-        { id: 'REQ-K02', title: 'Financial Audit Analyst', assignedRecruiter: 'Harini Sindey', submissions: 4, status: 'Open', createdDate: '06 Aug 2026' },
-      ],
-    },
-    {
-      id: 'cli-7',
-      clientName: 'DELOITTE',
-      reqSent: 1,
-      reqAssigned: 1,
-      submissions: 3,
-      subRatio: 3.00,
-      openReqs: 1,
-      closedReqs: 0,
-      activeRecruiters: 1,
-      requirementsList: [
-        { id: 'REQ-D01', title: 'Cloud Transformation Manager', assignedRecruiter: 'lakshmi.v Recruiter', submissions: 3, status: 'In Progress', createdDate: '02 Aug 2026' },
-      ],
-    },
-    {
-      id: 'cli-8',
-      clientName: 'METAFORGE',
-      reqSent: 1,
-      reqAssigned: 1,
-      submissions: 4,
-      subRatio: 4.00,
-      openReqs: 1,
-      closedReqs: 0,
-      activeRecruiters: 1,
-      requirementsList: [
-        { id: 'REQ-MF01', title: 'Core Engine Platform Architect', assignedRecruiter: 'Harish Gadipally', submissions: 4, status: 'In Progress', createdDate: '07 Aug 2026' },
-      ],
-    },
-  ]
 
   // All Recruiters & Team Lead Performance List — Ordered by Team Lead first, followed by Team Members under each Lead
-  const recruitersPerformanceList: RecruiterDetailData[] = [
-    // =========================================================================
-    // 👑 TEAM 1: HARISH GADIPALLY (TEAM LEAD) & HIS TEAM MEMBERS
-    // =========================================================================
-    {
-      id: 'rec-lead-0',
-      name: 'Harish Gadipally',
-      role: 'Team Lead',
-      teamLead: 'Harish Gadipally',
-      primaryClient: 'Accenture',
-      team: 'Engineering Pod',
-      avatar: 'H',
-      requirementsCount: 45,
-      workedReqs: 38,
-      nonWorkedReqs: 7,
-      submissionsCount: 142,
-      shortlistedCount: 48,
-      noSubmissionsCount: 12,
-      interviewsCount: 36,
-      hiresCount: 11,
-      conversionRate: '22.9%',
-      dailyTaskStatus: 'Done (5/5)',
-      weeklyProgress: '22 / 25',
-      weeklyProgressPct: 88,
-      status: 'On Track',
-      requirementsList: [
-        { id: 'REQ-701', title: 'Lead Java Full Stack Developer', client: 'Accenture', status: 'Worked', submissions: 42, interviews: 12 },
-        { id: 'REQ-702', title: 'Senior React Native Mobile Dev', client: 'LTTS Automotive', status: 'Worked', submissions: 36, interviews: 10 },
-        { id: 'REQ-703', title: 'Cloud Solutions Architect', client: 'Infosys', status: 'Worked', submissions: 28, interviews: 8 },
-        { id: 'REQ-704', title: 'Cyber Security Analyst', client: 'HCL Technologies', status: 'Non-Worked', submissions: 0, interviews: 0 },
-      ],
-    },
-    {
-      id: 'rec-m1',
-      name: 'Marcus Chen',
-      role: 'Senior Technical Recruiter',
-      teamLead: 'Harish Gadipally',
-      primaryClient: 'Accenture',
-      team: 'Engineering Pod',
-      avatar: 'M',
-      requirementsCount: 14,
-      workedReqs: 12,
-      nonWorkedReqs: 2,
-      submissionsCount: 48,
-      shortlistedCount: 18,
-      noSubmissionsCount: 3,
-      interviewsCount: 12,
-      hiresCount: 4,
-      conversionRate: '25.0%',
-      dailyTaskStatus: 'Done (5/5)',
-      weeklyProgress: '20 / 25',
-      weeklyProgressPct: 80,
-      status: 'On Track',
-      requirementsList: [
-        { id: 'REQ-701', title: 'Lead Java Full Stack Developer', client: 'Accenture', status: 'Worked', submissions: 24, interviews: 8 },
-        { id: 'REQ-702', title: 'Senior React Native Mobile Dev', client: 'Accenture', status: 'Worked', submissions: 24, interviews: 4 },
-      ],
-    },
-    {
-      id: 'rec-p1',
-      name: 'Priya Sharma',
-      role: 'IT Recruiter',
-      teamLead: 'Harish Gadipally',
-      primaryClient: 'Accenture',
-      team: 'Engineering Pod',
-      avatar: 'P',
-      requirementsCount: 12,
-      workedReqs: 10,
-      nonWorkedReqs: 2,
-      submissionsCount: 36,
-      shortlistedCount: 14,
-      noSubmissionsCount: 2,
-      interviewsCount: 9,
-      hiresCount: 3,
-      conversionRate: '21.4%',
-      dailyTaskStatus: 'Done (4/5)',
-      weeklyProgress: '18 / 25',
-      weeklyProgressPct: 72,
-      status: 'On Track',
-      requirementsList: [
-        { id: 'REQ-701', title: 'Lead Java Full Stack Developer', client: 'Accenture', status: 'Worked', submissions: 18, interviews: 5 },
-        { id: 'REQ-703', title: 'Cloud Solutions Architect', client: 'Accenture', status: 'Worked', submissions: 18, interviews: 4 },
-      ],
-    },
-    {
-      id: 'rec-4',
-      name: 'Suresh Kulkarni',
-      role: 'ERP Technical Recruiter',
-      teamLead: 'Harish Gadipally',
-      primaryClient: 'Accenture',
-      team: 'Engineering Pod',
-      avatar: 'S',
-      requirementsCount: 27,
-      workedReqs: 19,
-      nonWorkedReqs: 8,
-      submissionsCount: 46,
-      shortlistedCount: 16,
-      noSubmissionsCount: 9,
-      interviewsCount: 5,
-      hiresCount: 4,
-      conversionRate: '18.5%',
-      dailyTaskStatus: 'In progress (2/5) - 3 to go',
-      weeklyProgress: '12 / 25',
-      weeklyProgressPct: 48,
-      status: 'On Track',
-      requirementsList: [
-        { id: 'REQ-401', title: 'PLM / PDM Engineer', client: 'Accenture', status: 'Worked', submissions: 18, interviews: 3 },
-        { id: 'REQ-402', title: 'Change Management Specialist', client: 'Accenture', status: 'Worked', submissions: 14, interviews: 2 },
-      ],
-    },
-    {
-      id: 'rec-5',
-      name: 'Adirala Sathvika',
-      role: 'Junior Recruiter',
-      teamLead: 'Harish Gadipally',
-      primaryClient: 'Wipro',
-      team: 'Engineering Pod',
-      avatar: 'A',
-      requirementsCount: 1,
-      workedReqs: 0,
-      nonWorkedReqs: 1,
-      submissionsCount: 0,
-      shortlistedCount: 0,
-      noSubmissionsCount: 1,
-      interviewsCount: 0,
-      hiresCount: 0,
-      conversionRate: '0%',
-      dailyTaskStatus: 'In progress (0/5) - 5 to go',
-      weeklyProgress: '0 / 25',
-      weeklyProgressPct: 0,
-      status: 'Critical',
-      requirementsList: [
-        { id: 'REQ-501', title: 'Junior QA Automation Tester', client: 'Wipro', status: 'Non-Worked', submissions: 0, interviews: 0, reasonNote: 'Location constraint / No local candidates available' },
-      ],
-    },
-    {
-      id: 'rec-6',
-      name: 'Arvind GR',
-      role: 'Sourcing Specialist',
-      teamLead: 'Harish Gadipally',
-      primaryClient: 'Infosys',
-      team: 'Engineering Pod',
-      avatar: 'A',
-      requirementsCount: 4,
-      workedReqs: 3,
-      nonWorkedReqs: 1,
-      submissionsCount: 12,
-      shortlistedCount: 4,
-      noSubmissionsCount: 1,
-      interviewsCount: 3,
-      hiresCount: 1,
-      conversionRate: '15.0%',
-      dailyTaskStatus: 'Done (3/5)',
-      weeklyProgress: '12 / 25',
-      weeklyProgressPct: 48,
-      status: 'On Track',
-      requirementsList: [
-        { id: 'REQ-601', title: 'Frontend Developer', client: 'Infosys', status: 'Worked', submissions: 12, interviews: 3 },
-      ],
-    },
-
-    // =========================================================================
-    // 👑 TEAM 2: TOM WALSH (TEAM LEAD) & HIS TEAM MEMBERS
-    // =========================================================================
-    {
-      id: 'rec-lead-2',
-      name: 'Tom Walsh',
-      role: 'Team Lead',
-      teamLead: 'Tom Walsh',
-      primaryClient: 'Goldman Sachs',
-      team: 'Enterprise Accounts Pod',
-      avatar: 'T',
-      requirementsCount: 52,
-      workedReqs: 44,
-      nonWorkedReqs: 8,
-      submissionsCount: 168,
-      shortlistedCount: 62,
-      noSubmissionsCount: 10,
-      interviewsCount: 24,
-      hiresCount: 9,
-      conversionRate: '28.4%',
-      dailyTaskStatus: 'Done (5/5)',
-      weeklyProgress: '24 / 25',
-      weeklyProgressPct: 96,
-      status: 'On Track',
-      requirementsList: [
-        { id: 'REQ-TW01', title: 'Principal Financial Architect', client: 'Goldman Sachs', status: 'Worked', submissions: 32, interviews: 8 },
-        { id: 'REQ-TW02', title: 'Lead Quantitative Developer', client: 'JPMorgan Chase', status: 'Worked', submissions: 28, interviews: 6 },
-      ],
-    },
-    {
-      id: 'rec-1',
-      name: 'Lakshmi V',
-      role: 'Lead Technical Recruiter',
-      teamLead: 'Tom Walsh',
-      primaryClient: 'Goldman Sachs',
-      team: 'Enterprise Accounts Pod',
-      avatar: 'L',
-      requirementsCount: 72,
-      workedReqs: 58,
-      nonWorkedReqs: 14,
-      submissionsCount: 194,
-      shortlistedCount: 84,
-      noSubmissionsCount: 32,
-      interviewsCount: 22,
-      hiresCount: 12,
-      conversionRate: '26.2%',
-      dailyTaskStatus: 'Done (5/5)',
-      weeklyProgress: '21 / 25',
-      weeklyProgressPct: 84,
-      status: 'On Track',
-      requirementsList: [
-        { id: 'REQ-101', title: 'Senior Java Full Stack Engineer', client: 'Goldman Sachs', status: 'Worked', submissions: 24, interviews: 8 },
-        { id: 'REQ-102', title: 'React.js Frontend Architect', client: 'Goldman Sachs', status: 'Worked', submissions: 18, interviews: 5 },
-      ],
-    },
-    {
-      id: 'rec-t1',
-      name: 'Sarah Kim',
-      role: 'FinTech Technical Recruiter',
-      teamLead: 'Tom Walsh',
-      primaryClient: 'JPMorgan Chase',
-      team: 'Enterprise Accounts Pod',
-      avatar: 'S',
-      requirementsCount: 18,
-      workedReqs: 15,
-      nonWorkedReqs: 3,
-      submissionsCount: 54,
-      shortlistedCount: 22,
-      noSubmissionsCount: 4,
-      interviewsCount: 14,
-      hiresCount: 5,
-      conversionRate: '27.7%',
-      dailyTaskStatus: 'Done (5/5)',
-      weeklyProgress: '22 / 25',
-      weeklyProgressPct: 88,
-      status: 'On Track',
-      requirementsList: [
-        { id: 'REQ-SK01', title: 'Risk Systems Developer', client: 'JPMorgan Chase', status: 'Worked', submissions: 30, interviews: 8 },
-      ],
-    },
-
-    // =========================================================================
-    // 👑 TEAM 3: RAHUL VERMA (TEAM LEAD) & HIS TEAM MEMBERS
-    // =========================================================================
-    {
-      id: 'rec-lead-3',
-      name: 'Rahul Verma',
-      role: 'Team Lead',
-      teamLead: 'Rahul Verma',
-      primaryClient: 'Morgan Stanley',
-      team: 'Cloud & ERP Pod',
-      avatar: 'R',
-      requirementsCount: 38,
-      workedReqs: 32,
-      nonWorkedReqs: 6,
-      submissionsCount: 110,
-      shortlistedCount: 42,
-      noSubmissionsCount: 8,
-      interviewsCount: 18,
-      hiresCount: 7,
-      conversionRate: '24.1%',
-      dailyTaskStatus: 'Done (5/5)',
-      weeklyProgress: '20 / 25',
-      weeklyProgressPct: 80,
-      status: 'On Track',
-      requirementsList: [
-        { id: 'REQ-RV01', title: 'Cloud Infrastructure Director', client: 'Morgan Stanley', status: 'Worked', submissions: 28, interviews: 6 },
-      ],
-    },
-    {
-      id: 'rec-r1',
-      name: 'Neha Gupta',
-      role: 'SAP & Cloud Specialist',
-      teamLead: 'Rahul Verma',
-      primaryClient: 'Morgan Stanley',
-      team: 'Cloud & ERP Pod',
-      avatar: 'N',
-      requirementsCount: 16,
-      workedReqs: 14,
-      nonWorkedReqs: 2,
-      submissionsCount: 42,
-      shortlistedCount: 18,
-      noSubmissionsCount: 3,
-      interviewsCount: 10,
-      hiresCount: 4,
-      conversionRate: '23.8%',
-      dailyTaskStatus: 'Done (4/5)',
-      weeklyProgress: '19 / 25',
-      weeklyProgressPct: 76,
-      status: 'On Track',
-      requirementsList: [
-        { id: 'REQ-NG01', title: 'SAP HANA Lead Consultant', client: 'Morgan Stanley', status: 'Worked', submissions: 22, interviews: 5 },
-      ],
-    },
-  ]
 
   const getRecruiterClientBreakdown = (r: RecruiterDetailData): ClientSubmissionInfo[] => {
     const map = new Map<string, number>()
@@ -1556,7 +932,8 @@ export function ReportsPage({
       const itemDate = new Date(datePart)
       if (isNaN(itemDate.getTime())) return true
 
-      const today = new Date('2026-08-21T00:00:00')
+      const now = new Date()
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
       const diffTime = today.getTime() - itemDate.getTime()
       const diffDays = Math.floor(diffTime / (1000 * 3600 * 24))
 
@@ -1587,7 +964,7 @@ export function ReportsPage({
 
   const renderSubmissionsDashboardCard = (config?: SubmissionsDashboardConfig) => {
     const cardType = config?.type || (role === 'recruiter' ? 'recruiter_self' : 'overall_company')
-    const leadName = config?.leadName || 'Harish Gadipally'
+    const leadName = config?.leadName || ''
 
     let searchQ = dashSearchQuery
     let setSearchQ = setDashSearchQuery
@@ -1624,7 +1001,7 @@ export function ReportsPage({
 
     const filteredItems = RECRUITER_REQ_SUBMISSION_DASHBOARD_DATA.filter(item => {
       if (cardType === 'recruiter_self') {
-        const myName = (myPersonalProfile.name || 'Marcus Chen').toLowerCase().trim()
+        const myName = (myPersonalProfile.name || '').toLowerCase().trim()
         const recName = item.recruiterName.toLowerCase().trim()
         if (!recName.includes(myName) && !myName.includes(recName)) return false
       } else if (cardType === 'lead_self') {
@@ -1643,8 +1020,8 @@ export function ReportsPage({
         if (item.teamLead) {
           if (!itemLead.includes(lead) && !lead.includes(itemLead)) return false
         } else {
-          const harishTeamRecruiters = ['marcus chen', 'priya sharma', 'suresh kulkarni', 'adirala sathvika', 'arvind gr']
-          if (!harishTeamRecruiters.some(r => recName.includes(r))) return false
+          const leadTeamRecruiters = recruiters.filter(r => (r.lead || '').toLowerCase().includes(lead)).map(r => r.name.toLowerCase())
+          if (leadTeamRecruiters.length > 0 && !leadTeamRecruiters.some(r => recName.includes(r))) return false
         }
       }
 
@@ -1694,7 +1071,7 @@ export function ReportsPage({
         `"${item.recruiterName}"`,
         `"${item.reqId}"`,
         `"${item.jobTitle}"`,
-        `"${item.receivedTime || '12 Aug 2026, 05:30 AM'}"`,
+        `"${item.receivedTime || ''}"`,
         item.positions,
         `"${item.clientName}"`,
         item.submissionsCount,
@@ -1859,8 +1236,8 @@ export function ReportsPage({
                           if (i.teamLead) {
                             return itemLead.includes(lead) || lead.includes(itemLead)
                           }
-                          const harishTeamRecruiters = ['marcus chen', 'priya sharma', 'suresh kulkarni', 'adirala sathvika', 'arvind gr']
-                          return harishTeamRecruiters.some(r => recName.includes(r))
+                          const leadTeamRecruiters = recruiters.filter(r => (r.lead || '').toLowerCase().includes(lead)).map(r => r.name.toLowerCase())
+                          return leadTeamRecruiters.length === 0 || leadTeamRecruiters.some(r => recName.includes(r))
                         }
                         return true
                       })
@@ -1900,11 +1277,11 @@ export function ReportsPage({
                         if (i.teamLead) {
                           return itemLead.includes(lead) || lead.includes(itemLead)
                         }
-                        const harishTeamRecruiters = ['marcus chen', 'priya sharma', 'suresh kulkarni', 'adirala sathvika', 'arvind gr']
-                        return harishTeamRecruiters.some(r => recName.includes(r))
+                        const leadTeamRecruiters = recruiters.filter(r => (r.lead || '').toLowerCase().includes(lead)).map(r => r.name.toLowerCase())
+                        return leadTeamRecruiters.length === 0 || leadTeamRecruiters.some(r => recName.includes(r))
                       }
                       if (cardType === 'recruiter_self') {
-                        const myName = (myPersonalProfile.name || 'Marcus Chen').toLowerCase().trim()
+                        const myName = (myPersonalProfile.name || '').toLowerCase().trim()
                         const recName = i.recruiterName.toLowerCase().trim()
                         return recName.includes(myName) || myName.includes(recName)
                       }
@@ -2044,6 +1421,7 @@ export function ReportsPage({
     return (
       <ClientDetailAnalyticsPage
         client={selectedClient}
+        requirements={requirements}
         onBack={() => {
           setSelectedClient(null)
           setActiveReportView('team')
@@ -2140,6 +1518,7 @@ export function ReportsPage({
           role={role}
           interviews={interviews}
           onOpenFeedbackModal={onOpenFeedback}
+          requirements={requirements}
           onUpdateRequirements={onUpdateRequirements}
         />
       ) : (
@@ -2197,7 +1576,7 @@ export function ReportsPage({
           ) : mainTab === 'audit' && role !== 'recruiter' ? (
             <ActivityLogsPage role={role} />
           ) : (
-            <HistoryPage role={role} />
+            <HistoryPage role={role} recruiters={recruiters} requirements={requirements} submissions={submissions} />
           )}
         </>
       )}

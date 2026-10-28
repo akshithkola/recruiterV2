@@ -52,7 +52,7 @@ export interface Requirement {
   noticePeriod?: string
   experienceLevel?: string
   experience?: string
-  experienceRange?: { min: number; max: number }
+  experienceRange?: { min: number; max: number | null }
   mandatorySkills?: string[]
   conversationId?: string
   inReplyTo?: string
@@ -75,6 +75,8 @@ export interface ActivityLogItem {
   ipAddress: string
   status: 'Success' | 'Warning' | 'Security Alert'
   details?: string
+  /** ISO time the action was recorded; `timestamp` is the human-readable form. */
+  createdAt?: string
 }
 
 export interface Recruiter {
@@ -191,6 +193,7 @@ export interface Candidate {
   reasonForChange?: string
   notes?: string
   resumeName?: string
+  resumeFileId?: string
   matchScore?: string
   status?: 'New' | 'Parsed' | 'Submitted' | 'In Review' | 'Placed'
 }

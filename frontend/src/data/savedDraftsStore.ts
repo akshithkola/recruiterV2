@@ -9,58 +9,6 @@ export interface SavedDraftItem {
   data: any
 }
 
-const INITIAL_DRAFTS: SavedDraftItem[] = [
-  {
-    id: 'DRAFT-101',
-    type: 'candidate',
-    title: 'Ananya Verma',
-    subtitle: 'Full Stack React & Node.js Lead • 6 Years Exp • Current: TCS (18 LPA)',
-    savedAt: '26 Aug 2026, 04:15 PM',
-    createdBy: 'Harish Gadipally',
-    status: 'Draft Profile',
-    data: {
-      candidateName: 'Ananya Verma',
-      currentCompany: 'TCS',
-      contactNumber: '+91 97112 88401',
-      email: 'ananya.verma@gmail.com',
-      qualification: 'B.Tech IT, NIT Warangal',
-      skills: 'React, TypeScript, Node.js, Express, PostgreSQL, AWS, Docker',
-      technologies: 'Full Stack Web Development',
-      totalExperience: '6 Years',
-      relevantExperience: '5.5 Years',
-      currentCtc: '18 LPA',
-      expectedCtc: '24 LPA',
-      noticePeriod: '30 Days',
-      currentLocation: 'Hyderabad',
-      preferredLocation: 'Hyderabad / Remote',
-      interviewAvailability: 'Available weekdays after 5 PM',
-      offerInHand: 'No',
-      reasonForChange: 'Looking for product-based company',
-      notes: 'Draft saved for client submission after salary budget approval.',
-    },
-  },
-  {
-    id: 'DRAFT-102',
-    type: 'requirement',
-    title: 'REQ-2026-08-25-009 — Cloud DevOps & SRE Architect',
-    subtitle: 'Client: Accenture • Openings: 2 • Budget: ₹32,00,000 PA • Priority: High',
-    savedAt: '25 Aug 2026, 11:30 AM',
-    createdBy: 'Harish Gadipally',
-    status: 'Draft Demand',
-    data: {
-      reqId: 'REQ-2026-08-25-009',
-      jobTitle: 'Cloud DevOps & SRE Architect',
-      client: 'Accenture',
-      priority: 'High',
-      openings: 2,
-      yearlyBudget: '3200000',
-      mandatorySkills: ['Kubernetes', 'Terraform', 'AWS SRE', 'CI/CD Pipelines'],
-      location: 'Bengaluru / Remote',
-    },
-  },
-]
-
-const DRAFTS_STORAGE_KEY = 'metaforge_saved_drafts_v1'
 let draftsMemory: SavedDraftItem[] = []
 
 export function getSavedDrafts(): SavedDraftItem[] {

@@ -8,3 +8,8 @@ export const ROLE_META: Record<Role, { label: string; desc: string; color: strin
   devteam: { label: 'Dev Team', desc: 'Full Super Admin control, platform metrics, and administrative privileges', color: 'text-purple-600', bg: 'bg-purple-50', border: 'border-purple-200' },
   client: { label: 'Client', desc: 'Client portal for requirements and candidate review', color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-200' },
 }
+
+/** Display title for a role when the user record has none. */
+export function titleForRole(role: Role): string {
+  return ROLE_META[role]?.label || role
+}

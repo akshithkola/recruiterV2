@@ -43,20 +43,32 @@ export function useCreateJobDemandFormHandlers(s: CreateJobDemandVmState) {
     }
   }
 
-  // Simulated AI JD Extraction
+  // Fill empty fields from labelled lines in the pasted JD ("Job Title: …", "Mandatory Skills: …").
   const handleExtractAndAutoFill = () => {
     if (!jdText.trim()) {
       showToast('Please paste JD text or upload a document to extract.')
       return
     }
     setIsExtracting(true)
-    setTimeout(() => {
-      setIsExtracting(false)
-      if (!jobTitle) setJobTitle('Senior Data Engineer (AI/ML)')
-      if (mandatorySkills.length === 0) setMandatorySkills(['Python', 'PySpark', 'SQL', 'Azure'])
-      if (skills.length === 0) setSkills(['Problem Solving', 'Agile', 'ETL Pipelines'])
-      showToast('Extracted & auto-filled details from JD text successfully!')
-    }, 1200)
+    const valueOf = (labels: string[]) => {
+      for (const line of jdText.split(/\r?\n/)) {
+        const m = line.match(new RegExp(`^\\s*(?:${labels.join('|')})\\s*[:\\-–—]\\s*(.+)$`, 'i'))
+        if (m && m[1].trim()) return m[1].trim()
+      }
+      return ''
+    }
+    const list = (v: string) => v.split(/[,;|]/).map(x => x.trim()).filter(Boolean)
+    const title = valueOf(['job\\s*title', 'position', 'role', 'designation'])
+    const mand = list(valueOf(['mandatory\\s*skills?', 'must\\s*have(?:\\s*skills?)?', 'primary\\s*skills?']))
+    const other = list(valueOf(['skills?', 'secondary\\s*skills?', 'good\\s*to\\s*have']))
+    const loc = list(valueOf(['job\\s*location', 'work\\s*location', 'location']))
+    const filled: string[] = []
+    if (!jobTitle && title) { setJobTitle(title); filled.push('title') }
+    if (mandatorySkills.length === 0 && mand.length) { setMandatorySkills(mand); filled.push('mandatory skills') }
+    if (skills.length === 0 && other.length) { setSkills(other); filled.push('skills') }
+    if (locations.length === 0 && loc.length) { setLocations(loc); filled.push('location') }
+    setIsExtracting(false)
+    showToast(filled.length ? `Filled ${filled.join(', ')} from the JD text.` : 'No labelled fields (e.g. "Job Title:", "Skills:") found in the JD text.')
   }
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -76,20 +88,20 @@ export function useCreateJobDemandFormHandlers(s: CreateJobDemandVmState) {
       priority: priority,
       status: jobStatus === 'Closed' ? 'Closed' : (initialData?.status || 'Active'),
       assignmentStatus: initialData?.assignmentStatus || (jobStatus === 'Assigned' ? 'Assigned' : 'Unassigned'),
-      owner: initialData?.owner || (jobStatus === 'Assigned' ? 'Harish Gadipally' : 'Unassigned'),
-      submissions: initialData?.submissions || 7,
+      owner: initialData?.owner || 'Unassigned',
+      submissions: initialData?.submissions || 0,
       interviews: initialData?.interviews || 0,
       placed: initialData?.placed || 0,
       rejections: initialData?.rejections || 0,
-      clientEmail: clientLeadPoc || `${finalClient.toLowerCase()}@client.com`,
+      clientEmail: clientLeadPoc || initialData?.clientEmail || '',
       toEmails: Array.isArray(toEmails) ? toEmails : [],
       ccEmails: Array.isArray(ccEmails) ? ccEmails : [],
-      clientPhone: '+91 98765 43210',
-      location: locations.join(', ') || locationInput || 'Remote',
+      clientPhone: initialData?.clientPhone || '',
+      location: locations.join(', ') || locationInput || '',
       openings: openings || 1,
       dueDate: demandDate || new Date().toISOString().split('T')[0],
-      emailArrivedTime: initialData?.emailArrivedTime || `${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}, 05:30 AM`,
-      budget: yearlyBudget ? `₹${yearlyBudget}` : '₹1,400,000',
+      emailArrivedTime: initialData?.emailArrivedTime || '',
+      budget: yearlyBudget ? `₹${yearlyBudget}` : initialData?.budget || '',
       skills: mandatorySkills,
     }
 

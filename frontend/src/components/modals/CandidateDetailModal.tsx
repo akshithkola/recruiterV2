@@ -31,7 +31,7 @@ export function CandidateDetailModal({ isOpen, onClose, submission }: CandidateD
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-[10px] font-mono text-emerald-400 font-bold bg-emerald-400/10 px-2 py-0.5 rounded border border-emerald-400/20">
-                  {submission.match} AI Match
+                  {submission.match ? `${submission.match} AI Match` : 'No match score'}
                 </span>
                 <span className="text-[10px] font-mono text-slate-400">ID: {submission.id}</span>
               </div>
@@ -47,11 +47,11 @@ export function CandidateDetailModal({ isOpen, onClose, submission }: CandidateD
           <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-100 text-xs font-mono">
             <div className="flex items-center gap-2 text-slate-700 min-w-0">
               <Mail className="w-4 h-4 text-blue-600 flex-shrink-0" />
-              <span className="truncate">{submission.email || 'alex.turner@dev.com'}</span>
+              <span className="truncate">{submission.email || '—'}</span>
             </div>
             <div className="flex items-center gap-2 text-slate-700 min-w-0">
               <Phone className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-              <span className="truncate">{submission.phone || '+1 555-0192'}</span>
+              <span className="truncate">{submission.phone || '—'}</span>
             </div>
           </div>
 
@@ -76,10 +76,7 @@ export function CandidateDetailModal({ isOpen, onClose, submission }: CandidateD
             </h4>
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2 text-xs">
               <p className="text-slate-700 font-body">
-                <span className="font-semibold text-slate-900">Total Experience:</span> {submission.experience || '8 years'}
-              </p>
-              <p className="text-slate-600 font-body leading-relaxed">
-                Senior engineering background with extensive hands-on expertise building enterprise frontend architectures, state management systems, and micro-frontend deployments.
+                <span className="font-semibold text-slate-900">Total Experience:</span> {submission.experience || '—'}
               </p>
             </div>
           </div>
@@ -87,10 +84,11 @@ export function CandidateDetailModal({ isOpen, onClose, submission }: CandidateD
           {/* Candidate Skills Pills */}
           <div className="space-y-2">
             <h4 className="text-xs font-mono font-bold uppercase text-slate-500 tracking-wider">
-              Verified Technical Skills
+              Skills
             </h4>
             <div className="flex flex-wrap gap-1.5">
-              {['React', 'TypeScript', 'Tailwind CSS', 'Next.js', 'Redux Toolkit', 'Jest/RTL', 'GraphQL'].map(skill => (
+              {((submission as any).skills || []).length === 0 && <span className="text-xs text-slate-400">No skills recorded.</span>}
+              {((submission as any).skills || []).map((skill: string) => (
                 <span key={skill} className="px-2.5 py-1 bg-blue-50 text-blue-800 text-xs font-mono rounded-lg border border-blue-200/80 font-medium">
                   ✓ {skill}
                 </span>
@@ -108,11 +106,6 @@ export function CandidateDetailModal({ isOpen, onClose, submission }: CandidateD
                 <div className="w-2.5 h-2.5 rounded-full bg-blue-600 absolute -left-[21px] top-1" />
                 <p className="font-bold text-slate-900">{submission.stage}</p>
                 <p className="text-[10px] text-slate-400">Updated by {submission.recruiter}</p>
-              </div>
-              <div className="relative pt-2">
-                <div className="w-2.5 h-2.5 rounded-full bg-slate-300 absolute -left-[21px] top-3" />
-                <p className="font-semibold text-slate-700">Initial Resume Screening Passed</p>
-                <p className="text-[10px] text-slate-400">Match score calculated: {submission.match}</p>
               </div>
             </div>
           </div>

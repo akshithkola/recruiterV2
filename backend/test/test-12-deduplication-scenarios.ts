@@ -30,7 +30,7 @@ async function ingest(payload: Record<string, any>) {
 async function loginAdmin() {
   const res = await fetch(`${API_BASE}/auth/login`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'x-metaforge-return-tokens': '1' },
     body: JSON.stringify({ email: 'r.haines@talentflow.io', password: 'Admin@2026', role: 'superadmin' }),
   });
   const json = await res.json();

@@ -2,7 +2,6 @@ import React, { useState } from 'react'
 import { Pencil, ShieldCheck } from 'lucide-react'
 import { Role } from '../../types'
 import { getSessionUser, setSessionUser } from '../../store/session'
-import { SEED_ACCOUNTS } from '../../data/seedCredentials'
 import { MyProfileDetailsCard, ChangePasswordCard } from './MyProfilePage.details'
 import { usersService } from '../../services/workspace.service'
 
@@ -12,15 +11,9 @@ interface MyProfilePageProps {
 
 export function MyProfilePage({ role }: MyProfilePageProps) {
   const session = getSessionUser()
-  const defaultAccount = session
-    ? { name: session.name, email: session.email, title: session.title || '' }
-    : SEED_ACCOUNTS[role] || {
-    name: 'Harish Gadipally',
-    email: 'harish.g@metaforgeit.com',
-    title: 'Senior Recruiting Lead',
-  }
+  const defaultAccount = { name: session?.name || '', email: session?.email || '', title: session?.title || '' }
 
-  // Local state for profile details dynamically initialized from DEMO_ACCOUNTS
+  // Profile details start from the signed-in user
   const [name, setName] = useState(defaultAccount.name)
   const [email, setEmail] = useState(defaultAccount.email)
   const [isEditing, setIsEditing] = useState(false)

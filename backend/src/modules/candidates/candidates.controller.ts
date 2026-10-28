@@ -12,6 +12,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CandidatesService } from './candidates.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -21,6 +22,8 @@ import { UpdateCandidateDto } from './dto/update-candidate.dto';
 import { DuplicateCheckDto } from './dto/duplicate-check.dto';
 import { BulkUploadCandidatesDto } from './dto/bulk-upload.dto';
 
+@ApiTags('Candidates')
+@ApiBearerAuth('access-token')
 @Controller('candidates')
 @UseGuards(JwtAuthGuard)
 export class CandidatesController {

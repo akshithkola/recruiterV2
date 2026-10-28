@@ -1,18 +1,38 @@
 import React from 'react'
 import { Panel, DataTable } from '../wireframe/WireframeKit'
+import { Admin, Lead, Recruiter } from '../../types'
 
-export function DevTeamDashboardAdminPanel() {
+export function DevTeamDashboardAdminPanel({
+  admins = [],
+  leads = [],
+  recruiters = [],
+}: {
+  admins?: Admin[]
+  leads?: Lead[]
+  recruiters?: Recruiter[]
+}) {
+  const rows = [
+    ...admins.map(a => [a.name, 'Admin', `${leads.length} Leads`, `${recruiters.length} Recruiters`, '—', '—', 'Active']),
+    ...leads.map(l => [
+      l.name,
+      'Team Lead',
+      (l.clientAccounts || []).join(', ') || '—',
+      `${l.recruiters} Recruiters`,
+      String(recruiters.filter(r => r.lead === l.name).reduce((n, r) => n + (r.requirementsCount || 0), 0)),
+      String(l.submissions),
+      'Active',
+    ]),
+  ]
   return (
     <Panel title="Platform Administrative Overview">
-      <DataTable
-        columns={['Admin / Lead', 'Role', 'Leads / Team', 'Recruiters', 'Active Reqs', 'Submissions', 'Status']}
-        rows={[
-          ['Robert Haines', 'Super Admin', '5 Leads', '24 Recruiters', '42 Reqs', '480', 'Active'],
-          ['David Park', 'Admin', '3 Leads', '12 Recruiters', '24 Reqs', '210', 'Active'],
-          ['Sarah Kim', 'Team Lead', 'Tech Hiring', '6 Recruiters', '12 Reqs', '134', 'Active'],
-          ['Tom Walsh', 'Team Lead', 'Finance Hiring', '4 Recruiters', '8 Reqs', '86', 'Active'],
-        ]}
-      />
+      {rows.length ? (
+        <DataTable
+          columns={['Admin / Lead', 'Role', 'Clients', 'Recruiters', 'Assigned Reqs', 'Submissions', 'Status']}
+          rows={rows}
+        />
+      ) : (
+        <p className="text-sm text-slate-500">No admins or leads yet.</p>
+      )}
     </Panel>
   )
 }

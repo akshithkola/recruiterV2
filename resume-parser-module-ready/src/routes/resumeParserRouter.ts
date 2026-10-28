@@ -12,29 +12,77 @@ import {
  * In-memory upload for resume text extraction (no disk writes).
  * Supports standard PDF, Word documents, text files, and scanned images.
  */
+/**
+ * Validates file signature (magic bytes) against declared extension to prevent spoofing
+ */
+export function isValidResumeSignature(buffer: Buffer, filename: string): boolean {
+  if (!buffer || buffer.length < 4) return false;
+  const ext = path.extname(filename).toLowerCase();
+
+  if (ext === '.pdf') {
+    return buffer.slice(0, 5).toString('ascii').startsWith('%PDF');
+  }
+  if (ext === '.docx') {
+    return buffer[0] === 0x50 && buffer[1] === 0x4B && buffer[2] === 0x03 && buffer[3] === 0x04;
+  }
+  if (ext === '.doc') {
+    return buffer[0] === 0xD0 && buffer[1] === 0xCF && buffer[2] === 0x11 && buffer[3] === 0xE0;
+  }
+  if (ext === '.png') {
+    return buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47;
+  }
+  if (ext === '.jpg' || ext === '.jpeg') {
+    return buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF;
+  }
+  if (ext === '.webp') {
+    return buffer.slice(0, 4).toString('ascii') === 'RIFF' && buffer.slice(8, 12).toString('ascii') === 'WEBP';
+  }
+  if (ext === '.bmp') {
+    return buffer[0] === 0x42 && buffer[1] === 0x4D;
+  }
+  if (ext === '.tif' || ext === '.tiff') {
+    return (buffer[0] === 0x49 && buffer[1] === 0x49) || (buffer[0] === 0x4D && buffer[1] === 0x4D);
+  }
+  if (ext === '.txt') {
+    return true;
+  }
+  return false;
+}
+
+const fileFilter = (_req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+  const ext = path.extname(file.originalname).toLowerCase();
+  const allowed = new Set([
+    '.pdf',
+    '.doc',
+    '.docx',
+    '.txt',
+    '.png',
+    '.jpg',
+    '.jpeg',
+    '.webp',
+    '.bmp',
+    '.tif',
+    '.tiff',
+  ]);
+  if (!allowed.has(ext)) {
+    return cb(new Error(`File format ${ext} is not supported. Supported: PDF, DOCX, DOC, TXT, and common image formats.`));
+  }
+  return cb(null, true);
+};
+
+/**
+ * 2026 Baseline limits: 5 MB limit, one file per single request
+ */
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 15 * 1024 * 1024, files: 5 },
-  fileFilter: (_req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    const allowed = new Set([
-      '.pdf',
-      '.doc',
-      '.docx',
-      '.txt',
-      '.png',
-      '.jpg',
-      '.jpeg',
-      '.webp',
-      '.bmp',
-      '.tif',
-      '.tiff',
-    ]);
-    if (!allowed.has(ext)) {
-      return cb(new Error(`File format ${ext} is not supported. Supported: PDF, DOCX, DOC, TXT, and common image formats.`));
-    }
-    return cb(null, true);
-  },
+  limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+  fileFilter,
+});
+
+const bulkUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024, files: 5 },
+  fileFilter,
 });
 
 export const resumeParserRouter = Router();
@@ -58,7 +106,7 @@ resumeParserRouter.get('/health', (_req: Request, res: Response) => {
 
 /**
  * @route   POST /parse
- * @desc    Parse a single resume file
+ * @desc    Parse a single resume file (5MB limit, magic-byte validated)
  * @body    multipart/form-data with field name 'resume' (or 'file')
  */
 resumeParserRouter.post(
@@ -81,6 +129,14 @@ resumeParserRouter.post(
       }
 
       const filename = file.originalname || 'resume.pdf';
+      if (!isValidResumeSignature(file.buffer, filename)) {
+        res.status(400).json({
+          success: false,
+          message: `Invalid file signature for ${filename}. File content does not match declared extension.`,
+        });
+        return;
+      }
+
       const parsed = await parseResumeBuffer(file.buffer, filename);
 
       res.json({
@@ -99,7 +155,7 @@ resumeParserRouter.post(
 
 /**
  * @route   POST /parse/bulk
- * @desc    Parse multiple resumes (up to 5)
+ * @desc    Parse multiple resumes (up to 5, 5MB each, magic-byte validated)
  * @body    multipart/form-data with field name 'resumes' (or 'files')
  */
 resumeParserRouter.post(
@@ -109,7 +165,7 @@ resumeParserRouter.post(
     res.setTimeout(10 * 60 * 1000);
     next();
   },
-  upload.array('resumes', 5),
+  bulkUpload.array('resumes', 5),
   async (req: Request, res: Response) => {
     try {
       const files = (req.files as Express.Multer.File[] | undefined) ?? [];
@@ -127,6 +183,17 @@ resumeParserRouter.post(
           message: 'Maximum 5 resumes allowed per batch upload',
         });
         return;
+      }
+
+      // Check file signatures
+      for (const f of files) {
+        if (f?.buffer && !isValidResumeSignature(f.buffer, f.originalname || '')) {
+          res.status(400).json({
+            success: false,
+            message: `Invalid file signature for ${f.originalname}. File content does not match declared extension.`,
+          });
+          return;
+        }
       }
 
       const inputs = files

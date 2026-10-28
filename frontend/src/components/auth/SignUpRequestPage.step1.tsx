@@ -7,6 +7,7 @@ import {
   SubmitButton,
   TextField,
 } from './AuthFormControls'
+import { QuickAccountChooser } from './QuickAccountChooser'
 
 export function SignUpRequestStep1({
   form,
@@ -15,6 +16,7 @@ export function SignUpRequestStep1({
   requestableRoles,
   onBack,
   onNext,
+  onQuickLogin,
 }: {
   form: {
     firstName: string
@@ -29,9 +31,14 @@ export function SignUpRequestStep1({
   requestableRoles: Role[]
   onBack: () => void
   onNext: (e: React.FormEvent) => void
+  onQuickLogin?: (role: Role) => void
 }) {
   return (
-    <form onSubmit={onNext} className="space-y-5" noValidate>
+    <>
+      {onQuickLogin && (
+        <QuickAccountChooser variant="banner" onSelectRole={onQuickLogin} />
+      )}
+      <form onSubmit={onNext} className="space-y-5" noValidate>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <TextField
           label="First Name"
@@ -130,5 +137,6 @@ export function SignUpRequestStep1({
         </button>
       </p>
     </form>
+    </>
   )
 }

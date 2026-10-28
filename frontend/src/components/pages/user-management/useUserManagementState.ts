@@ -34,9 +34,9 @@ export function useUserManagementState(
   const [newUserEmpId, setNewUserEmpId] = useState('')
   const [newUserRole, setNewUserRole] = useState<'Super Admin' | 'Admin' | 'Team Lead' | 'Recruiter' | 'Dev Team'>('Recruiter')
   const [newUserTeam, setNewUserTeam] = useState('Engineering Team')
-  const [newUserSupervisor, setNewUserSupervisor] = useState('Charlie Darwin (Lead)')
+  const [newUserSupervisor, setNewUserSupervisor] = useState('')
   const [newUserClient, setNewUserClient] = useState('Accenture')
-  const [tempPassword, setTempPassword] = useState('Pass@2026#Temp')
+  const [tempPassword, setTempPassword] = useState('')
 
   // Reset Password State
   const [resetNewPass, setResetNewPass] = useState('')

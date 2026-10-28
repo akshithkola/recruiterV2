@@ -787,6 +787,29 @@ def extract_and_map(
     return "ok", payloads, body_for_ai
 
 
+def extraction_scope(raw: dict[str, Any], thread: Any, from_email: str) -> str | None:
+    """
+    Which part of the body may produce requirements (None = the whole body when there is no quote):
+     - a client forward of a message from the same client: new text + that forwarded message;
+     - any other reply/forward: only the sender's new text, and only if it carries requirement
+       content (IDs, JD fields, attachment). Quoted history never creates or re-applies data.
+    For a reply with no new requirement content this returns None while thread.has_quote is True.
+    """
+    if not thread.has_quote:
+        return None
+    sender_domain = from_email.rsplit("@", 1)[-1].lower() if "@" in from_email else ""
+    same_client_forward = (
+        thread.is_forward
+        and is_trusted_client_domain(thread.first_quoted_from_domain)
+        and _same_client_domain(sender_domain, thread.first_quoted_from_domain)
+    )
+    if same_client_forward:
+        return f"{thread.new_text}\n\n{thread.first_quoted_block}".strip()
+    if is_reply_with_new_requirement_content(thread.new_text, bool(raw.get("hasAttachments"))):
+        return _with_header_above_rows(thread.new_text, header_row_for(thread.new_text, thread.quoted_text))
+    return None
+
+
 def process_single_message(
     raw: dict[str, Any],
     token: str,
@@ -1100,23 +1123,7 @@ def process_single_message(
                 thread_match = found
 
     # Step 2: Extract requirements without burning REQ IDs.
-    # Decide which part of the body may produce requirements:
-    #  - no quoted history: the whole body;
-    #  - a client forward of a message from the same client: new text + that forwarded message;
-    #  - any other reply/forward: only the sender's new text, and only if it carries requirement
-    #    content (IDs, JD fields, attachment). Quoted history never creates or re-applies data.
-    scope_text: str | None = None
-    if thread.has_quote:
-        sender_domain = fe.rsplit("@", 1)[-1].lower() if "@" in fe else ""
-        same_client_forward = (
-            thread.is_forward
-            and is_trusted_client_domain(thread.first_quoted_from_domain)
-            and _same_client_domain(sender_domain, thread.first_quoted_from_domain)
-        )
-        if same_client_forward:
-            scope_text = f"{thread.new_text}\n\n{thread.first_quoted_block}".strip()
-        elif is_reply_with_new_requirement_content(thread.new_text, bool(raw.get("hasAttachments"))):
-            scope_text = _with_header_above_rows(thread.new_text, header_row_for(thread.new_text, thread.quoted_text))
+    scope_text = extraction_scope(raw, thread, fe)
 
     if thread.has_quote and scope_text is None:
         status, payloads, body_for_ai = "reply_without_new_requirement", [], reply_text
@@ -1412,6 +1419,22 @@ def process_single_message(
                         }
                         score = 1.0
                         deciding_rule = "THREAD_MATCH"
+
+                # LTTS Rule: User requirement:
+                # "for LTTS consider all the requirements and extract them from thhe mails even though a requirement has been sent again (resent) that should also be extracted as a new requiremnt and should be visible in requirements page (NOTE:this is only for LTTS)"
+                is_ltts = (
+                    client == "ltts"
+                    or str(payload.get("requirement_from") or "").strip().lower() == "ltts"
+                    or "ltts" in str(payload.get("client_key") or "").strip().lower()
+                    or "ltts" in str(payload.get("from") or "").lower()
+                    or "ltts" in str(payload.get("source_sender_email") or "").lower()
+                )
+                if is_ltts:
+                    decision = "NEW"
+                    matched_cand = None
+                    score = 0.0
+                    deciding_rule = "LTTS_ALWAYS_NEW"
+                    payload["allow_lookalike"] = True
 
                 if decision == "DUPLICATE" and matched_cand:
                     matched_id = matched_cand.get("identity") or matched_cand.get("original_record_ref") or ident

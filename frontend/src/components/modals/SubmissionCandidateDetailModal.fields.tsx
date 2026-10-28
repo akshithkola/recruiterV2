@@ -56,21 +56,21 @@ export function SubmissionCandidateDetailFields({
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
             NOTICE PERIOD
           </span>
-          <p className="text-sm font-semibold text-slate-900 mt-0.5">{noticePeriod || '30 Days'}</p>
+          <p className="text-sm font-semibold text-slate-900 mt-0.5">{noticePeriod || '—'}</p>
         </div>
 
         <div>
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
             EXPECTED SALARY / CTC
           </span>
-          <p className="text-sm font-semibold text-[#6B3BF6] mt-0.5">{expectedSalary || '18 LPA'}</p>
+          <p className="text-sm font-semibold text-[#6B3BF6] mt-0.5">{expectedSalary || '—'}</p>
         </div>
 
         <div>
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
             PREFERRED LOCATION
           </span>
-          <p className="text-sm font-semibold text-slate-900 mt-0.5">{location || 'Bengaluru / Hybrid'}</p>
+          <p className="text-sm font-semibold text-slate-900 mt-0.5">{location || '—'}</p>
         </div>
 
         <div>
@@ -113,14 +113,14 @@ export function SubmissionCandidateDetailFields({
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
             CURRENT SALARY / CTC
           </span>
-          <p className="text-sm font-semibold text-slate-900 mt-0.5">{currentSalary || '13 LPA'}</p>
+          <p className="text-sm font-semibold text-slate-900 mt-0.5">{currentSalary || '—'}</p>
         </div>
 
         <div>
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
             CURRENT LOCATION
           </span>
-          <p className="text-sm font-semibold text-slate-900 mt-0.5">{location || 'Bengaluru'}</p>
+          <p className="text-sm font-semibold text-slate-900 mt-0.5">{location || '—'}</p>
         </div>
 
         <div>

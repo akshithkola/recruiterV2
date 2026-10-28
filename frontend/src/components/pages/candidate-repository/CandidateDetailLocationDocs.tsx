@@ -1,5 +1,6 @@
 import React from 'react'
 import { FileText, MapPin } from 'lucide-react'
+import { filesService } from '../../../services/workspace.service'
 import { CandidateRepoItem } from './types'
 import { CandidateRepoVm } from './useCandidateRepository'
 
@@ -53,7 +54,16 @@ export function CandidateDetailLocationDocs({ vm, viewingCandidateDetail }: { vm
                         {viewingCandidateDetail.resumeReference || 'No resume attached'}
                       </span>
                       <button
-                        onClick={() => showToast('Downloading resume PDF...')}
+                        type="button"
+                        onClick={() => {
+                          const fileId = viewingCandidateDetail.resumeFileId
+                          if (!fileId) {
+                            showToast('No resume file is stored for this candidate.')
+                            return
+                          }
+                          showToast('Downloading resume...')
+                          filesService.download(fileId).catch(() => showToast('Could not download the resume.'))
+                        }}
                         className="ml-2 px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold rounded-lg transition-colors cursor-pointer"
                       >
                         Download

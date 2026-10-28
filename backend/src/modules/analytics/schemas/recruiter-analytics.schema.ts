@@ -1,15 +1,15 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Schema as MongooseSchema } from 'mongoose';
+import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 
 export type RecruiterAnalyticsDocument = RecruiterAnalytics & Document;
 
 @Schema({ timestamps: true, collection: 'recruiter_analytics' })
 export class RecruiterAnalytics {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Organization', required: true, index: true })
-  orgId: MongooseSchema.Types.ObjectId;
+  orgId: Types.ObjectId;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true })
-  recruiterId: MongooseSchema.Types.ObjectId;
+  recruiterId: Types.ObjectId;
 
   @Prop({ required: true })
   date: Date;

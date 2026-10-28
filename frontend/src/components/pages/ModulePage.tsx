@@ -47,19 +47,29 @@ export function ModulePage({
   initialCandidates = [],
 }: ModulePageProps) {
   const [candidatesList, setCandidatesList] = useState<Candidate[]>(initialCandidates)
-  const updateCandidatesList: React.Dispatch<React.SetStateAction<Candidate[]>> = updater => {
-    setCandidatesList(prev => {
-      const next = typeof updater === 'function' ? updater(prev) : updater
-      onCandidatesChange?.(next)
-      return next
-    })
-  }
-  const [candidateViewMode, setCandidateViewMode] = useState<'add' | 'repository'>('add')
-  const [addOpenedFromRepository, setAddOpenedFromRepository] = useState(false)
+  const prevCandidatesRef = React.useRef(initialCandidates)
 
   React.useEffect(() => {
     setCandidatesList(initialCandidates)
+    prevCandidatesRef.current = initialCandidates
   }, [initialCandidates])
+
+  const updateCandidatesList: React.Dispatch<React.SetStateAction<Candidate[]>> = updater => {
+    setCandidatesList(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater
+      return next
+    })
+  }
+
+  React.useEffect(() => {
+    if (prevCandidatesRef.current !== candidatesList) {
+      prevCandidatesRef.current = candidatesList
+      onCandidatesChange?.(candidatesList)
+    }
+  }, [candidatesList, onCandidatesChange])
+
+  const [candidateViewMode, setCandidateViewMode] = useState<'add' | 'repository'>('add')
+  const [addOpenedFromRepository, setAddOpenedFromRepository] = useState(false)
 
   const handleCandidateViewModeChange = (mode: 'add' | 'repository') => {
     if (mode === 'add' && candidateViewMode === 'repository') {

@@ -1,5 +1,5 @@
 import React from 'react'
-import { Users, CheckCircle, ArrowLeft } from 'lucide-react'
+import { Users, CheckCircle, ArrowLeft, AlertCircle, X } from 'lucide-react'
 
 import { PageHeader } from '../../layout/PageHeader'
 import { AddCandidateVm } from './useAddCandidatePage'
@@ -8,6 +8,8 @@ export function AddCandidateChrome({ vm }: { vm: AddCandidateVm }) {
   const {
     onOpenRepository,
     showSuccessToast,
+    toastMsg,
+    setToastMsg,
     showBack = false,
   } = vm
 
@@ -24,6 +26,22 @@ export function AddCandidateChrome({ vm }: { vm: AddCandidateVm }) {
         <div className="fixed top-5 right-5 z-50 bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-lg flex items-center gap-2 text-sm font-medium animate-bounce">
           <CheckCircle className="w-5 h-5 shrink-0" />
           <span>Candidate saved successfully to Repository!</span>
+        </div>
+      )}
+
+      {/* ERROR / NOTIFICATION TOAST ALERT */}
+      {toastMsg && (
+        <div className="fixed top-5 right-5 z-50 bg-rose-600 text-white px-4 py-3 rounded-xl shadow-lg flex items-center gap-2.5 text-sm font-medium animate-in fade-in slide-in-from-top-2">
+          <AlertCircle className="w-5 h-5 shrink-0 text-white" />
+          <span>{toastMsg}</span>
+          <button
+            type="button"
+            onClick={() => setToastMsg(null)}
+            className="ml-2 hover:bg-rose-700 p-1 rounded-lg cursor-pointer transition-colors"
+            title="Dismiss"
+          >
+            <X className="w-4 h-4 text-white" />
+          </button>
         </div>
       )}
 

@@ -1,15 +1,15 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Schema as MongooseSchema } from 'mongoose';
+import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 
 export type RequirementHistoryDocument = RequirementHistory & Document;
 
 @Schema({ timestamps: true, collection: 'requirement_histories' })
 export class RequirementHistory {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Organization', required: true, index: true })
-  orgId: MongooseSchema.Types.ObjectId;
+  orgId: Types.ObjectId;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Requirement', required: true })
-  requirementId: MongooseSchema.Types.ObjectId;
+  requirementId: Types.ObjectId;
 
   @Prop({ required: true })
   action: string;
@@ -21,7 +21,7 @@ export class RequirementHistory {
   newValue: Record<string, any>;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true })
-  performedBy: MongooseSchema.Types.ObjectId;
+  performedBy: Types.ObjectId;
 
   @Prop({ default: null })
   reason: string;

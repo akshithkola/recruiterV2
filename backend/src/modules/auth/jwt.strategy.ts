@@ -5,6 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { User, UserDocument } from '../users/schemas/user.schema';
+import { resolveJwtSecret } from '../../common/security/secrets.util';
 
 export interface JwtPayload {
   sub: string;
@@ -36,11 +37,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromExtractors([
-        ExtractJwt.fromAuthHeaderAsBearerToken(),
+        // Prefer HttpOnly cookie (browser sessions). Bearer kept for non-browser tooling only.
         cookieExtractor,
+        ExtractJwt.fromAuthHeaderAsBearerToken(),
       ]),
       ignoreExpiration: false,
-      secretOrKey: configService.get<string>('JWT_SECRET') || 'super-secret-jwt-key-2026',
+      secretOrKey: resolveJwtSecret(configService.get<string>('JWT_SECRET')),
     });
   }
 
@@ -71,10 +73,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       userId: payload.userId || payload.sub,
       email: payload.email,
       role: payload.role,
-      orgId: payload.orgId,
-      name: payload.name,
+      // Prefer live DB org/client over stale JWT claims for authorization.
+      orgId: dbUser?.orgId || payload.orgId,
+      name: payload.name || dbUser?.name,
       permissions: payload.permissions || [],
       capabilities,
+      clientId: (dbUser as any)?.clientId || undefined,
+      teamId: (dbUser as any)?.teamId || undefined,
     };
   }
 }

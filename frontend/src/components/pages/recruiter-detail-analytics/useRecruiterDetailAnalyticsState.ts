@@ -11,8 +11,8 @@ export function useRecruiterDetailAnalyticsState(props: RecruiterDetailAnalytics
   const [recruiter, setRecruiter] = useState<RecruiterDetailData>(initialRecruiter)
   const [activeTab, setActiveTab] = useState<'requirements' | 'submissions'>('requirements')
   const [dateFilter, setDateFilter] = useState<'today' | 'this_week' | 'this_month' | 'custom'>('this_month')
-  const [startDate, setStartDate] = useState('2026-08-01')
-  const [endDate, setEndDate] = useState('2026-08-11')
+  const [startDate, setStartDate] = useState(() => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), 1).toISOString().slice(0, 10) })
+  const [endDate, setEndDate] = useState(() => new Date().toISOString().slice(0, 10))
 
   // Reason Modal State
   const [selectedReqForReason, setSelectedReqForReason] = useState<{ id: string; title: string; currentReason?: string } | null>(null)

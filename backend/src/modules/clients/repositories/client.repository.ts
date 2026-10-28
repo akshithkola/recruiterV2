@@ -41,8 +41,12 @@ export class ClientRepository {
    * Uniform Soft Delete
    */
   async softDelete(id: string | Types.ObjectId, currentUser?: any): Promise<ClientDocument> {
+    const filter: any = { _id: id, deletedAt: null };
+    if (currentUser?.orgId) {
+      filter.orgId = new Types.ObjectId(currentUser.orgId.toString());
+    }
     const updated = await this.clientModel
-      .findByIdAndUpdate(id, { deletedAt: new Date() }, { new: true, currentUser })
+      .findOneAndUpdate(filter, { deletedAt: new Date() }, { new: true, currentUser })
       .exec();
 
     if (!updated) throw new NotFoundException(`Client ${id} not found`);

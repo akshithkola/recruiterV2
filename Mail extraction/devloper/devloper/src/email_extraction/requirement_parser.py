@@ -14,6 +14,7 @@ import structlog
 from pydantic import ValidationError
 
 from intake_gates import is_status_or_tracker_report
+from llm_health import LLMUnavailable, is_quota_exhausted, is_unavailable_error
 from models import ExtractionMethodEnum, RequirementItem, RequirementParseResult, to_strict_json_schema, verify_evidence_quotes
 from glossary import TermGlossary
 from utils import bind_log_context, clear_log_context
@@ -334,7 +335,8 @@ _DEGREE_PREFIX_RE = re.compile(
     r"master(?:'s)?(?:\s+degree)?(?:\s+of\s+[a-zA-Z]+)?|"
     r"b\.?e\.?\s*/\s*b\.?tech\.?|b\.?e\.?|b\.?tech\.?|m\.?e\.?|m\.?tech\.?|"
     r"b\.?sc\.?|m\.?sc\.?|bca|mca|ph\.?d\.?|diploma"
-    r")\s*(?:in|with|major\s+in)?\s*",
+    # A degree is a whole word: "Mechanical" / "Medical" do not start with M.E.
+    r")(?![a-z])\s*(?:(?:in|with|major\s+in)\b)?\s*",
 )
 
 
@@ -852,6 +854,8 @@ def _extract_subject_skill_hints(subject: str, body: str, job_title: str) -> lis
     for tok in re.split(r"[^a-z0-9+.#/&]+", _norm(job_title)):
         if len(tok) < 3 or tok in {"role", "requirement", "drive", "profiles", "open", "engineer", "developer", "lead", "analyst", "consultant"}:
             continue
+        if _is_noise_skill_candidate(tok):
+            continue
         if tok not in _norm(source):
             continue
         title_tok = tok.upper() if tok in {"sap", "abap"} else tok.title()
@@ -862,8 +866,10 @@ def _extract_subject_skill_hints(subject: str, body: str, job_title: str) -> lis
 
 
 def _is_noise_skill_candidate(skill: str) -> bool:
+    from two_way_verifier import is_junk_skill
+
     low = _norm(skill)
-    if not low:
+    if not low or is_junk_skill(skill):
         return True
     if low.startswith("&"):
         return True
@@ -1580,6 +1586,9 @@ def _table_column_map(headers: list[str], cfg: Any) -> dict[str, int]:
             field = "status"
         elif canon == "job_title" or any(k in hl for k in ("skill", "role", "title")):
             field = "title"
+            # "Skills - Name": the column is the client's stated skill as well as the role name.
+            if "skill" in hl and "title" not in cols:
+                cols.setdefault("title_is_skill", 1)
         elif canon == "location":
             field = "location"
         elif canon == "experience":
@@ -1714,7 +1723,7 @@ def extract_req_id_table_requirements(
                                 work_mode=t_norm_wm,
                                 work_mode_text=t_raw_wm or (wm_val or None),
                                 client_name=cfg.display_name,
-                                mandatory_skills=mand_sk if mand_sk else ([] if is_strict_field_mapping() else ([title_val] if title_val else [])),
+                                mandatory_skills=mand_sk if mand_sk else ([title_val] if title_val and (col_map.get("title_is_skill") or not is_strict_field_mapping()) else []),
                                 soft_skills=soft_sk if soft_sk else [],
                                 confidence=1.0,
                             )
@@ -1984,7 +1993,7 @@ def extract_req_id_table_requirements(
                     work_mode=t_norm_wm,
                     work_mode_text=t_raw_wm or (wm_val_clean or None),
                     client_name=cfg.display_name if cfg else None,
-                    mandatory_skills=mand_sk if mand_sk else ([] if is_strict_field_mapping() else ([title_val] if title_val else [])),
+                    mandatory_skills=mand_sk if mand_sk else ([title_val] if title_val and ((row_header or {}).get("title_is_skill") or not is_strict_field_mapping()) else []),
                     soft_skills=soft_sk if soft_sk else [],
                     confidence=1.0,
                 )
@@ -2151,11 +2160,15 @@ def parse_requirements_from_email(
                 msg = str(exc).lower()
                 retry_s = min(2 ** (attempt - 1), 30)
                 transient = any(t in msg for t in ("503", "rate limit", "429", "timeout", "timed out", "connection"))
-                if transient and attempt < max_attempts:
+                if transient and attempt < max_attempts and not is_quota_exhausted(exc):
                     time.sleep(max(1, retry_s))
                     continue
                 break
         _LOG.warning("ai_block_extraction_failed", error=str(last_err))
+        # The model is unreachable (quota, key, outage): stop so the mail is retried later instead of
+        # being saved from a rules-only guess.
+        if is_unavailable_error(last_err):
+            raise LLMUnavailable(str(last_err)[:300])
         return None, "", None
 
     extracted_items: list[RequirementItem] = []

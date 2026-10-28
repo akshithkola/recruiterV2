@@ -30,6 +30,7 @@ export function RequirementsModals({ vm }: { vm: RequirementsVm }) {
   } = vm
   const isUnassigned =
     !selectedReqForDetail ||
+    selectedReqForDetail.assignmentStatus === 'Unassigned' ||
     !selectedReqForDetail.owner ||
     selectedReqForDetail.owner === 'Unassigned'
   const isRecruiterSelfOnly = role === 'recruiter' && isUnassigned
@@ -43,7 +44,7 @@ export function RequirementsModals({ vm }: { vm: RequirementsVm }) {
             <div className="flex items-start justify-between px-6 py-5 border-b border-slate-100">
               <div>
                 <h3 className="text-xl font-bold text-slate-900 tracking-tight">
-                  {isRecruiterSelfOnly ? 'Self Assign' : 'Reassign'}
+                  {isRecruiterSelfOnly ? 'Self Assign' : isUnassigned ? 'Assign Recruiter' : 'Reassign'}
                 </h3>
                 <p className="text-xs text-slate-500 font-normal mt-1">
                   {isRecruiterSelfOnly
@@ -62,7 +63,11 @@ export function RequirementsModals({ vm }: { vm: RequirementsVm }) {
             {/* Content */}
             <div className="p-6 space-y-4">
               {/* Assign myself card */}
-              <label className="bg-blue-50/80 border border-blue-200/80 rounded-2xl p-4 flex items-start gap-3.5 cursor-pointer hover:bg-blue-50 transition-colors block">
+              <label className={`border rounded-2xl p-4 flex items-start gap-3.5 cursor-pointer transition-all block ${
+                isAssignMyselfChecked
+                  ? 'bg-blue-50/80 border-blue-300 ring-1 ring-blue-200'
+                  : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/60'
+              }`}>
                 <input
                   type="checkbox"
                   checked={isAssignMyselfChecked}
@@ -70,10 +75,10 @@ export function RequirementsModals({ vm }: { vm: RequirementsVm }) {
                   className="mt-1 w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer shrink-0"
                 />
                 <div>
-                  <div className="text-sm font-bold text-blue-900 leading-snug">
+                  <div className={`text-sm font-bold leading-snug ${isAssignMyselfChecked ? 'text-blue-900' : 'text-slate-800'}`}>
                     {isRecruiterSelfOnly ? 'Assign myself' : 'Keep / assign myself'} ({currentUserName})
                   </div>
-                  <div className="text-xs text-blue-600/90 leading-normal mt-0.5 font-normal">
+                  <div className={`text-xs leading-normal mt-0.5 font-normal ${isAssignMyselfChecked ? 'text-blue-600/90' : 'text-slate-500'}`}>
                     {isRecruiterSelfOnly
                       ? 'Assign this requirement to your recruiter workload.'
                       : 'Include yourself along with any recruiters selected below.'}

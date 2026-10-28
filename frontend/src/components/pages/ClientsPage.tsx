@@ -38,7 +38,7 @@ import {
   Sparkles,
   Layers,
 } from 'lucide-react'
-import { Role } from '../../types'
+import { Role, Requirement } from '../../types'
 import { PaginationFooter } from '../ui/PaginationFooter'
 import { ClientDeliveryGapAnalysisPage } from './ClientDeliveryGapAnalysisPage'
 import { clientsService } from '../../services/workspace.service'
@@ -68,152 +68,6 @@ export interface ClientRecord {
   signedDate: string
 }
 
-const INITIAL_CLIENTS: ClientRecord[] = [
-  {
-    id: 'CLI-100',
-    name: 'Accenture',
-    domain: 'Enterprise Cloud & Tech Services',
-    pocName: 'Kallol Chakraborty',
-    pocEmail: 'kallol.c@accenture.com',
-    pocPhone: '+91 98765 11223',
-    location: 'Bangalore / Hyderabad',
-    teamLead: 'Harish Gadipally',
-    teamMemberCount: 3,
-    teamMembers: ['Marcus Chen', 'Priya Sharma', 'Suresh kulkarni'],
-    activeReqs: 45,
-    totalSubmissions: 142,
-    totalPlacements: 38,
-    commercialFee: '8.33% Annual CTC',
-    paymentTerms: '30 Days Net',
-    slaTAT: '1.8 Days',
-    agreementStatus: 'Active - Executed',
-    agreementStartDate: '10 Jan 2025',
-    agreementEndDate: '09 Jan 2028',
-    agreementDocName: 'Accenture_Master_Services_Agreement_2025.pdf',
-    signedBy: 'Kallol Chakraborty (VP Talent Sourcing)',
-    signedDate: '10 Jan 2025',
-  },
-  {
-    id: 'CLI-101',
-    name: 'Goldman Sachs',
-    domain: 'Financial Technology & Investment',
-    pocName: 'Trayeetanu Ganguly',
-    pocEmail: 'trayeetanu.g@goldmansachs.com',
-    pocPhone: '+91 98765 43210',
-    location: 'Bangalore / Mumbai',
-    teamLead: 'Tom Walsh',
-    teamMemberCount: 3,
-    teamMembers: ['lakshmi.v Recruiter', 'Lingoji Pavani', 'Arvind GR'],
-    activeReqs: 32,
-    totalSubmissions: 98,
-    totalPlacements: 26,
-    commercialFee: '12.0% Annual CTC',
-    paymentTerms: '30 Days Net',
-    slaTAT: '2.0 Days',
-    agreementStatus: 'Active - Executed',
-    agreementStartDate: '15 Jan 2025',
-    agreementEndDate: '14 Jan 2028',
-    agreementDocName: 'GoldmanSachs_Vendor_MSA_2025.pdf',
-    signedBy: 'Trayeetanu Ganguly (VP Procurement)',
-    signedDate: '15 Jan 2025',
-  },
-  {
-    id: 'CLI-102',
-    name: 'Tesla',
-    domain: 'EV, Energy & AI Sourcing',
-    pocName: 'Kiran N',
-    pocEmail: 'kiran.n@tesla.com',
-    pocPhone: '+91 98123 45678',
-    location: 'Pune / Remote',
-    teamLead: 'Nina Brooks',
-    teamMemberCount: 3,
-    teamMembers: ['rahimoon Shaik', 'Adirala sathvika', 'Charlie Darwin'],
-    activeReqs: 28,
-    totalSubmissions: 84,
-    totalPlacements: 22,
-    commercialFee: '15.0% Annual CTC',
-    paymentTerms: '45 Days Net',
-    slaTAT: '2.2 Days',
-    agreementStatus: 'Active - Executed',
-    agreementStartDate: '01 Mar 2024',
-    agreementEndDate: '28 Feb 2027',
-    agreementDocName: 'Tesla_Global_Staffing_Agreement.pdf',
-    signedBy: 'Kiran N (Head of Talent)',
-    signedDate: '01 Mar 2024',
-  },
-  {
-    id: 'CLI-103',
-    name: 'ITC Infotech',
-    domain: 'Enterprise SAP & ERP',
-    pocName: 'Pranati Paul',
-    pocEmail: 'pranati.paul@itc.in',
-    pocPhone: '+91 99887 76655',
-    location: 'Kolkata / Bangalore',
-    teamLead: 'Ray Diaz',
-    teamMemberCount: 3,
-    teamMembers: ['Harini Sindey', 'Viswanath Reddy', 'Rachana Golkonda'],
-    activeReqs: 24,
-    totalSubmissions: 72,
-    totalPlacements: 19,
-    commercialFee: '10.0% Annual CTC',
-    paymentTerms: '30 Days Net',
-    slaTAT: '2.5 Days',
-    agreementStatus: 'Active - Executed',
-    agreementStartDate: '20 Nov 2024',
-    agreementEndDate: '19 Nov 2027',
-    agreementDocName: 'ITC_Infotech_Staffing_Agreement.pdf',
-    signedBy: 'Pranati Paul (Partner Success Mgr)',
-    signedDate: '20 Nov 2024',
-  },
-  {
-    id: 'CLI-104',
-    name: 'LTTS Mobility',
-    domain: 'Hardware & Automotive Engineering',
-    pocName: 'Trayeetanu Ganguly',
-    pocEmail: 'trayeetanu.g@ltts.com',
-    pocPhone: '+91 97654 32109',
-    location: 'Vadodara / Chennai',
-    teamLead: 'Harish Gadipally',
-    teamMemberCount: 2,
-    teamMembers: ['Marcus Chen', 'Priya Sharma'],
-    activeReqs: 18,
-    totalSubmissions: 56,
-    totalPlacements: 15,
-    commercialFee: '10.0% Annual CTC',
-    paymentTerms: '45 Days Net',
-    slaTAT: '2.8 Days',
-    agreementStatus: 'Active - Executed',
-    agreementStartDate: '10 Jun 2025',
-    agreementEndDate: '09 Jun 2028',
-    agreementDocName: 'LTTS_Mobility_Empanelment.pdf',
-    signedBy: 'Trayeetanu Ganguly (Delivery Dir)',
-    signedDate: '10 Jun 2025',
-  },
-  {
-    id: 'CLI-105',
-    name: 'Infosys Ltd',
-    domain: 'Software & Cloud Services',
-    pocName: 'Kallol Chakraborty',
-    pocEmail: 'kallol.c@infosys.com',
-    pocPhone: '+91 91234 56789',
-    location: 'Bangalore / Hyderabad',
-    teamLead: 'Tom Walsh',
-    teamMemberCount: 2,
-    teamMembers: ['lakshmi.v Recruiter', 'Lingoji Pavani'],
-    activeReqs: 14,
-    totalSubmissions: 42,
-    totalPlacements: 12,
-    commercialFee: '8.33% Annual CTC',
-    paymentTerms: '30 Days Net',
-    slaTAT: '3.0 Days',
-    agreementStatus: 'Active - Executed',
-    agreementStartDate: '05 Feb 2025',
-    agreementEndDate: '04 Feb 2028',
-    agreementDocName: 'Infosys_Global_Vendor_SLA.pdf',
-    signedBy: 'Kallol Chakraborty (VP Procurement)',
-    signedDate: '05 Feb 2025',
-  },
-]
 
 export interface ClientRequirementItem {
   id: string
@@ -229,123 +83,60 @@ export interface ClientRequirementItem {
   location: string
 }
 
-const CLIENT_REQUIREMENTS_MAP: Record<string, ClientRequirementItem[]> = {
-  'Accenture': [
-    { id: 'REQ-2026-08-12-001', title: 'Senior React / Fullstack Architect', clientName: 'Accenture', assignedDate: '12 Aug 2026', priority: 'High', status: 'In Progress', assignedRecruiter: 'Harish Gadipally / Marcus Chen', submissionsCount: 14, interviewsCount: 4, experience: '8 - 12 Yrs', location: 'Bangalore / Hybrid' },
-    { id: 'REQ-2026-08-12-003', title: 'Cloud Solutions Architect', clientName: 'Accenture', assignedDate: '12 Aug 2026', priority: 'High', status: 'In Progress', assignedRecruiter: 'Priya Sharma', submissionsCount: 10, interviewsCount: 3, experience: '10 - 15 Yrs', location: 'Hyderabad / Remote' },
-    { id: 'REQ-2026-08-12-004', title: 'PLM / PDM Lead Engineer', clientName: 'Accenture', assignedDate: '12 Aug 2026', priority: 'Medium', status: 'Open', assignedRecruiter: 'Suresh kulkarni', submissionsCount: 8, interviewsCount: 2, experience: '7 - 10 Yrs', location: 'Pune / Onsite' },
-    { id: 'REQ-2026-08-01-002', title: 'Java Microservices Lead', clientName: 'Accenture', assignedDate: '01 Aug 2026', priority: 'High', status: 'In Progress', assignedRecruiter: 'Marcus Chen', submissionsCount: 18, interviewsCount: 5, experience: '9 - 13 Yrs', location: 'Bangalore' },
-    { id: 'REQ-2026-07-25-008', title: 'DevOps & SRE Specialist', clientName: 'Accenture', assignedDate: '25 Jul 2026', priority: 'Medium', status: 'In Progress', assignedRecruiter: 'Priya Sharma', submissionsCount: 12, interviewsCount: 3, experience: '6 - 9 Yrs', location: 'Remote' },
-    { id: 'REQ-2026-07-15-012', title: 'Cybersecurity Threat Analyst', clientName: 'Accenture', assignedDate: '15 Jul 2026', priority: 'Low', status: 'Open', assignedRecruiter: 'Harish Gadipally', submissionsCount: 6, interviewsCount: 1, experience: '5 - 8 Yrs', location: 'Hyderabad' },
-  ],
-  'Goldman Sachs': [
-    { id: 'REQ-2026-08-06-005', title: 'FinTech Java Cloud Architect', clientName: 'Goldman Sachs', assignedDate: '06 Aug 2026', priority: 'High', status: 'In Progress', assignedRecruiter: 'lakshmi.v Recruiter', submissionsCount: 16, interviewsCount: 5, experience: '10 - 14 Yrs', location: 'Bangalore' },
-    { id: 'REQ-2026-08-06-006', title: 'Low Latency C++ Trading Developer', clientName: 'Goldman Sachs', assignedDate: '06 Aug 2026', priority: 'High', status: 'In Progress', assignedRecruiter: 'Lingoji Pavani', submissionsCount: 12, interviewsCount: 4, experience: '8 - 12 Yrs', location: 'Mumbai / Onsite' },
-    { id: 'REQ-2026-07-28-010', title: 'Big Data PySpark Engineer', clientName: 'Goldman Sachs', assignedDate: '28 Jul 2026', priority: 'Medium', status: 'Open', assignedRecruiter: 'Arvind GR', submissionsCount: 9, interviewsCount: 2, experience: '6 - 9 Yrs', location: 'Bangalore' },
-    { id: 'REQ-2026-07-18-015', title: 'Risk Quantitative Modeler', clientName: 'Goldman Sachs', assignedDate: '18 Jul 2026', priority: 'Medium', status: 'In Progress', assignedRecruiter: 'Tom Walsh / Lingoji Pavani', submissionsCount: 11, interviewsCount: 3, experience: '7 - 11 Yrs', location: 'Mumbai' },
-  ],
-  'Tesla': [
-    { id: 'REQ-2026-08-07-006', title: 'Automotive Embedded Systems Engineer', clientName: 'Tesla', assignedDate: '07 Aug 2026', priority: 'High', status: 'In Progress', assignedRecruiter: 'rahimoon Shaik', submissionsCount: 14, interviewsCount: 4, experience: '6 - 10 Yrs', location: 'Pune / Onsite' },
-    { id: 'REQ-2026-08-07-007', title: 'Python ML Specialist (Autonomous Drive)', clientName: 'Tesla', assignedDate: '07 Aug 2026', priority: 'High', status: 'In Progress', assignedRecruiter: 'Adirala sathvika', submissionsCount: 11, interviewsCount: 3, experience: '5 - 9 Yrs', location: 'Remote / Bangalore' },
-    { id: 'REQ-2026-07-22-011', title: 'Battery Management Firmware Lead', clientName: 'Tesla', assignedDate: '22 Jul 2026', priority: 'Medium', status: 'Open', assignedRecruiter: 'Charlie Darwin', submissionsCount: 8, interviewsCount: 2, experience: '8 - 12 Yrs', location: 'Pune' },
-  ],
-  'ITC Infotech': [
-    { id: 'REQ-2026-07-20-009', title: 'SAP MM + Ariba Functional Lead', clientName: 'ITC Infotech', assignedDate: '20 Jul 2026', priority: 'High', status: 'In Progress', assignedRecruiter: 'Harini Sindey', submissionsCount: 15, interviewsCount: 4, experience: '8 - 12 Yrs', location: 'Kolkata / Hybrid' },
-    { id: 'REQ-2026-07-10-014', title: 'SAP S/4HANA Finance Architect', clientName: 'ITC Infotech', assignedDate: '10 Jul 2026', priority: 'Medium', status: 'In Progress', assignedRecruiter: 'Viswanath Reddy', submissionsCount: 10, interviewsCount: 3, experience: '9 - 13 Yrs', location: 'Bangalore' },
-    { id: 'REQ-2026-06-28-018', title: 'ABAP on HANA Senior Specialist', clientName: 'ITC Infotech', assignedDate: '28 Jun 2026', priority: 'Low', status: 'Open', assignedRecruiter: 'Rachana Golkonda', submissionsCount: 7, interviewsCount: 1, experience: '5 - 8 Yrs', location: 'Kolkata' },
-  ],
-  'LTTS Mobility': [
-    { id: 'REQ-2026-06-08-001', title: '.NET Core Backend Architect', clientName: 'LTTS Mobility', assignedDate: '08 Jun 2026', priority: 'High', status: 'In Progress', assignedRecruiter: 'Marcus Chen', submissionsCount: 13, interviewsCount: 4, experience: '9 - 12 Yrs', location: 'Vadodara' },
-    { id: 'REQ-2026-06-15-005', title: 'AUTOSAR Software Architect', clientName: 'LTTS Mobility', assignedDate: '15 Jun 2026', priority: 'Medium', status: 'In Progress', assignedRecruiter: 'Priya Sharma', submissionsCount: 9, interviewsCount: 2, experience: '7 - 11 Yrs', location: 'Chennai / Hybrid' },
-  ],
-  'Infosys Ltd': [
-    { id: 'REQ-2026-07-01-002', title: 'Principal Cloud Security Architect', clientName: 'Infosys Ltd', assignedDate: '01 Jul 2026', priority: 'High', status: 'In Progress', assignedRecruiter: 'lakshmi.v Recruiter', submissionsCount: 12, interviewsCount: 3, experience: '10 - 15 Yrs', location: 'Bangalore' },
-    { id: 'REQ-2026-07-12-009', title: 'Full Stack Angular & Java Lead', clientName: 'Infosys Ltd', assignedDate: '12 Jul 2026', priority: 'Medium', status: 'Open', assignedRecruiter: 'Lingoji Pavani', submissionsCount: 8, interviewsCount: 2, experience: '6 - 9 Yrs', location: 'Hyderabad' },
-  ],
-}
 
-export const getRequirementsForClient = (client: ClientRecord): ClientRequirementItem[] => {
-  if (CLIENT_REQUIREMENTS_MAP[client.name]) {
-    return CLIENT_REQUIREMENTS_MAP[client.name]
-  }
+const sameClient = (a?: string, b?: string) => (a || '').trim().toLowerCase() === (b || '').trim().toLowerCase()
 
-  return [
-    {
-      id: `REQ-${client.id}-001`,
-      title: `Senior ${client.domain.split('&')[0] || 'Technical'} Architect`,
-      clientName: client.name,
-      assignedDate: '10 Aug 2026',
-      priority: 'High',
-      status: 'In Progress',
-      assignedRecruiter: client.teamLead,
-      submissionsCount: Math.max(5, Math.round(client.totalSubmissions * 0.4)),
-      interviewsCount: Math.max(2, Math.round(client.totalSubmissions * 0.15)),
-      experience: '8 - 12 Yrs',
-      location: client.location,
-    },
-    {
-      id: `REQ-${client.id}-002`,
-      title: `Lead ${client.domain.split(' ')[0] || 'Software'} Engineer`,
-      clientName: client.name,
-      assignedDate: '02 Aug 2026',
-      priority: 'Medium',
-      status: 'Open',
-      assignedRecruiter: client.teamMembers[0] || 'Marcus Chen',
-      submissionsCount: Math.max(3, Math.round(client.totalSubmissions * 0.3)),
-      interviewsCount: Math.max(1, Math.round(client.totalSubmissions * 0.1)),
-      experience: '5 - 9 Yrs',
-      location: client.location,
-    },
-    {
-      id: `REQ-${client.id}-003`,
-      title: `Senior DevOps & Cloud Specialist`,
-      clientName: client.name,
-      assignedDate: '20 Jul 2026',
-      priority: 'Medium',
-      status: 'In Progress',
-      assignedRecruiter: client.teamMembers[1] || 'Priya Sharma',
-      submissionsCount: Math.max(2, Math.round(client.totalSubmissions * 0.2)),
-      interviewsCount: 1,
-      experience: '6 - 10 Yrs',
-      location: 'Remote',
-    },
-  ]
-}
+export const getRequirementsForClient = (client: ClientRecord, requirements: Requirement[]): ClientRequirementItem[] =>
+  requirements
+    .filter(r => sameClient(r.client, client.name))
+    .map(r => {
+      const exp = (r as any).experienceRange
+      return {
+        id: r.id,
+        title: r.title,
+        clientName: r.client,
+        assignedDate: r.createdAt ? new Date(r.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
+        priority: (['High', 'Medium', 'Low'].includes(r.priority as string) ? r.priority : 'Medium') as ClientRequirementItem['priority'],
+        status: (r.assignmentStatus === 'Assigned' ? 'Assigned' : r.status === 'Closed' ? 'Filled' : 'Open') as ClientRequirementItem['status'],
+        assignedRecruiter: r.owner || '—',
+        submissionsCount: r.submissions || 0,
+        interviewsCount: r.interviews || 0,
+        experience: (r as any).experience || (exp?.min ? `${exp.min}${exp.max == null ? '+' : `-${exp.max}`} Yrs` : '—'),
+        location: r.location || '—',
+      }
+    })
 
 interface ClientsPageProps {
   role?: Role
+  /** Live requirements; per-client counts and lists are derived from them. */
+  requirements?: Requirement[]
 }
 
-export const getClientStats = (client: ClientRecord, period: 'All Time' | 'This Week' | 'This Month' | 'This Year') => {
-  if (period === 'This Week') {
-    return {
-      reqs: Math.max(1, Math.round(client.activeReqs * 0.25)),
-      submissions: Math.max(2, Math.round(client.totalSubmissions * 0.22)),
-      placements: Math.max(1, Math.round(client.totalPlacements * 0.20)),
-    }
-  }
-  if (period === 'This Month') {
-    return {
-      reqs: Math.max(2, Math.round(client.activeReqs * 0.65)),
-      submissions: Math.max(5, Math.round(client.totalSubmissions * 0.60)),
-      placements: Math.max(2, Math.round(client.totalPlacements * 0.58)),
-    }
-  }
-  if (period === 'This Year') {
-    return {
-      reqs: Math.max(3, Math.round(client.activeReqs * 0.90)),
-      submissions: Math.max(8, Math.round(client.totalSubmissions * 0.88)),
-      placements: Math.max(3, Math.round(client.totalPlacements * 0.85)),
-    }
-  }
+export const getClientStats = (
+  client: ClientRecord,
+  period: 'All Time' | 'This Week' | 'This Month' | 'This Year',
+  requirements: Requirement[],
+) => {
+  const now = new Date()
+  const start =
+    period === 'This Week' ? new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6)
+    : period === 'This Month' ? new Date(now.getFullYear(), now.getMonth(), 1)
+    : period === 'This Year' ? new Date(now.getFullYear(), 0, 1)
+    : null
+  const reqs = requirements.filter(r => {
+    if (!sameClient(r.client, client.name)) return false
+    if (!start) return true
+    const created = r.createdAt ? new Date(r.createdAt) : null
+    return !!created && created >= start
+  })
   return {
-    reqs: client.activeReqs,
-    submissions: client.totalSubmissions,
-    placements: client.totalPlacements,
+    reqs: reqs.length,
+    submissions: reqs.reduce((n, r) => n + (r.submissions || 0), 0),
+    placements: reqs.reduce((n, r) => n + (r.placed || 0), 0),
   }
 }
 
-export function ClientsPage({ role = 'superadmin' }: ClientsPageProps) {
+export function ClientsPage({ role = 'superadmin', requirements = [] }: ClientsPageProps) {
   const [clients, setClients] = useState<ClientRecord[]>([])
   const canAddClient = role !== 'admin'
   const [viewMode, setViewMode] = useState<'list' | 'add' | 'view_agreement'>('list')
@@ -364,19 +155,20 @@ export function ClientsPage({ role = 'superadmin' }: ClientsPageProps) {
   const [newClientName, setNewClientName] = useState('')
   const [newClientDomain, setNewClientDomain] = useState('Software & Cloud Services')
   const [newPocName, setNewPocName] = useState('')
-  const [newPocDesignation, setNewPocDesignation] = useState('Procurement Manager')
+  const [newPocDesignation, setNewPocDesignation] = useState('')
   const [newPocEmail, setNewPocEmail] = useState('')
   const [newPocPhone, setNewPocPhone] = useState('')
-  const [newLocation, setNewLocation] = useState('Bangalore / Remote')
-  const [newCommercialFee, setNewCommercialFee] = useState('8.33% Annual CTC')
-  const [newPaymentTerms, setNewPaymentTerms] = useState('30 Days Net')
-  const [newSlaTAT, setNewSlaTAT] = useState('3.0 Days')
-  const [newAgreementStartDate, setNewAgreementStartDate] = useState('2026-08-11')
-  const [newAgreementEndDate, setNewAgreementEndDate] = useState('2029-08-10')
+  const [newLocation, setNewLocation] = useState('')
+  const [newCommercialFee, setNewCommercialFee] = useState('')
+  const [newPaymentTerms, setNewPaymentTerms] = useState('')
+  const [newSlaTAT, setNewSlaTAT] = useState('')
+  const [newAgreementStartDate, setNewAgreementStartDate] = useState('')
+  const [newAgreementEndDate, setNewAgreementEndDate] = useState('')
   const [newAgreementDoc, setNewAgreementDoc] = useState<File | null>(null)
 
   const [toastMsg, setToastMsg] = useState<string | null>(null)
 
+  const [reloadKey, setReloadKey] = useState(0)
   useEffect(() => {
     let cancelled = false
     clientsService
@@ -401,9 +193,9 @@ export function ClientsPage({ role = 'superadmin' }: ClientsPageProps) {
               activeReqs: c.activeReqs || 0,
               totalSubmissions: c.totalSubmissions || 0,
               totalPlacements: c.totalPlacements || 0,
-              commercialFee: c.commercialFee || '8.33% Annual CTC',
-              paymentTerms: c.paymentTerms || '30 Days Net',
-              slaTAT: c.slaDays ? `${c.slaDays} Days` : c.slaTAT || '5 Days',
+              commercialFee: c.commercialFee || '—',
+              paymentTerms: c.paymentTerms || '—',
+              slaTAT: c.slaDays ? `${c.slaDays} Days` : c.slaTAT || '—',
               agreementStatus: c.status === 'Active' ? 'Active - Executed' : 'Pending Signature',
               agreementStartDate: c.agreementStartDate || '',
               agreementEndDate: c.agreementEndDate || '',
@@ -418,7 +210,7 @@ export function ClientsPage({ role = 'superadmin' }: ClientsPageProps) {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [reloadKey])
 
   const showToast = (msg: string) => {
     setToastMsg(msg)
@@ -447,7 +239,7 @@ export function ClientsPage({ role = 'superadmin' }: ClientsPageProps) {
   // Filtered requirements for Client Requirements Breakdown Modal
   const filteredModalReqs = useMemo(() => {
     if (!selectedClientForReqsModal) return []
-    const list = getRequirementsForClient(selectedClientForReqsModal)
+    const list = getRequirementsForClient(selectedClientForReqsModal, requirements)
     return list.filter(r => {
       if (reqsModalPriorityFilter !== 'All' && r.priority !== reqsModalPriorityFilter) {
         return false
@@ -482,44 +274,35 @@ export function ClientsPage({ role = 'superadmin' }: ClientsPageProps) {
   }
 
   // Handle Add Client Form Submit (Full Page Submission)
-  const handleAddClientSubmit = (e: React.FormEvent) => {
+  const handleAddClientSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newClientName.trim() || !newPocName.trim()) return
-
-    const newRecord: ClientRecord = {
-      id: `CLI-${Math.floor(100 + Math.random() * 900)}`,
-      name: newClientName.trim(),
-      domain: newClientDomain,
-      pocName: newPocName.trim(),
-      pocEmail: newPocEmail.trim() || 'poc@client.com',
-      pocPhone: newPocPhone.trim() || '+91 98765 00000',
-      location: newLocation.trim(),
-      teamLead: 'Harish Gadipally',
-      teamMemberCount: 2,
-      teamMembers: ['Marcus Chen', 'Priya Sharma'],
-      activeReqs: 0,
-      totalSubmissions: 0,
-      totalPlacements: 0,
-      commercialFee: newCommercialFee,
-      paymentTerms: newPaymentTerms,
-      slaTAT: newSlaTAT,
-      agreementStatus: 'Active - Executed',
-      agreementStartDate: newAgreementStartDate,
-      agreementEndDate: newAgreementEndDate,
-      agreementDocName: newAgreementDoc ? newAgreementDoc.name : `${newClientName.replace(/\s+/g, '_')}_MSA_Agreement.pdf`,
-      signedBy: `${newPocName.trim()} (${newPocDesignation})`,
-      signedDate: '11 Aug 2026',
+    const sla = parseFloat(newSlaTAT)
+    try {
+      await clientsService.create({
+        clientName: newClientName.trim(),
+        domain: newClientDomain,
+        status: 'Active',
+        ...(Number.isFinite(sla) ? { slaDays: sla } : {}),
+        pocContacts: [
+          {
+            name: newPocName.trim(),
+            email: newPocEmail.trim(),
+            ...(newPocPhone.trim() ? { phone: newPocPhone.trim() } : {}),
+            ...(newPocDesignation.trim() ? { designation: newPocDesignation.trim() } : {}),
+          },
+        ],
+      })
+      setReloadKey(k => k + 1)
+      setViewMode('list')
+      showToast(`Client ${newClientName.trim()} saved`)
+      setNewClientName('')
+      setNewPocName('')
+      setNewPocEmail('')
+      setNewPocPhone('')
+    } catch (err: any) {
+      showToast(err?.message || 'Could not save the client')
     }
-
-    setClients([newRecord, ...clients])
-    setViewMode('list')
-    showToast(`Successfully empaneled new client: ${newClientName}`)
-
-    // Reset Form
-    setNewClientName('')
-    setNewPocName('')
-    setNewPocEmail('')
-    setNewPocPhone('')
   }
 
   // Render Client Delivery Gap Analysis Page when client is clicked
@@ -533,6 +316,7 @@ export function ClientsPage({ role = 'superadmin' }: ClientsPageProps) {
         pocPhone={selectedClientForGapAnalysis.pocPhone}
         teamLead={selectedClientForGapAnalysis.teamLead}
         role={role}
+        requirements={requirements}
         initialDateRange={periodFilter}
         onBack={() => setSelectedClientForGapAnalysis(null)}
       />
@@ -540,9 +324,9 @@ export function ClientsPage({ role = 'superadmin' }: ClientsPageProps) {
   }
 
   // Calculate totals for current periodFilter
-  const totalPeriodReqs = filteredClients.reduce((acc, c) => acc + getClientStats(c, periodFilter).reqs, 0)
-  const totalPeriodSubmissions = filteredClients.reduce((acc, c) => acc + getClientStats(c, periodFilter).submissions, 0)
-  const totalPeriodPlacements = filteredClients.reduce((acc, c) => acc + getClientStats(c, periodFilter).placements, 0)
+  const totalPeriodReqs = filteredClients.reduce((acc, c) => acc + getClientStats(c, periodFilter, requirements).reqs, 0)
+  const totalPeriodSubmissions = filteredClients.reduce((acc, c) => acc + getClientStats(c, periodFilter, requirements).submissions, 0)
+  const totalPeriodPlacements = filteredClients.reduce((acc, c) => acc + getClientStats(c, periodFilter, requirements).placements, 0)
 
   // -------------------------------------------------------------
   // DEDICATED FULL-PAGE VIEW: VIEW MASTER SERVICES AGREEMENT (MSA)
@@ -900,7 +684,7 @@ export function ClientsPage({ role = 'superadmin' }: ClientsPageProps) {
                 <label className="block text-slate-700 font-bold text-xs mb-1.5">Mobile Contact Number</label>
                 <input
                   type="text"
-                  placeholder="+91 98765 43210"
+                  placeholder="+91 XXXXX XXXXX"
                   value={newPocPhone}
                   onChange={e => setNewPocPhone(e.target.value)}
                   className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:border-[#6B3BF6]"
@@ -1297,7 +1081,7 @@ export function ClientsPage({ role = 'superadmin' }: ClientsPageProps) {
                       title={`Click to view all requirements received from ${client.name}`}
                     >
                       <Layers className="w-3.5 h-3.5 text-blue-600" />
-                      <span>{getClientStats(client, periodFilter).reqs} Reqs</span>
+                      <span>{getClientStats(client, periodFilter, requirements).reqs} Reqs</span>
                     </button>
                     {periodFilter !== 'All Time' && (
                       <div className="text-[10px] text-purple-700 font-extrabold mt-0.5">({periodFilter})</div>
@@ -1307,7 +1091,7 @@ export function ClientsPage({ role = 'superadmin' }: ClientsPageProps) {
                   {/* Column 5: Submissions Count */}
                   <td className="py-4 px-4 whitespace-nowrap text-center">
                     <span className="px-2.5 py-1 rounded-full text-xs font-extrabold bg-purple-50 text-purple-900 border border-purple-200 tabular-nums">
-                      {getClientStats(client, periodFilter).submissions} Subs
+                      {getClientStats(client, periodFilter, requirements).submissions} Subs
                     </span>
                     {periodFilter !== 'All Time' && (
                       <div className="text-[10px] text-purple-700 font-extrabold mt-0.5">({periodFilter})</div>
@@ -1396,19 +1180,19 @@ export function ClientsPage({ role = 'superadmin' }: ClientsPageProps) {
               <div className="p-3.5 bg-blue-50/80 rounded-2xl border border-blue-100 text-center">
                 <span className="text-[10px] font-bold text-blue-800 uppercase block">Total Client Reqs</span>
                 <span className="text-2xl font-black text-blue-950 font-mono">
-                  {getClientStats(selectedClientForReqsModal, periodFilter).reqs}
+                  {getClientStats(selectedClientForReqsModal, periodFilter, requirements).reqs}
                 </span>
               </div>
               <div className="p-3.5 bg-purple-50/80 rounded-2xl border border-purple-100 text-center">
                 <span className="text-[10px] font-bold text-purple-800 uppercase block">Total Submissions</span>
                 <span className="text-2xl font-black text-purple-950 font-mono">
-                  {getClientStats(selectedClientForReqsModal, periodFilter).submissions}
+                  {getClientStats(selectedClientForReqsModal, periodFilter, requirements).submissions}
                 </span>
               </div>
               <div className="p-3.5 bg-emerald-50/80 rounded-2xl border border-emerald-100 text-center">
                 <span className="text-[10px] font-bold text-emerald-800 uppercase block">Placements</span>
                 <span className="text-2xl font-black text-emerald-950 font-mono">
-                  {getClientStats(selectedClientForReqsModal, periodFilter).placements}
+                  {getClientStats(selectedClientForReqsModal, periodFilter, requirements).placements}
                 </span>
               </div>
               <div className="p-3.5 bg-amber-50/80 rounded-2xl border border-amber-100 text-center">

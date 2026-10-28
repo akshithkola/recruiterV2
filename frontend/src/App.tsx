@@ -5,7 +5,7 @@ import { AuthScreen, Interview, InterviewStatus, Recruiter, Role, Submission, Re
 import { brand } from './theme'
 import { logoutRemote, restoreSession } from './data/authService'
 import { clearSession, getSessionUser } from './store/session'
-import { titleForRole } from './data/seedCredentials'
+import { titleForRole } from './data/roleMeta'
 import { workspaceService } from './services/workspace.service'
 import { saveSubmissionsStore } from './data/submissionsStore'
 
@@ -21,6 +21,7 @@ import { LandingPage } from './components/landing/LandingPage'
 import { SignInPage } from './components/auth/SignInPage'
 import { SignUpPage } from './components/auth/SignUpRequestPage'
 import { PasswordRecoveryFlow } from './components/auth/PasswordRecoveryFlow'
+import { DevRoleSwitcher } from './components/common/DevRoleSwitcher'
 
 import { NewRequirementModal } from './components/modals/NewRequirementModal'
 import { SubmitCandidateModal } from './components/modals/SubmitCandidateModal'
@@ -215,7 +216,15 @@ export default function App() {
       updatedAt: (newReq as any).updatedAt || nowIso,
     }
     setRequirements([enrichedReq, ...requirements])
-    void workspaceService.createRequirement(enrichedReq).catch(() => undefined)
+    void workspaceService.createRequirement(enrichedReq)
+      .then((created: any) => {
+        if (created) {
+          setRequirements(prev =>
+            prev.map(r => r.id === enrichedReq.id ? { ...r, ...created, id: created.reqCode || created.id || r.id, _id: created._id || (r as any)._id } : r)
+          )
+        }
+      })
+      .catch(() => undefined)
   }
 
   const handleSubmitCandidate = (newSub: Submission) => {
@@ -229,7 +238,14 @@ export default function App() {
     }
     setSubmissions([enrichedSub, ...submissions])
     saveSubmissionsStore([enrichedSub, ...submissions])
-    void workspaceService.createSubmission(enrichedSub).then(() => {
+    void workspaceService.createSubmission(enrichedSub).then((created: any) => {
+      if (created) {
+        setSubmissions(prev => {
+          const next = prev.map(s => s.id === enrichedSub.id ? { ...s, ...created, id: created.submissionId || created.id || s.id, _id: created._id || (s as any)._id } : s)
+          saveSubmissionsStore(next)
+          return next
+        })
+      }
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('submissions_updated'))
       }
@@ -338,7 +354,7 @@ export default function App() {
   }
 
   if (screen === 'signup') {
-    return <SignUpPage onBack={() => setScreen('signin')} onSubmitted={() => setScreen('signin')} />
+    return <SignUpPage onBack={() => setScreen('signin')} onSubmitted={() => setScreen('signin')} onLogin={handleAuthenticated} />
   }
 
   if (screen === 'password-recovery') {
@@ -453,6 +469,13 @@ export default function App() {
         isOpen={isCandidateDetailOpen}
         onClose={() => setIsCandidateDetailOpen(false)}
         submission={selectedSubmissionForDetail}
+      />
+
+      {/* Dev role switcher for quick in-app switching during development */}
+      <DevRoleSwitcher
+        currentRole={role}
+        currentUserName={currentUser.name}
+        onSwitchRole={handleAuthenticated}
       />
     </div>
   )

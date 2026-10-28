@@ -1,5 +1,5 @@
 import { apiErrorMessage } from '../../../services/candidatePayload'
-import { RESUME_BULK_BATCH, resumeParserService, type ParsedResume } from '../../../services/workspace.service'
+import { RESUME_BULK_BATCH, filesService, resumeParserService, uploadedFileId, type ParsedResume } from '../../../services/workspace.service'
 import type { AddCandidateVmState, BulkQueueItem } from './useAddCandidatePageState'
 
 const ALLOWED = /\.(pdf|docx?|txt|png|jpe?g|webp|bmp|tiff?)$/i
@@ -13,7 +13,7 @@ export function useAddCandidateBulkHandlers(
   s: AddCandidateVmState,
   h: { applyParsedToForm: (d: ParsedResume) => void; showError: (m: string) => void },
 ) {
-  const { bulkQueue, setBulkQueue, activeQueueId, setActiveQueueId } = s
+  const { bulkQueue, setBulkQueue, activeQueueId, setActiveQueueId, setSelectedFile, setResumeFileId } = s
 
   const patch = (ids: string[], update: (q: BulkQueueItem) => Partial<BulkQueueItem>) =>
     setBulkQueue((prev) => prev.map((q) => (ids.includes(q.id) ? { ...q, ...update(q) } : q)))
@@ -24,15 +24,29 @@ export function useAddCandidateBulkHandlers(
       const ids = batch.map((b) => b.id)
       patch(ids, () => ({ status: 'parsing', error: undefined }))
       try {
-        const res = await resumeParserService.parseBulk(batch.map((b) => b.file))
+        const [res, uploaded] = await Promise.all([
+          resumeParserService.parseBulk(batch.map((b) => b.file)),
+          Promise.all(batch.map(async (b) => {
+            try {
+              const stored = await filesService.upload(b.file)
+              return { id: b.id, fileId: uploadedFileId(stored) }
+            } catch {
+              return { id: b.id, fileId: '' }
+            }
+          })),
+        ])
+        const fileIds = new Map(uploaded.map((item) => [item.id, item.fileId]))
         const results = res.results || []
         setBulkQueue((prev) =>
           prev.map((q) => {
             const idx = ids.indexOf(q.id)
             if (idx === -1) return q
             const r = results[idx]
-            if (r?.status === 'done' && r.data) return { ...q, status: 'parsed', data: r.data, error: undefined }
-            return { ...q, status: 'failed', error: r?.error || 'Could not parse this resume' }
+            const storedId = fileIds.get(q.id) || q.resumeFileId
+            if (r?.status === 'done' && r.data) {
+              return { ...q, status: 'parsed', data: r.data, error: undefined, resumeFileId: storedId || undefined }
+            }
+            return { ...q, status: 'failed', error: r?.error || 'Could not parse this resume', resumeFileId: storedId || undefined }
           }),
         )
         if (res.notice) h.showError(`Parsed with the local parser: ${res.notice}`)
@@ -43,9 +57,28 @@ export function useAddCandidateBulkHandlers(
   }
 
   const handleAddBulkFiles = (files: File[]) => {
+    const MAX_BULK_RESUMES = 5
+    const activeItems = bulkQueue.filter((q) => q.status !== 'submitted')
+    const availableSlots = Math.max(0, MAX_BULK_RESUMES - activeItems.length)
+
+    if (availableSlots <= 0) {
+      h.showError(
+        `Limit reached: Maximum of ${MAX_BULK_RESUMES} resumes allowed in bulk import at a time. Please review, submit, or remove existing resumes before adding more.`
+      )
+      return
+    }
+
+    let filesToProcess = files
+    if (filesToProcess.length > availableSlots) {
+      h.showError(
+        `Bulk import limit is ${MAX_BULK_RESUMES} resumes. Taking the first ${availableSlots} file(s) out of ${files.length}.`
+      )
+      filesToProcess = filesToProcess.slice(0, availableSlots)
+    }
+
     const accepted: BulkQueueItem[] = []
     const rejected: string[] = []
-    files.forEach((file, i) => {
+    filesToProcess.forEach((file, i) => {
       if (!ALLOWED.test(file.name) || file.size > MAX_BYTES) {
         rejected.push(file.name)
         return
@@ -63,6 +96,8 @@ export function useAddCandidateBulkHandlers(
     if (!item?.data) return
     setActiveQueueId(id)
     h.applyParsedToForm(item.data)
+    setSelectedFile(item.file)
+    setResumeFileId(item.resumeFileId || null)
   }
 
   const handleRetryQueueItem = (id: string) => {
@@ -77,5 +112,10 @@ export function useAddCandidateBulkHandlers(
 
   const handleClearSubmitted = () => setBulkQueue((prev) => prev.filter((q) => q.status !== 'submitted'))
 
-  return { handleAddBulkFiles, handleReviewQueueItem, handleRetryQueueItem, handleRemoveQueueItem, handleClearSubmitted }
+  const handleClearAll = () => {
+    setBulkQueue([])
+    if (activeQueueId) setActiveQueueId(null)
+  }
+
+  return { handleAddBulkFiles, handleReviewQueueItem, handleRetryQueueItem, handleRemoveQueueItem, handleClearSubmitted, handleClearAll }
 }

@@ -39,7 +39,7 @@ _USD_RE = re.compile(
 )
 _EUR_RE = re.compile(r"(?i)\b(?:€|eur)\s*(?P<n>\d+(?:\.\d+)?)")
 _INR_RE = re.compile(r"(?i)\b(?:₹|inr)\s*(?P<n>\d+(?:\.\d+)?)")
-_SKILL_LINE_RE = re.compile(r"(?im)^\s*(?:skill|skills|mandatory\s*(?:technical\s*)?skills?|must\s*(?:to\s*)?have\s*(?:technical\s*)?skills?|primary\s*skills?)\s*[:\-]\s*(.+)$")
+_SKILL_LINE_RE = re.compile(r"(?im)^[ \t]*(?:skill|skills|mandatory[ \t]*(?:technical[ \t]*)?skills?|must[ \t]*(?:to[ \t]*)?have[ \t]*(?:technical[ \t]*)?skills?|primary[ \t]*skills?)[ \t]*[:\-–—][ \t]*(\S.*)$")
 _EXP_RE = re.compile(r"(?i)\b(\d{1,2}\s*[-–]\s*\d{1,2}|\d{1,2}\+?)\s*(?:years?|yrs?)\b")
 _JD_SECTION_RE = re.compile(
     r"(?is)(?:job description\s*[:\-]\s*)(?P<jd>.+?)(?:\n\s*qualifications?\s*[:\-]|\Z)"
@@ -769,7 +769,40 @@ def _norm_work_mode(w: str | None, body_text: str = "") -> str | None:
         own_mode = _classify_work_mode(own.lower())
         if own_mode:
             return own_mode
-    return _classify_work_mode(str(body_text or "").lower())
+    return _classify_body_work_mode(str(body_text or ""))
+
+
+# The email body only decides the work mode when it states one: a work-mode label line or an explicit
+# phrase. Bare words are not enough ("RPP (Remote power panel)", "2 days interview").
+_BODY_WORK_MODE_LINE_RX = re.compile(
+    r"(?im)^[ \t]*[-*•]?[ \t]*(?:work[ \t]*mode|mode[ \t]*of[ \t]*work(?:ing)?|work(?:ing)?[ \t]*model|work[ \t]*type|"
+    r"working[ \t]*mode|work[ \t]*arrangement)[ \t]*[:=\-–—|][ \t]*(\S[^\n\r]*)$"
+)
+_BODY_REMOTE_RX = re.compile(
+    r"(?i)\b(?:fully[ \t]+remote|100\s*%[ \t]*remote|remote[ \t]+(?:only|role|position|job|opportunity|work(?:ing)?|"
+    r"opening|requirement|basis)|work(?:ing)?[ \t]+from[ \t]+home|wfh|home[ \t]+based)\b"
+)
+_BODY_HYBRID_RX = re.compile(
+    r"(?i)\bhybrid\b|\b[1-4]\s*days?\s*(?:a\s*week\s*)?(?:work\s*)?(?:from|in|at|to)\s*(?:the\s*)?(?:office|client\s*(?:office|location|site))\b|"
+    r"\b[1-4]\s*days?\s*(?:a\s*week\s*)?(?:rto|wfo)\b"
+)
+_BODY_ONSITE_RX = re.compile(
+    r"(?i)\b(?:on-?site|on\s+site|work(?:ing)?\s+from\s+office|wfo|rto|100\s*%\s*office|5\s*days\s*(?:from\s*|in\s*)?office|all\s*5\s*days)\b"
+)
+
+
+def _classify_body_work_mode(body_text: str) -> str | None:
+    m = _BODY_WORK_MODE_LINE_RX.search(body_text or "")
+    if m:
+        return _classify_work_mode(m.group(1).lower())
+    text = body_text or ""
+    if _BODY_HYBRID_RX.search(text):
+        return "Hybrid"
+    if _BODY_REMOTE_RX.search(text):
+        return "Remote"
+    if _BODY_ONSITE_RX.search(text):
+        return "On-site"
+    return None
 
 
 def _classify_work_mode(text: str) -> str | None:
@@ -806,10 +839,36 @@ def _classify_work_mode(text: str) -> str | None:
     return None
 
 
-def extract_min_max_experience(exp_text: str | None) -> tuple[int | None, int | None]:
-    """Preserve experience ranges, minimums, maximums, and exact years as min/max numbers."""
+def extract_min_max_experience(exp_text: str | None) -> tuple[float | None, float | None]:
+    """
+    Preserve experience ranges, minimums, maximums, and exact years as min/max numbers.
+    Decimals are kept ("7.5 Yrs" -> 7.5); "5+ years" is a minimum with no maximum.
+    """
     if not exp_text:
         return None, None
+    num = r"(\d{1,2}(?:\.\d{1,2})?)"
+
+    def _n(v: str) -> float:
+        f = float(v)
+        return int(f) if f.is_integer() else f
+
+    m = re.search(num + r"\s*(?:-|to|–|—)\s*" + num, exp_text)
+    if m:
+        return _n(m.group(1)), _n(m.group(2))
+    m_plus = re.search(num + r"\s*\+", exp_text)
+    if m_plus:
+        return _n(m_plus.group(1)), None
+    m_min = re.search(r"(?i)(?:min(?:imum)?|at\s+least)\s*[:\-]?\s*" + num, exp_text)
+    if m_min:
+        return _n(m_min.group(1)), None
+    m_max = re.search(r"(?i)(?:max(?:imum)?|up\s+to)\s*[:\-]?\s*" + num, exp_text)
+    if m_max:
+        return None, _n(m_max.group(1))
+    m_single = re.search(r"(?<![\d.])" + num + r"(?![\d.])", exp_text)
+    if m_single:
+        val = _n(m_single.group(1))
+        return val, val
+    return None, None
     m = re.search(r"(\d{1,2})\s*(?:-|to|–|—)\s*(\d{1,2})", exp_text)
     if m:
         try:
@@ -917,6 +976,21 @@ def map_to_metaforge(
             if jt_cand and not is_placeholder(jt_cand):
                 job_title = jt_cand
 
+    # Shift hours, clock times, bare role words and the title itself are never skills, whichever
+    # extractor produced them.
+    from two_way_verifier import is_junk_skill
+
+    def _clean_skills(values: list) -> list:
+        out: list = []
+        for s in values:
+            s = str(s).strip().lstrip("•·*-–— \t").strip()
+            if s and not is_junk_skill(s, job_title) and s.lower() not in {o.lower() for o in out}:
+                out.append(s)
+        return out
+
+    extracted_mand_list = _clean_skills(extracted_mand_list)
+    extracted_soft_list = _clean_skills(extracted_soft_list)
+
     experience_raw = str(
         extracted.get("overall_experience")
         or extracted.get("experience")
@@ -955,6 +1029,27 @@ def map_to_metaforge(
     loc_str = ", ".join(loc_items) if loc_items else (
         str(raw_loc).strip() if raw_loc and not is_placeholder(raw_loc) and not _is_generic_raw_loc(str(raw_loc)) else ""
     )
+
+    # "Mould Design & Engg - Composite Material for Chennai": the place is the job's location, not part of
+    # its title. Only a trailing "for/at/in <location>" that names this requirement's own location is removed.
+    if job_title and loc_items:
+        for loc in loc_items:
+            city = re.sub(r"\s*\(.*$|\s+only$", "", loc, flags=re.I).strip()
+            if len(city) < 3:
+                continue
+            trimmed = re.sub(rf"(?i)[\s,\-–—_]*(?:for|at|in|@)?\s*{re.escape(city)}\s*$", "", job_title).strip(" -–—_,")
+            if trimmed and trimmed != job_title and len(trimmed) >= 3:
+                job_title = trimmed
+                break
+
+    # "Civil Engineering (B.E./B.Tech.)": a bracket holding only degrees is a qualification, not the role.
+    if job_title:
+        no_degree = re.sub(
+            r"\s*\((?:\s*(?:b\.?\s*e|b\.?\s*tech|m\.?\s*e|m\.?\s*tech|b\.?\s*sc|m\.?\s*sc|bca|mca|mba|ph\.?\s*d|diploma)\.?\s*[/,&]?\s*)+\)",
+            "", job_title, flags=re.I,
+        ).strip()
+        if len(no_degree) >= 3:
+            job_title = no_degree
 
     raw_np = extracted.get("notice_period") or extracted.get("notice") or extracted.get("np")
     notice_period_str = str(raw_np).strip() if raw_np and not is_placeholder(raw_np) else ""

@@ -1,4 +1,5 @@
 import React from 'react'
+import { Requirement } from '../../types'
 import { ClientDeliveryGapAnalysisPage } from './ClientDeliveryGapAnalysisPage'
 
 export interface ClientPerformanceData {
@@ -24,15 +25,18 @@ export interface ClientPerformanceData {
 interface ClientDetailAnalyticsPageProps {
   client: ClientPerformanceData
   onBack: () => void
+  requirements?: Requirement[]
 }
 
 export function ClientDetailAnalyticsPage({
   client,
   onBack,
+  requirements = [],
 }: ClientDetailAnalyticsPageProps) {
   return (
     <ClientDeliveryGapAnalysisPage
       clientName={client.clientName}
+      requirements={requirements}
       onBack={onBack}
     />
   )

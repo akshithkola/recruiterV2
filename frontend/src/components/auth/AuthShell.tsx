@@ -1,6 +1,9 @@
-import React from 'react'
+'use client'
+
+import React, { useRef } from 'react'
 import { ArrowLeft, CheckCircle2, ShieldCheck, Sparkles, LucideIcon } from 'lucide-react'
 import { MetaforgeLogo } from '../common/MetaforgeLogo'
+import { gsap, useGSAP } from '../../lib/animations'
 
 export interface AuthShellProps {
   /** Small pill above the headline on the dark showcase panel */
@@ -39,10 +42,43 @@ export function AuthShell({
   children,
   wide = false,
 }: AuthShellProps) {
+  const shellRef = useRef<HTMLDivElement | null>(null)
+
+  useGSAP(
+    () => {
+      if (!shellRef.current) return
+      const mm = gsap.matchMedia()
+      mm.add('(prefers-reduced-motion: no-preference)', () => {
+        const ctx = gsap.context(() => {
+          gsap.from('[data-auth="panel"]', {
+            x: -24,
+            opacity: 0,
+            duration: 0.55,
+            ease: 'power2.out',
+          })
+          gsap.from('[data-auth="form"]', {
+            y: 18,
+            opacity: 0,
+            duration: 0.5,
+            delay: 0.12,
+            ease: 'power2.out',
+            clearProps: 'transform,opacity',
+          })
+        }, shellRef)
+        return () => ctx.revert()
+      })
+      return () => mm.revert()
+    },
+    { scope: shellRef }
+  )
+
   return (
-    <div className="h-screen max-h-screen overflow-hidden flex bg-slate-50 font-sans">
+    <div ref={shellRef} className="h-screen max-h-screen overflow-hidden flex bg-slate-50 font-sans">
       {/* Left panel — deep navy product showcase */}
-      <div className="hidden lg:flex lg:w-[460px] xl:w-[500px] 2xl:w-[540px] flex-shrink-0 bg-[#0B1021] flex-col relative overflow-hidden text-white border-r border-slate-800/80">
+      <div
+        data-auth="panel"
+        className="hidden lg:flex lg:w-[460px] xl:w-[500px] 2xl:w-[540px] flex-shrink-0 bg-[#0B1021] flex-col relative overflow-hidden text-white border-r border-slate-800/80"
+      >
         {/* Grid pattern */}
         <div
           className="absolute inset-0 opacity-[0.12]"
@@ -121,7 +157,10 @@ export function AuthShell({
 
       {/* Right panel — form column */}
       <div className="flex-1 flex items-center justify-center p-4 sm:p-6 lg:p-8 bg-slate-50 relative overflow-y-auto h-full">
-        <div className={`w-full my-auto ${wide ? 'max-w-lg xl:max-w-xl' : 'max-w-md xl:max-w-lg'}`}>
+        <div
+          data-auth="form"
+          className={`w-full my-auto ${wide ? 'max-w-lg xl:max-w-xl' : 'max-w-md xl:max-w-lg'}`}
+        >
           {/* Mobile brand header */}
           <div className="flex items-center gap-3 mb-4 lg:hidden">
             <MetaforgeLogo variant="dark" size="md" />

@@ -24,6 +24,7 @@ describe('Resume Parser HTTP API Endpoints', () => {
   });
 
   afterAll((done) => {
+    (server as any)?.closeAllConnections?.();
     server.close(done);
   });
 

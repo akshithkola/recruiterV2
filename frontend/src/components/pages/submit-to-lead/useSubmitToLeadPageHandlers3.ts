@@ -88,7 +88,9 @@ export function useSubmitToLeadPageHandlers3(s: SubmitToLeadVmState & Record<str
     const uniqueEmails = (emails: string[]) => [...new Set(
       emails.map((email: string) => String(email || '').trim().toLowerCase()).filter((email: string) => email.includes('@'))
     )]
-    const clientEmails = uniqueEmails(Array.isArray(toRecipients) ? toRecipients : [])
+    // Client TO/CC recipients are only used when forwarding to the original requirement loop.
+    const forwardToLoop = Boolean(s.forwardLoopChecked)
+    const clientEmails = forwardToLoop ? uniqueEmails(Array.isArray(toRecipients) ? toRecipients : []) : []
     const rawLeadEmails = Array.isArray(s.leadEmails) && s.leadEmails.length > 0
       ? s.leadEmails
       : (s.leadEmail ? String(s.leadEmail).split(',') : [])
@@ -107,7 +109,7 @@ export function useSubmitToLeadPageHandlers3(s: SubmitToLeadVmState & Record<str
 
     submittingRef.current = true
     const targetClient = clientName || requirement?.client || ''
-    const ccEmails = uniqueEmails(Array.isArray(ccRecipients) ? ccRecipients : [])
+    const ccEmails = uniqueEmails(forwardToLoop && Array.isArray(ccRecipients) ? ccRecipients : [])
       .filter((email: string) => !clientEmails.includes(email) && !leadEmails.includes(email))
 
     try {

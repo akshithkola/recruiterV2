@@ -113,7 +113,8 @@ export function SubmitCandidateModal({
               targetReq={m.targetReq}
               newDupResult={m.newDupResult}
               onClose={onClose}
-              onSimulateResumeUpload={m.handleSimulateResumeUpload}
+              onResumeUpload={m.handleResumeUpload}
+              parseError={m.parseError}
               onSubmitNew={m.handleSubmitNew}
             />
           )}

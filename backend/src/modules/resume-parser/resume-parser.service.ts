@@ -7,6 +7,7 @@ export interface UploadedResume {
   buffer: Buffer;
   originalname: string;
   size: number;
+  mimetype?: string;
 }
 
 /** Normalized candidate fields returned to the Candidate Search & Entry page. */
@@ -33,8 +34,10 @@ export interface BulkParseResult {
   error?: string;
 }
 
-export const RESUME_EXTENSIONS = new Set(['.pdf', '.doc', '.docx', '.txt', '.png', '.jpg', '.jpeg', '.webp', '.bmp', '.tif', '.tiff']);
-export const MAX_RESUME_BYTES = 15 * 1024 * 1024;
+export {
+  RESUME_ALLOWED_EXTENSIONS as RESUME_EXTENSIONS,
+  MAX_UPLOAD_BYTES as MAX_RESUME_BYTES,
+} from '../../common/security/upload-validation.util';
 export const MAX_BULK_RESUMES = 5;
 
 /**
@@ -116,8 +119,18 @@ function text(v: unknown): string | null {
 function normalizePhone(v: unknown): string | null {
   const s = text(v);
   if (!s) return null;
-  const digits = s.replace(/[^\d+]/g, '');
-  return digits.replace(/(?!^)\+/g, '') || null;
+  // If multiple phone numbers are separated by comma, slash, pipe, newline, or 'or', take the first one
+  const firstPart = s.split(/[\/,|\n]|(?:\bor\b)/i)[0].trim();
+  const digits = firstPart.replace(/[^\d+]/g, '').replace(/(?!^)\+/g, '');
+  if (!digits) return null;
+  // If digits were glued together without delimiter (e.g. +919067528514919167483752), take the first valid phone
+  if (digits.startsWith('+91') && digits.length > 13) {
+    return digits.slice(0, 13);
+  }
+  if (digits.length > 15) {
+    return digits.slice(0, 12);
+  }
+  return digits || null;
 }
 
 function normalize(raw: any, filename: string): ParsedResume {
@@ -128,6 +141,7 @@ function normalize(raw: any, filename: string): ParsedResume {
     linkedInUrl: text(raw?.linkedinUrl ?? raw?.linkedInUrl),
     qualification: text(raw?.highestQualification),
     skills: text(raw?.skillsRaw),
+    // Technologies form field = designation/role only (not skills list).
     technologies: text(raw?.technologiesRaw ?? raw?.role ?? raw?.technologies),
     totalExperience: text(raw?.totalExperience),
     relevantExperience: text(raw?.relevantExperience),

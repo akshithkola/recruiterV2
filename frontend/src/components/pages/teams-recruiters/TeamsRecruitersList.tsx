@@ -2,7 +2,7 @@ import { ShieldCheck, Shield, Lock, ChevronRight, Clock } from 'lucide-react'
 import { UnifiedTeamMember } from './types'
 import { PaginationFooter } from '../../ui/PaginationFooter'
 import { getRecruiterScreenTime, formatDurationShort, canViewScreenTime } from '../../../utils/screenTimeTracker'
-import { DEMO_ACCOUNTS } from '../../../data/mockData'
+import { getSessionUser } from '../../../store/session'
 import { Role } from '../../../types'
 
 interface Props {
@@ -103,7 +103,7 @@ export function TeamsRecruitersList(p: Props) {
                   {role !== 'recruiter' && (
                     <td className="py-4 px-4 whitespace-nowrap text-center">
                       {(() => {
-                        const currentUser = DEMO_ACCOUNTS[role] || { name: 'Current User' }
+                        const currentUser = { name: getSessionUser()?.name || '' }
                         const isAllowed = canViewScreenTime(role, currentUser.name, member.name, member.teamLead)
                         if (!isAllowed) {
                           return (

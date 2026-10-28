@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Schema as MongooseSchema } from 'mongoose';
+import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 
 export type NotificationDocument = Notification & Document;
 
@@ -13,17 +13,19 @@ export type NotificationType =
   | 'requirement_assigned'
   | 'lead_approval_requested'
   | 'candidate_created'
-  | 'candidate_updated';
+  | 'candidate_updated'
+  | 'recruiter_missing_login'
+  | 'attendance_alert';
 
-export type EntityType = 'submission' | 'interview' | 'offer' | 'requirement' | 'candidate';
+export type EntityType = 'submission' | 'interview' | 'offer' | 'requirement' | 'candidate' | 'user' | 'attendance';
 
 @Schema({ timestamps: true, collection: 'notifications' })
 export class Notification {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Organization', required: true, index: true })
-  orgId: MongooseSchema.Types.ObjectId;
+  orgId: Types.ObjectId;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true, index: true })
-  userId: MongooseSchema.Types.ObjectId;
+  userId: Types.ObjectId;
 
   @Prop({
     required: true,
@@ -38,6 +40,8 @@ export class Notification {
       'lead_approval_requested',
       'candidate_created',
       'candidate_updated',
+      'recruiter_missing_login',
+      'attendance_alert',
     ],
   })
   type: NotificationType;
@@ -49,9 +53,12 @@ export class Notification {
   message: string;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, required: true })
-  entityId: MongooseSchema.Types.ObjectId;
+  entityId: Types.ObjectId;
 
-  @Prop({ required: true, enum: ['submission', 'interview', 'offer', 'requirement', 'candidate'] })
+  @Prop({
+    required: true,
+    enum: ['submission', 'interview', 'offer', 'requirement', 'candidate', 'user', 'attendance'],
+  })
   entityType: EntityType;
 
   @Prop({ type: Date, default: null })

@@ -30,9 +30,9 @@ export function useSubmitToLeadPageState(props: SubmitToLeadPageProps) {
     getForwardRequestByReq(currentReqId)
   )
 
-  // Destination Checkboxes (Forward to client loop is DEFAULT as requested)
+  // Destination Checkboxes (Forward to client loop starts unticked)
   const [submitToLeadChecked, setSubmitToLeadChecked] = useState(true)
-  const [forwardLoopChecked, setForwardLoopChecked] = useState(true)
+  const [forwardLoopChecked, setForwardLoopChecked] = useState(false)
 
   // Sync state with forwardRequestsStore
   useEffect(() => {
@@ -187,7 +187,7 @@ export function useSubmitToLeadPageState(props: SubmitToLeadPageProps) {
   const [toastMsg, setToastMsg] = useState<string | null>(null)
 
   // Custom Column & Tracker Table State
-  const defaultPreset = CLIENT_TRACKER_PRESETS[initialPreset] || CLIENT_TRACKER_PRESETS.MetaForge
+  const defaultPreset = CLIENT_TRACKER_PRESETS[initialPreset] || CLIENT_TRACKER_PRESETS['Metaforge ( internal )'] || Object.values(CLIENT_TRACKER_PRESETS)[0]
 
   const [columnList, setColumnList] = useState<string[]>(initialLayout.columns)
   const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set(initialLayout.hidden))

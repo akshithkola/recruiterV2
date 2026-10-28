@@ -44,7 +44,7 @@ import {
   CartesianGrid,
   Cell,
 } from 'recharts'
-import { Role } from '../../types'
+import { Role, Requirement } from '../../types'
 import { PaginationFooter } from '../ui/PaginationFooter'
 
 export interface ClientGapAnalysisProps {
@@ -58,6 +58,8 @@ export interface ClientGapAnalysisProps {
   initialDateRange?: string
   onBack: () => void
   onSelectRequirement?: (reqId: string) => void
+  /** Live requirements; the analysis covers this client's ones. */
+  requirements?: Requirement[]
 }
 
 export interface ClientRequirementItem {
@@ -93,172 +95,46 @@ const STANDARDIZED_DOMAINS_LIST = [
   'Other / Needs Validation',
 ]
 
-// Dynamic data generator helper per client name
-export function getClientGapAnalysisDataset(clientName: string = 'Accenture', clientPoc?: string): ClientRequirementItem[] {
-  const safeClientName = (clientName || 'Accenture').trim()
-  const seed = safeClientName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
-  const clientCode = (safeClientName.length >= 3 ? safeClientName.substring(0, 3) : 'CLI').toUpperCase()
-
-  // Seeded random helper
-  const pseudoRandom = (index: number) => {
-    const x = Math.sin(seed + index) * 10000
-    return x - Math.floor(x)
-  }
-
-  const reqTitlesByDomain: Record<string, string[]> = {
-    'Automotive / Mobility': [
-      'EV Battery Management System Architect',
-      'AUTOSAR Software Integration Specialist',
-      'ADAS Perception & Sensor Fusion Lead',
-      'Chassis & Powertrain Design Engineer',
-      'Vehicle Dynamics Simulation Engineer',
-    ],
-    'Aerospace & Defense': [
-      'Avionics Embedded Software Engineer',
-      'DO-178C Safety Critical Systems Specialist',
-      'Aerostructures Stress Analysis Engineer',
-      'Flight Control Systems Specialist',
-    ],
-    'Plant / Process / Industrial Engineering': [
-      'Industrial Automation & PLC Programmer',
-      'SCADA Systems Integration Specialist',
-      'Plant Layout & Process Optimization Lead',
-      'Robotics & Conveyor Cell Engineer',
-    ],
-    'Product Engineering / CAD-CAE-PLM': [
-      'CATIA V5/V6 Mechanical Design Specialist',
-      'Teamcenter PLM Solution Architect',
-      'ANSYS FEA Thermal & Structural Analyst',
-      'CREO Plastics & Sheet Metal Engineer',
-    ],
-    'Embedded / Electronics / V&V': [
-      'Embedded C/C++ Firmware Developer',
-      'Hardware-in-the-Loop (HIL) Test Specialist',
-      'PCB Design & Hardware Board Bringup Lead',
-      'Microcontroller Driver Developer',
-    ],
-    'Digital / IT / Data': [
-      'Senior Full Stack Java & Cloud Architect',
-      'AWS / Azure DevOps Systems Lead',
-      'Data Engineering & Snowflake Architect',
-      'Cybersecurity & Network Infrastructure Specialist',
-    ],
-    'Medical Devices / Healthcare': [
-      'ISO 13485 Medical Device Verification Lead',
-      'FDA Regulatory Compliance Specialist',
-      'Biomedical Signal Processing Engineer',
-    ],
-    'Energy / Oil & Gas / Renewables': [
-      'Subsea Structural Integrity Analyst',
-      'Solar & Wind Farm Substation Specialist',
-      'Turbine Control Systems Lead',
-    ],
-    'Manufacturing / Quality / Cost Engineering': [
-      'Six Sigma Black Belt Quality Lead',
-      'Should-Cost & Teardown Analysis Engineer',
-      'APQP & PPAP Compliance Auditor',
-    ],
-    'Warehouse / Supply Chain': [
-      'Supply Chain Network Optimization Manager',
-      'Warehouse Automation & WMS Specialist',
-    ],
-    'Enterprise Apps / Asset & Process Transformation': [
-      'SAP S/4HANA TM & Logistics Architect',
-      'Oracle Cloud ERP Implementation Lead',
-      'Salesforce Enterprise Solution Architect',
-    ],
-    'Other / Needs Validation': [
-      'Unspecified Technical Consultant Requirement',
-      'Pending Client Job Demand Brief',
-    ],
-  }
-
-  // SPOC List strictly scoped to this client
-  const primarySpoc = clientPoc || (safeClientName.includes('Goldman') ? 'Trayeetanu Ganguly' : safeClientName.includes('Infosys') ? 'Ramesh Babu' : safeClientName.includes('JPMorgan') ? 'Siddharth N' : 'Kallol Chakraborty')
-  const spocList = [primarySpoc, `${primarySpoc} (Lead)`, 'Marcus Chen', 'Harish Gadipally']
-
-  const dataset: ClientRequirementItem[] = []
-  let reqCounter = 101
-
-  STANDARDIZED_DOMAINS_LIST.forEach((domain, dIdx) => {
-    const titles = reqTitlesByDomain[domain] || ['Senior Specialist Consultant']
-    const reqCount = Math.floor(pseudoRandom(dIdx * 3) * 4) + 1 // 1 to 4 requirements per domain
-
-    for (let i = 0; i < reqCount; i++) {
-      const title = titles[i % titles.length]
-      const rVal = pseudoRandom(dIdx * 10 + i)
-
-      // Positions & Submissions dynamic calculation
-      const isZeroSub = rVal < 0.35 // 35% chance of 0 submissions to reflect gap analysis
-      const isMissingDomain = domain === 'Other / Needs Validation' || (rVal > 0.88 && i === 0)
-      const isNonNumericPos = rVal > 0.92
-
-      const positionsVal = isNonNumericPos ? ('N/A' as any) : Math.floor(pseudoRandom(dIdx * 7 + i) * 12) + 2
-      const submissionsVal = isZeroSub ? 0 : Math.floor(pseudoRandom(dIdx * 5 + i) * (typeof positionsVal === 'number' ? positionsVal * 1.5 : 8)) + 1
-      const spocName = spocList[Math.floor(pseudoRandom(dIdx * 9 + i) * spocList.length)]
-
-      // Generate realistic candidate interview records
-      const interviewCount = Math.max(0, Math.floor(submissionsVal * 0.4))
-      const interviewsList = []
-
-      const candNames = ['Priya Nair', 'Anand K', 'Suresh M', 'Sneha P', 'Rajesh V', 'Kavita R', 'David L', 'Arun G']
-      for (let k = 0; k < interviewCount; k++) {
-        const kVal = pseudoRandom(dIdx * 20 + k)
-        let stage: 'Final Select' | 'L1 Reject' | 'Awaiting / Pending' | 'L2 Interview' | 'Sourced' = 'Awaiting / Pending'
-        if (kVal > 0.65) stage = 'Final Select'
-        else if (kVal < 0.25) stage = 'L1 Reject'
-        else if (kVal < 0.45) stage = 'L2 Interview'
-
-        interviewsList.push({
-          candidateName: candNames[k % candNames.length],
-          stage,
-          date: `2026-08-0${(k % 9) + 1}`,
-        })
+// This client's live requirements in the shape the gap analysis uses.
+export function getClientGapAnalysisDataset(
+  clientName: string,
+  requirements: Requirement[] = [],
+  clientDomain?: string,
+): ClientRequirementItem[] {
+  const name = (clientName || '').trim().toLowerCase()
+  const domain = STANDARDIZED_DOMAINS_LIST.find(d => d.toLowerCase() === (clientDomain || '').trim().toLowerCase())
+  return requirements
+    .filter(r => (r.client || '').trim().toLowerCase() === name)
+    .map(r => {
+      const positions = typeof r.openings === 'number' && r.openings > 0 ? r.openings : ('N/A' as const)
+      return {
+        id: r.id,
+        title: r.title,
+        domain: domain || 'Other / Needs Validation',
+        positions,
+        submissions: r.submissions || 0,
+        spoc: r.owner && r.owner !== 'Unassigned' ? r.owner : '—',
+        status: (r.status === 'Closed' ? 'Closed' : (r.submissions || 0) > 0 ? 'In Progress' : 'Open') as ClientRequirementItem['status'],
+        createdDate: r.createdAt ? new Date(r.createdAt).toISOString().slice(0, 10) : '',
+        hasMissingDomain: !domain,
+        hasNonNumericPositions: positions === 'N/A',
+        interviews: [],
       }
-
-      // Create dates distributed across week, month, year, and past year
-      const datePool = [
-        '2026-08-25', // This Week
-        '2026-08-23', // This Week
-        '2026-08-14', // This Month
-        '2026-08-05', // This Month
-        '2026-06-18', // This Year
-        '2026-04-10', // This Year
-        '2026-02-14', // This Year
-        '2025-11-20', // All Time (Prior year)
-      ]
-      const createdDate = datePool[(i + dIdx) % datePool.length]
-
-      dataset.push({
-        id: `REQ-2026-${clientCode}-${reqCounter++}`,
-        title,
-        domain: isMissingDomain ? 'Other / Needs Validation' : domain,
-        positions: positionsVal,
-        submissions: submissionsVal,
-        spoc: spocName,
-        status: isZeroSub ? 'Open' : submissionsVal > 10 ? 'Closed' : 'In Progress',
-        createdDate,
-        hasMissingDomain: isMissingDomain,
-        hasNonNumericPositions: isNonNumericPos,
-        interviews: interviewsList,
-      })
-    }
-  })
-
-  return dataset
+    })
 }
 
 export function ClientDeliveryGapAnalysisPage({
   clientName,
-  clientDomain = 'Enterprise Engineering & Digital Services',
-  pocName = 'Kallol Chakraborty',
-  pocEmail = 'kallol.c@client.com',
-  pocPhone = '+91 98765 11223',
-  teamLead = 'Harish Gadipally',
+  clientDomain = '',
+  pocName = '',
+  pocEmail = '',
+  pocPhone = '',
+  teamLead = '',
   role = 'superadmin',
   initialDateRange = 'All Time',
   onBack,
   onSelectRequirement,
+  requirements = [],
 }: ClientGapAnalysisProps) {
   // Filters State
   const [dateRange, setDateRange] = useState(initialDateRange || 'All Time')
@@ -314,7 +190,7 @@ export function ClientDeliveryGapAnalysisPage({
 
   // Load Dynamic Dataset for this particular client only
   const rawClientRequirements = useMemo(() => {
-    return getClientGapAnalysisDataset(clientName, pocName)
+    return getClientGapAnalysisDataset(clientName, requirements, clientDomain)
   }, [clientName, pocName])
 
   // Filtered Requirements Dataset
@@ -330,12 +206,16 @@ export function ClientDeliveryGapAnalysisPage({
 
       // Time Period Filter (Week / Month / Year / All Time)
       if (dateRange !== 'All Time' && dateRange !== 'All') {
+        const now = new Date()
+        const iso = (d: Date) => d.toISOString().slice(0, 10)
+        const created = req.createdDate || ''
         if (dateRange === 'This Week') {
-          if (req.createdDate && req.createdDate < '2026-08-22') return false
+          const weekAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6)
+          if (!created || created < iso(weekAgo)) return false
         } else if (dateRange === 'This Month') {
-          if (req.createdDate && !req.createdDate.includes('2026-08')) return false
+          if (!created.startsWith(iso(now).slice(0, 7))) return false
         } else if (dateRange === 'This Year') {
-          if (req.createdDate && !req.createdDate.includes('2026')) return false
+          if (!created.startsWith(String(now.getFullYear()))) return false
         }
       }
 

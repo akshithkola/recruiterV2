@@ -1,7 +1,9 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { Requirement, Submission } from '../../types'
 import { checkDuplicateSubmission } from '../../data/submissionsStore'
-import { CandidateRepoItem, SAMPLE_EXISTING_CANDIDATES } from './SubmitCandidateModal.data'
+import { CandidateRepoItem } from './SubmitCandidateModal.data'
+import { candidatesService, resumeParserService } from '../../services/workspace.service'
+import { apiErrorMessage } from '../pages/submissions/preamble'
 
 export function useSubmitCandidateModal({
   requirements,
@@ -17,9 +19,9 @@ export function useSubmitCandidateModal({
   currentRecruiterName: string
 }) {
   const [pathMode, setPathMode] = useState<'existing' | 'new'>('existing')
-  const [targetReqId, setTargetReqId] = useState(selectedReqId || (requirements[0]?.id ?? 'REQ-001'))
+  const [targetReqId, setTargetReqId] = useState(selectedReqId || (requirements[0]?.id ?? ''))
   const [searchQuery, setSearchQuery] = useState('')
-  const [selectedCandidate, setSelectedCandidate] = useState<CandidateRepoItem | null>(SAMPLE_EXISTING_CANDIDATES[0])
+  const [selectedCandidate, setSelectedCandidate] = useState<CandidateRepoItem | null>(null)
   const [newCandidateName, setNewCandidateName] = useState('')
   const [newEmail, setNewEmail] = useState('')
   const [newPhone, setNewPhone] = useState('')
@@ -28,6 +30,42 @@ export function useSubmitCandidateModal({
   const [newSkills, setNewSkills] = useState('')
   const [resumeName, setResumeName] = useState<string | null>(null)
   const [isParsing, setIsParsing] = useState(false)
+  const [parseError, setParseError] = useState<string | null>(null)
+  const [existingCandidates, setExistingCandidates] = useState<CandidateRepoItem[]>([])
+
+  // Existing candidates come from the candidate repository.
+  useEffect(() => {
+    let active = true
+    candidatesService
+      .list()
+      .then((data: any) => {
+        const list: any[] = Array.isArray(data) ? data : data?.items || data?.data || []
+        if (!active) return
+        setExistingCandidates(
+          list
+            .filter(c => c && !c.deletedAt)
+            .map(c => {
+              const skills: string[] = Array.isArray(c.skills) ? c.skills : String(c.skills || '').split(',').map((x: string) => x.trim()).filter(Boolean)
+              return {
+                id: String(c.id || c._id),
+                name: c.name || '',
+                candidateId: String(c.candidateId || c.id || c._id),
+                email: c.email || '',
+                phone: c.phone || '',
+                technology: c.technology || c.primarySkill || skills[0] || '',
+                skills: skills.join(', '),
+                totalExperience: c.totalExperienceYears != null ? `${c.totalExperienceYears} Years` : c.totalExperience || '',
+                currentCompany: c.currentCompany || '',
+                status: c.status || '',
+              }
+            }),
+        )
+      })
+      .catch(() => active && setExistingCandidates([]))
+    return () => {
+      active = false
+    }
+  }, [])
 
   const targetReq = requirements.find(r => r.id === targetReqId) || requirements[0]
 
@@ -50,7 +88,7 @@ export function useSubmitCandidateModal({
     })
   }, [targetReqId, newCandidateName, newEmail, newPhone])
 
-  const filteredCandidates = SAMPLE_EXISTING_CANDIDATES.filter(c => {
+  const filteredCandidates = existingCandidates.filter(c => {
     if (!searchQuery.trim()) return true
     const q = searchQuery.toLowerCase().trim()
     return (
@@ -61,19 +99,27 @@ export function useSubmitCandidateModal({
     )
   })
 
-  const handleSimulateResumeUpload = (fileLabel?: string) => {
-    const filename = fileLabel || 'Anish_Malhotra_Senior_React_Dev_Resume.pdf'
-    setResumeName(filename)
+  // Parse the chosen resume with the resume parser and fill the form with what it found.
+  const handleResumeUpload = async (file: File) => {
+    setResumeName(file.name)
+    setParseError(null)
     setIsParsing(true)
-    setTimeout(() => {
-      setNewCandidateName('Anish Malhotra')
-      setNewEmail('anish.malhotra@devnet.io')
-      setNewPhone('+91 98123 45678')
-      setNewExperience('6 Years 2 Months')
-      setNewCompany('Wipro Limited')
-      setNewSkills('React.js, TypeScript, Node.js, Tailwind CSS, PostgreSQL')
+    try {
+      const res = await resumeParserService.parse(file)
+      const d = res?.data
+      if (d) {
+        setNewCandidateName(d.candidateName || '')
+        setNewEmail(d.email || '')
+        setNewPhone(d.contactNumber || '')
+        setNewExperience(d.totalExperience || '')
+        setNewCompany(d.currentCompany || '')
+        setNewSkills(d.skills || d.technologies || '')
+      }
+    } catch (err) {
+      setParseError(apiErrorMessage(err))
+    } finally {
       setIsParsing(false)
-    }, 600)
+    }
   }
 
   const handleSubmitExisting = (e: React.FormEvent) => {
@@ -83,11 +129,11 @@ export function useSubmitCandidateModal({
       id: `SUB-${Math.floor(Math.random() * 900 + 100)}`,
       candidate: selectedCandidate.name,
       req: targetReqId,
-      client: targetReq?.client || 'Enterprise Client',
-      date: 'Aug 19, 2026',
+      client: targetReq?.client || '',
+      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
       stage: 'Submitted',
-      match: '94%',
-      recruiter: currentRecruiterName || 'Marcus Chen',
+      match: '',
+      recruiter: currentRecruiterName || '',
       email: selectedCandidate.email,
       phone: selectedCandidate.phone,
       experience: selectedCandidate.totalExperience,
@@ -102,14 +148,14 @@ export function useSubmitCandidateModal({
       id: `SUB-${Math.floor(Math.random() * 900 + 100)}`,
       candidate: newCandidateName,
       req: targetReqId,
-      client: targetReq?.client || 'Enterprise Client',
-      date: 'Aug 19, 2026',
+      client: targetReq?.client || '',
+      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
       stage: 'Submitted',
-      match: '96%',
-      recruiter: currentRecruiterName || 'Marcus Chen',
-      email: newEmail || 'new.candidate@devnet.io',
-      phone: newPhone || '+91 98765 43210',
-      experience: newExperience || '5 Years',
+      match: '',
+      recruiter: currentRecruiterName || '',
+      email: newEmail,
+      phone: newPhone,
+      experience: newExperience,
     })
     onClose()
   }
@@ -140,7 +186,8 @@ export function useSubmitCandidateModal({
     setNewExperience,
     setNewCompany,
     setNewSkills,
-    handleSimulateResumeUpload,
+    handleResumeUpload,
+    parseError,
     handleSubmitExisting,
     handleSubmitNew,
   }

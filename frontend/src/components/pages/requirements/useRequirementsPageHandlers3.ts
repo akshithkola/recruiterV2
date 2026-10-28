@@ -1,19 +1,64 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { Requirement } from '../../../types'
 import type { RequirementsVmState } from './useRequirementsPageState'
 
+/**
+ * Safely extracts a canonical Date object representing when a requirement was created/received.
+ * Prioritizes ISO timestamps (emailArrivedTimeRaw, firstDetectedAt, createdAt, etc.)
+ * and falls back to parsing reqCode/id dates or emailArrivedTime with year correction.
+ */
+export function getRequirementDate(r: Requirement): Date | null {
+  if (!r) return null
+
+  // 1. Prioritize full ISO timestamp strings or Date instances
+  const isoCandidates = [
+    (r as any).emailArrivedTimeRaw,
+    (r as any).firstDetectedAt,
+    (r as any).first_detected_at,
+    (r as any).sourceEmailReceivedAt,
+    (r as any).source_email_received_at,
+    (r as any).createdAt,
+    (r as any).lastSeenAt,
+    (r as any).updatedAt,
+    r.dueDate,
+  ]
+
+  for (const candidate of isoCandidates) {
+    if (candidate) {
+      const d = candidate instanceof Date ? candidate : new Date(candidate)
+      if (!isNaN(d.getTime()) && d.getFullYear() >= 2020) {
+        return d
+      }
+    }
+  }
+
+  // 2. Extract date from reqCode or id (e.g., "2026/05/14-006", "REQ-2026-10-23-011")
+  const code = (r.reqCode || r.id || '').trim()
+  const m = code.match(/(\d{4})[/-](\d{1,2})[/-](\d{1,2})/)
+  if (m) {
+    const d = new Date(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10))
+    if (!isNaN(d.getTime())) {
+      return d
+    }
+  }
+
+  // 3. Fallback to emailArrivedTime, fixing year if it defaulted to year 2001
+  if (r.emailArrivedTime) {
+    const d = new Date(r.emailArrivedTime)
+    if (!isNaN(d.getTime())) {
+      if (d.getFullYear() < 2020) {
+        d.setFullYear(new Date().getFullYear())
+      }
+      return d
+    }
+  }
+
+  return null
+}
+
 export function getRequirementTimestamp(r: Requirement): number {
-  const rawDate = (r as any).emailArrivedTimeRaw || r.emailArrivedTime || (r as any).createdAt || (r as any).updatedAt || r.dueDate
-  if (rawDate) {
-    const t = new Date(rawDate).getTime()
-    if (!isNaN(t) && t > 0) return t
-  }
-  const idMatch = (r.id || '').match(/(\d{4})[/-](\d{1,2})[/-](\d{1,2})/)
-  if (idMatch) {
-    const d = new Date(`${idMatch[1]}-${idMatch[2].padStart(2, '0')}-${idMatch[3].padStart(2, '0')}`).getTime()
-    if (!isNaN(d)) return d
-  }
-  return 0
+  const d = getRequirementDate(r)
+  return d ? d.getTime() : 0
 }
 
 export function parseRequirementCode(req: Requirement) {
@@ -29,9 +74,8 @@ export function parseRequirementCode(req: Requirement) {
 
 /** Original creation time of the canonical requirement (never its last update). */
 export function getRequirementCreatedTime(r: Requirement): number {
-  const raw = (r as any).firstDetectedAt || (r as any).first_detected_at || (r as any).createdAt
-  const t = raw ? new Date(raw).getTime() : NaN
-  return !isNaN(t) && t > 0 ? t : getRequirementTimestamp(r)
+  const d = getRequirementDate(r)
+  return d ? d.getTime() : 0
 }
 
 /**
@@ -51,7 +95,10 @@ export function useRequirementsPageHandlers3(s: RequirementsVmState) {
   const {
     role, localRequirements,
     globalSearch, setGlobalSearch, statusDropdown, setStatusDropdown,
-    clientDropdown, setClientDropdown, dateFilter, customStartDate, customEndDate,
+    clientDropdown, setClientDropdown,
+    dateFilter, setDateFilter,
+    customStartDate, setCustomStartDate,
+    customEndDate, setCustomEndDate,
     activeCardFilter, setActiveCardFilter,
     selectedReqIds, setSelectedReqIds,
     sortField = 'reqId', sortOrder = 'desc',
@@ -61,94 +108,148 @@ export function useRequirementsPageHandlers3(s: RequirementsVmState) {
     const list = localRequirements.filter(r => {
       // Date filter
       if (dateFilter && dateFilter !== 'All') {
-        const rawDate = r.emailArrivedTime || r.dueDate || (r as any).createdAt || ''
-        if (!rawDate) return false
-        const d = new Date(rawDate)
-        if (isNaN(d.getTime())) return false
+        const d = getRequirementDate(r)
+        if (!d) return false
 
         const now = new Date()
-        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0)
         const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
 
         if (dateFilter === 'Today') {
           if (d < startOfToday || d > endOfToday) return false
         } else if (dateFilter === 'Yesterday') {
-          const startOfYesterday = new Date(startOfToday.getTime() - 86400000)
-          const endOfYesterday = new Date(endOfToday.getTime() - 86400000)
+          const startOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0, 0)
+          const endOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999)
           if (d < startOfYesterday || d > endOfYesterday) return false
         } else if (dateFilter === 'This week') {
-          const day = (now.getDay() + 6) % 7
-          const startOfWeek = new Date(startOfToday.getTime() - day * 86400000)
+          const day = (now.getDay() + 6) % 7 // Monday = 0
+          const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day, 0, 0, 0, 0)
           if (d < startOfWeek || d > endOfToday) return false
         } else if (dateFilter === 'This month') {
-          const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+          const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0)
           if (d < startOfMonth || d > endOfToday) return false
         } else if (dateFilter === 'Custom range') {
-          if (customStartDate) {
-            const start = new Date(`${customStartDate}T00:00:00`)
-            if (d < start) return false
-          }
-          if (customEndDate) {
-            const end = new Date(`${customEndDate}T23:59:59.999`)
-            if (d > end) return false
+          if (customStartDate || customEndDate) {
+            let start: Date | null = null
+            let end: Date | null = null
+
+            if (customStartDate) {
+              const [sY, sM, sD] = customStartDate.split('-').map(Number)
+              if (sY && sM && sD) start = new Date(sY, sM - 1, sD, 0, 0, 0, 0)
+            }
+            if (customEndDate) {
+              const [eY, eM, eD] = customEndDate.split('-').map(Number)
+              if (eY && eM && eD) end = new Date(eY, eM - 1, eD, 23, 59, 59, 999)
+            }
+
+            if (start && end && start > end) {
+              const tmp = start
+              start = new Date(end.getFullYear(), end.getMonth(), end.getDate(), 0, 0, 0, 0)
+              end = new Date(tmp.getFullYear(), tmp.getMonth(), tmp.getDate(), 23, 59, 59, 999)
+            }
+
+            if (start && d < start) return false
+            if (end && d > end) return false
           }
         }
       }
 
+      // Search query filter (matches Requirement ID, Client Name, Role, Skills, Location, Recruiter, Owner, Emails)
       if (globalSearch.trim()) {
         const query = globalSearch.trim().toLowerCase()
-        const matchId = r.id.toLowerCase().includes(query)
-        const matchClient = r.client.toLowerCase().includes(query)
-        const matchTitle = r.title.toLowerCase().includes(query)
-        const matchLocation = (r.location || '').toLowerCase().includes(query)
-        const matchOwner = (r.owner || '').toLowerCase().includes(query)
-        const matchEmail = (r.clientEmail || '').toLowerCase().includes(query)
-        const matchLead = (r.assignedLead || '').toLowerCase().includes(query)
-        const matchSkills = (r.skills || []).some(skill => skill.toLowerCase().includes(query))
 
-        if (!matchId && !matchClient && !matchTitle && !matchLocation && !matchOwner && !matchEmail && !matchLead && !matchSkills) {
+        const reqId = (r.reqCode || r.id || (r as any)._id || '').toLowerCase()
+        const clientReqId = (r.sourceClientJdId || (r as any).clientJdId || '').toLowerCase()
+        const matchId = reqId.includes(query) || clientReqId.includes(query)
+
+        const client = (r.client || (r as any).clientName || '').toLowerCase()
+        const matchClient = client.includes(query)
+
+        const title = (r.title || (r as any).role || '').toLowerCase()
+        const matchTitle = title.includes(query)
+
+        const location = (r.location || '').toLowerCase()
+        const matchLocation = location.includes(query)
+
+        const owner = (r.owner || '').toLowerCase()
+        const recruiterNames = Array.isArray((r as any).assignedRecruiterNames)
+          ? (r as any).assignedRecruiterNames.join(' ').toLowerCase()
+          : ''
+        const matchOwner = owner.includes(query) || recruiterNames.includes(query)
+
+        const clientEmail = (r.clientEmail || '').toLowerCase()
+        const toEmails = Array.isArray(r.toEmails) ? r.toEmails.join(' ').toLowerCase() : ''
+        const matchEmail = clientEmail.includes(query) || toEmails.includes(query)
+
+        const lead = (r.assignedLead || '').toLowerCase()
+        const matchLead = lead.includes(query)
+
+        const skills = Array.isArray(r.skills)
+          ? r.skills.join(' ').toLowerCase()
+          : (Array.isArray((r as any).skillsRequired) ? (r as any).skillsRequired.join(' ').toLowerCase() : '')
+        const mandatorySkills = Array.isArray(r.mandatorySkills) ? r.mandatorySkills.join(' ').toLowerCase() : ''
+        const matchSkills = skills.includes(query) || mandatorySkills.includes(query)
+
+        const description = (r.description || '').toLowerCase()
+        const matchDesc = description.includes(query)
+
+        const sourceSubject = ((r as any).sourceSubject || (r as any).subject || '').toLowerCase()
+        const matchSubject = sourceSubject.includes(query)
+
+        if (!matchId && !matchClient && !matchTitle && !matchLocation && !matchOwner && !matchEmail && !matchLead && !matchSkills && !matchDesc && !matchSubject) {
           return false
         }
       }
 
       if (clientDropdown !== 'All') {
-        if (r.client !== clientDropdown) return false
+        const clientVal = (r.client || (r as any).clientName || '').toLowerCase()
+        if (clientVal !== clientDropdown.toLowerCase()) return false
       }
 
+      // Status dropdown filter: When actively searching in the global search bar, show all matching client/req records
+      // unless the user has explicitly selected a specific status filter (e.g. 'Assigned', 'Closed')
       if (statusDropdown !== 'All') {
-        if (statusDropdown === 'Unassigned') {
-          if (r.owner && r.owner !== 'Unassigned' && r.assignmentStatus !== 'Unassigned') return false
-        } else if (statusDropdown === 'Assigned') {
-          if (!r.owner || r.owner === 'Unassigned' || r.assignmentStatus === 'Unassigned') return false
-        } else if (statusDropdown === 'Submitted' || statusDropdown === 'Submitted to Lead' || statusDropdown === 'Submitted to Client') {
-          if ((r.submissions || 0) === 0) return false
-        } else if (statusDropdown === 'Interview') {
-          if ((r.interviews || 0) === 0) return false
-        } else if (statusDropdown === 'Selected') {
-          if ((r.placed || r.selections || 0) === 0) return false
-        } else if (statusDropdown === 'Rejected') {
-          if ((r.rejections || 0) === 0) return false
-        } else if (statusDropdown === 'Closed') {
-          if (r.status !== 'Closed' && r.assignmentStatus !== 'Closed') return false
-        } else if (statusDropdown === 'Custom') {
-          if (r.status === 'Closed' || r.assignmentStatus === 'Closed') return false
+        const isDefaultUnassigned = statusDropdown === 'Unassigned'
+        const hasSearch = Boolean(globalSearch.trim())
+
+        if (!hasSearch || !isDefaultUnassigned) {
+          if (statusDropdown === 'Unassigned') {
+            if (r.owner && r.owner !== 'Unassigned' && r.assignmentStatus !== 'Unassigned') return false
+          } else if (statusDropdown === 'Assigned') {
+            if (!r.owner || r.owner === 'Unassigned' || r.assignmentStatus === 'Unassigned') return false
+          } else if (statusDropdown === 'Submitted' || statusDropdown === 'Submitted to Lead' || statusDropdown === 'Submitted to Client') {
+            if ((r.submissions || 0) === 0) return false
+          } else if (statusDropdown === 'Interview') {
+            if ((r.interviews || 0) === 0) return false
+          } else if (statusDropdown === 'Selected') {
+            if ((r.placed || r.selections || 0) === 0) return false
+          } else if (statusDropdown === 'Rejected') {
+            if ((r.rejections || 0) === 0) return false
+          } else if (statusDropdown === 'Closed') {
+            if (r.status !== 'Closed' && r.assignmentStatus !== 'Closed') return false
+          } else if (statusDropdown === 'Custom') {
+            if (r.status === 'Closed' || r.assignmentStatus === 'Closed') return false
+          }
         }
       }
 
-      if (activeCardFilter === 'UNASSIGNED') {
-        return !r.owner || r.owner === 'Unassigned'
-      } else if (activeCardFilter === 'ASSIGNED') {
-        return r.owner && r.owner !== 'Unassigned'
-      } else if (activeCardFilter === 'IN_PROGRESS') {
-        return r.status === 'Active' || r.assignmentStatus === 'In Progress'
-      } else if (activeCardFilter === 'SUBMISSIONS') {
-        return r.submissions > 0
-      } else if (activeCardFilter === 'INTERVIEWS') {
-        return r.interviews > 0
-      } else if (activeCardFilter === 'SELECTIONS') {
-        return (r.placed || r.selections || 0) > 0
-      } else if (activeCardFilter === 'REJECTIONS') {
-        return (r.rejections || 0) > 0
+      // Card filters: active when not overridden by global search query
+      if (!globalSearch.trim()) {
+        if (activeCardFilter === 'UNASSIGNED') {
+          return !r.owner || r.owner === 'Unassigned'
+        } else if (activeCardFilter === 'ASSIGNED') {
+          return r.owner && r.owner !== 'Unassigned'
+        } else if (activeCardFilter === 'IN_PROGRESS') {
+          return r.status === 'Active' || r.assignmentStatus === 'In Progress'
+        } else if (activeCardFilter === 'SUBMISSIONS') {
+          return r.submissions > 0
+        } else if (activeCardFilter === 'INTERVIEWS') {
+          return r.interviews > 0
+        } else if (activeCardFilter === 'SELECTIONS') {
+          return (r.placed || r.selections || 0) > 0
+        } else if (activeCardFilter === 'REJECTIONS') {
+          return (r.rejections || 0) > 0
+        }
       }
 
       return true
@@ -183,6 +284,10 @@ export function useRequirementsPageHandlers3(s: RequirementsVmState) {
 
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(5)
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [globalSearch, statusDropdown, clientDropdown, dateFilter, customStartDate, customEndDate, activeCardFilter])
 
   const paginatedRequirements = useMemo(() => {
     const start = (currentPage - 1) * pageSize
@@ -220,7 +325,11 @@ export function useRequirementsPageHandlers3(s: RequirementsVmState) {
     setGlobalSearch('')
     setStatusDropdown('Unassigned')
     setClientDropdown('All')
+    setDateFilter('All')
+    setCustomStartDate('')
+    setCustomEndDate('')
     setActiveCardFilter('ALL')
+    setCurrentPage(1)
   }
 
   const roleLabel =

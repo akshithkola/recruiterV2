@@ -8,6 +8,7 @@ import { UsersService } from './users.service';
 import { UsersController } from './users.controller';
 import { RolesController } from './roles.controller';
 import { AuthModule } from '../auth/auth.module';
+import { AuditModule } from '../audit/audit.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { AuthModule } from '../auth/auth.module';
       { name: RecruiterAnalytics.name, schema: RecruiterAnalyticsSchema },
     ]),
     AuthModule,
+    AuditModule,
   ],
   controllers: [UsersController, RolesController],
   providers: [UsersService],

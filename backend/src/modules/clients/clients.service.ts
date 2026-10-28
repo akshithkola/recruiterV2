@@ -11,6 +11,7 @@ import { ClientRepository } from './repositories/client.repository';
 import { Requirement, RequirementDocument } from '../requirements/schemas/requirement.schema';
 import { CreateClientDto } from './dto/create-client.dto';
 import { UpdateClientDto } from './dto/update-client.dto';
+import { assertCanAccessClient, orgScope, requireOrgId } from '../../common/security/resource-access.util';
 
 @Injectable()
 export class ClientsService {
@@ -90,9 +91,7 @@ export class ClientsService {
       domain?: string;
     },
   ) {
-    const orgId = currentUser?.orgId
-      ? new Types.ObjectId(currentUser.orgId.toString())
-      : new Types.ObjectId('6ab4f38ff2e0e1823c038948');
+    const orgId = requireOrgId(currentUser);
 
     const filter: Record<string, any> = { orgId, deletedAt: null };
 
@@ -128,33 +127,37 @@ export class ClientsService {
     return items.map((item) => this.sanitizeClient(item));
   }
 
-  /** GET /api/v1/clients/:id */
-  async findById(id: string, currentUser: any) {
+  /** Load client by Mongo id or business id, scoped to caller org. */
+  private async loadClientForUser(id: string, currentUser: any): Promise<ClientDocument> {
+    const scope = orgScope(currentUser);
     let doc: ClientDocument | null = null;
-
     if (Types.ObjectId.isValid(id)) {
       doc = await this.clientModel
-        .findOne({ _id: id, deletedAt: null })
+        .findOne({ _id: id, ...scope })
         .populate('accountLeadId', 'name email')
         .exec();
     }
-
     if (!doc) {
       doc = await this.clientModel
-        .findOne({ clientId: id, deletedAt: null })
+        .findOne({ clientId: id, ...scope })
         .populate('accountLeadId', 'name email')
         .exec();
     }
-
     if (!doc) {
       throw new NotFoundException(`Client '${id}' not found`);
     }
+    assertCanAccessClient(doc, currentUser);
+    return doc;
+  }
 
+  /** GET /api/v1/clients/:id */
+  async findById(id: string, currentUser: any) {
+    const doc = await this.loadClientForUser(id, currentUser);
     const sanitized = this.sanitizeClient(doc);
 
-    // Fetch requirements count for client
+    const orgId = requireOrgId(currentUser);
     const requirementsCount = await this.requirementModel
-      .countDocuments({ clientId: doc._id, deletedAt: null })
+      .countDocuments({ clientId: doc._id, orgId, deletedAt: null })
       .exec();
 
     return {
@@ -165,9 +168,7 @@ export class ClientsService {
 
   /** POST /api/v1/clients */
   async create(dto: CreateClientDto, currentUser: any) {
-    const orgId = currentUser?.orgId
-      ? new Types.ObjectId(currentUser.orgId.toString())
-      : new Types.ObjectId('6ab4f38ff2e0e1823c038948');
+    const orgId = requireOrgId(currentUser);
 
     const cleanName = dto.clientName.trim();
     const nameRegex = new RegExp(`^${cleanName}$`, 'i');
@@ -208,17 +209,7 @@ export class ClientsService {
 
   /** PUT /api/v1/clients/:id */
   async update(id: string, dto: UpdateClientDto, currentUser: any) {
-    let doc: ClientDocument | null = null;
-    if (Types.ObjectId.isValid(id)) {
-      doc = await this.clientModel.findOne({ _id: id, deletedAt: null }).exec();
-    }
-    if (!doc) {
-      doc = await this.clientModel.findOne({ clientId: id, deletedAt: null }).exec();
-    }
-
-    if (!doc) {
-      throw new NotFoundException(`Client '${id}' not found`);
-    }
+    const doc = await this.loadClientForUser(id, currentUser);
 
     if (dto.clientName !== undefined) {
       const cleanName = dto.clientName.trim();
@@ -261,13 +252,8 @@ export class ClientsService {
 
   /** DELETE /api/v1/clients/:id */
   async softDelete(id: string, currentUser: any) {
-    let targetId: string = id;
-    if (!Types.ObjectId.isValid(id)) {
-      const doc = await this.clientModel.findOne({ clientId: id, deletedAt: null }).exec();
-      if (!doc) throw new NotFoundException(`Client '${id}' not found`);
-      targetId = doc._id.toString();
-    }
-
+    const doc = await this.loadClientForUser(id, currentUser);
+    const targetId = doc._id.toString();
     const deleted = await this.clientRepository.softDelete(targetId, currentUser);
     return { message: `Client '${deleted.clientId || targetId}' soft-deleted successfully` };
   }

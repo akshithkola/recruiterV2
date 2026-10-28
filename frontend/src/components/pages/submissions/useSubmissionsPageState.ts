@@ -1,6 +1,5 @@
 import type { SubmissionsPageProps, ScreenshotSubmission } from './preamble'
 import { mapBackendSubmission, apiErrorMessage } from './preamble'
-import { DEFAULT_SCREENSHOT_SUBMISSIONS } from './submissions.data'
 import { Requirement } from '../../../types'
 import { useState, useEffect, useCallback } from 'react'
 import React from 'react'
@@ -41,7 +40,7 @@ export function useSubmissionsPageState(props: SubmissionsPageProps) {
       const mapped = submissions.map(s => mapBackendSubmission(s))
       return mapped
     }
-    return DEFAULT_SCREENSHOT_SUBMISSIONS
+    return []
   })
 
   useEffect(() => {
@@ -63,8 +62,7 @@ export function useSubmissionsPageState(props: SubmissionsPageProps) {
       const data = await submissionsService.list()
       if (Array.isArray(data)) {
         const mapped = data.map(s => mapBackendSubmission(s))
-        const finalList = mapped.length > 0 ? mapped : DEFAULT_SCREENSHOT_SUBMISSIONS
-        setSubmissionsList(finalList)
+        setSubmissionsList(mapped)
         if (mapped.length > 0) {
           saveSubmissionsStore(mapped as any)
         }

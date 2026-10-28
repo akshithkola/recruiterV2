@@ -76,6 +76,11 @@ export class UpdateCandidateDto {
   @IsString()
   resumeUrl?: string;
 
+  /** Mongo id or business file id of a resume already stored via POST /files. */
+  @IsOptional()
+  @IsString()
+  resumeFileId?: string;
+
   @IsOptional()
   @IsString()
   status?: string;

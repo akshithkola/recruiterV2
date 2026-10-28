@@ -112,7 +112,7 @@ export function ReqDetailOverviewA({ vm }: { vm: RequirementDetailVm }) {
 
               <div>
                 <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">OVERALL EXPERIENCE</div>
-                <div className="font-bold text-gray-900 mt-1">{requirement.experience || (requirement.experienceRange?.min ? `${requirement.experienceRange.min}-${requirement.experienceRange.max} Years` : 'Not specified')}</div>
+                <div className="font-bold text-gray-900 mt-1">{requirement.experience || (requirement.experienceRange?.min ? (requirement.experienceRange.max == null ? `${requirement.experienceRange.min}+ Years` : `${requirement.experienceRange.min}-${requirement.experienceRange.max} Years`) : 'Not specified')}</div>
               </div>
 
               <div>
@@ -176,16 +176,6 @@ export function ReqDetailOverviewA({ vm }: { vm: RequirementDetailVm }) {
               </div>
             </div>
           </div>
-
-          {/* JOB DESCRIPTION CARD */}
-          {requirement.description && (
-            <div className="bg-white rounded-2xl border border-gray-200/80 p-6 shadow-xs space-y-3">
-              <h3 className="text-sm font-bold text-gray-900">Job Description</h3>
-              <div className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed">
-                {requirement.description}
-              </div>
-            </div>
-          )}
         </div>
       )}
     </>

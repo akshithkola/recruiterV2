@@ -33,7 +33,8 @@ export function RevokeRequirementModal({
 
   if (!isOpen || !requirement) return null
 
-  const canDirectRevoke = userRole === 'superadmin' || userRole === 'admin' || userRole === 'devteam'
+  const canDirectRevoke =
+    userRole === 'superadmin' || userRole === 'admin' || userRole === 'devteam' || userRole === 'lead'
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()

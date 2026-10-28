@@ -21,7 +21,8 @@ export function SubmitCandidateNewPath({
   targetReq,
   newDupResult,
   onClose,
-  onSimulateResumeUpload,
+  onResumeUpload,
+  parseError,
   onSubmitNew,
 }: {
   resumeName: string | null
@@ -41,23 +42,32 @@ export function SubmitCandidateNewPath({
   targetReq: Requirement | undefined
   newDupResult: ReturnType<typeof checkDuplicateSubmission>
   onClose: () => void
-  onSimulateResumeUpload: (fileLabel?: string) => void
+  onResumeUpload: (file: File) => void
+  parseError?: string | null
   onSubmitNew: (e: React.FormEvent) => void
 }) {
   return (
     <form onSubmit={onSubmitNew} className="space-y-4">
-      <div
-        onClick={() => onSimulateResumeUpload()}
-        className="p-5 border-2 border-dashed border-slate-300 hover:border-[#6B3BF6] rounded-2xl bg-slate-50 hover:bg-purple-50/40 transition-all text-center cursor-pointer space-y-1.5"
-      >
+      <label className="block p-5 border-2 border-dashed border-slate-300 hover:border-[#6B3BF6] rounded-2xl bg-slate-50 hover:bg-purple-50/40 transition-all text-center cursor-pointer space-y-1.5">
+        <input
+          type="file"
+          accept=".pdf,.doc,.docx,.txt"
+          className="hidden"
+          onChange={e => {
+            const f = e.target.files?.[0]
+            if (f) onResumeUpload(f)
+            e.target.value = ''
+          }}
+        />
         <Upload className="w-7 h-7 text-[#6B3BF6] mx-auto" />
         <div className="text-xs font-extrabold text-slate-900">
-          {resumeName ? `Attached: ${resumeName}` : 'Click or Drag & Drop Candidate Resume (PDF/DOCX)'}
+          {resumeName ? `Attached: ${resumeName}` : 'Click to attach the candidate resume (PDF/DOCX)'}
         </div>
         <div className="text-[11px] text-slate-500 font-medium">
-          {isParsing ? '⚡ Automatically parsing candidate skills...' : 'AI Parser automatically extracts contact info, experience & technology'}
+          {isParsing ? 'Parsing resume...' : 'The resume parser fills in contact info, experience and skills'}
         </div>
-      </div>
+        {parseError && <div className="text-[11px] text-rose-600 font-semibold">{parseError}</div>}
+      </label>
 
       {newDupResult.isDuplicate && newDupResult.existingSubmission && (
         <div className="bg-rose-50 border-2 border-rose-300 rounded-2xl p-4 space-y-2 animate-in fade-in">
@@ -97,7 +107,7 @@ export function SubmitCandidateNewPath({
           <label className="block font-bold text-slate-700 mb-1">Email Address</label>
           <input
             type="email"
-            placeholder="anish.m@gmail.com"
+            placeholder="name@example.com"
             value={newEmail}
             onChange={e => setNewEmail(e.target.value)}
             className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl font-medium text-slate-800 focus:outline-none focus:border-[#6B3BF6]"
@@ -107,7 +117,7 @@ export function SubmitCandidateNewPath({
           <label className="block font-bold text-slate-700 mb-1">Phone Number</label>
           <input
             type="text"
-            placeholder="+91 98123 45678"
+            placeholder="+91 XXXXX XXXXX"
             value={newPhone}
             onChange={e => setNewPhone(e.target.value)}
             className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl font-medium text-slate-800 focus:outline-none focus:border-[#6B3BF6]"

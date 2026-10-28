@@ -93,11 +93,11 @@ export function SubmissionsTable({ vm }: { vm: SubmissionsVm }) {
                     {/* 2. REQUIREMENT ID */}
                     <td className="py-4 px-4 whitespace-nowrap">
                       <button
-                        onClick={() => handleOpenReqOverview(sub.reqId || 'REQ-2026-08-12-001', sub.requirement, sub.clientName || 'ITC Limited')}
+                        onClick={() => handleOpenReqOverview(sub.reqId || '', sub.requirement, sub.clientName || 'ITC Limited')}
                         className="px-2.5 py-1 rounded-md text-[11px] font-extrabold bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 font-mono flex items-center gap-1 cursor-pointer transition-all hover:underline shadow-2xs"
                         title="Click to view Requirement Overview"
                       >
-                        <span>{sub.reqId || 'REQ-2026-08-12-001'}</span>
+                        <span>{sub.reqId || ''}</span>
                         <ExternalLink className="w-3 h-3 text-blue-600" />
                       </button>
                     </td>

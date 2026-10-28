@@ -10,6 +10,8 @@ import {
 } from './schemas/candidate-document.schema';
 
 import { NotificationsModule } from '../notifications/notifications.module';
+import { AuditModule } from '../audit/audit.module';
+import { FilesModule } from '../files/files.module';
 
 @Module({
   imports: [
@@ -18,6 +20,8 @@ import { NotificationsModule } from '../notifications/notifications.module';
       { name: CandidateDocumentRecord.name, schema: CandidateDocumentRecordSchema },
     ]),
     NotificationsModule,
+    AuditModule,
+    FilesModule,
   ],
   controllers: [CandidatesController],
   providers: [CandidatesService, CandidateRepository],

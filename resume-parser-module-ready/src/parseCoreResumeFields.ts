@@ -122,6 +122,7 @@ function sliceTechnicalSkillsBlock(text: string): string | null {
 }
 
 function extractEmailFromChunk(chunk: string): string | null {
+  let fallbackCandidate: string | null = null;
   const labeled: RegExp[] = [
     /(?:email|e-?mail|contact\s+email)\s*[:\-]\s*([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/gi,
     /(?:email|e-?mail|mail)\s*[:\-]?\s*([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/gi,
@@ -134,7 +135,10 @@ function extractEmailFromChunk(chunk: string): string | null {
         .replace(/^mailto:/i, '')
         .trim();
       if (!/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(clean)) continue;
-      if (/(?:example|test|sample|dummy|resume|candidate)\.(?:com|org|net)$/i.test(clean)) continue;
+      if (/(?:example|test|sample|dummy|resume|candidate)\.(?:com|org|net)$/i.test(clean)) {
+        if (!fallbackCandidate) fallbackCandidate = clean.toLowerCase();
+        continue;
+      }
       return clean.toLowerCase();
     }
   }
@@ -143,11 +147,14 @@ function extractEmailFromChunk(chunk: string): string | null {
     for (const raw of any) {
       const clean = raw.replace(/^mailto:/i, '').trim();
       if (!/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(clean)) continue;
-      if (/(?:example|test|sample|dummy|resume|candidate)\.(?:com|org|net)$/i.test(clean)) continue;
+      if (/(?:example|test|sample|dummy|resume|candidate)\.(?:com|org|net)$/i.test(clean)) {
+        if (!fallbackCandidate) fallbackCandidate = clean.toLowerCase();
+        continue;
+      }
       return clean.toLowerCase();
     }
   }
-  return null;
+  return fallbackCandidate;
 }
 
 function extractEmail(text: string): string | null {
@@ -1104,7 +1111,18 @@ export const PROFESSIONAL_DOMAINS_REGEX =
 export function cleanAndValidateRoleOrTechnologies(raw: string | null | undefined): string | null {
   if (!raw) return null;
   let c = raw.replace(/^[\s•\-–—*.,;:|]+/, '').replace(/[\s.,;:!|]+$/, '').trim();
-  if (!c || c.length < 3 || c.length > 100) return null;
+  if (!c || c.length < 3 || c.length > 80) return null;
+
+  // Reject skill/knowledge paragraphs (must never land in designation/Technologies)
+  if (
+    /^(?:knowledge|expertise|proficient|familiar|hands[- ]?on|exposure|skills?|tools?|technologies)\b/i.test(c) ||
+    /\bknowledge\s+on\b/i.test(c) ||
+    /\b(?:installation|uninstallation|kernel\s+upgrade|client\s+creation|system\s+refresh)\b/i.test(c) ||
+    (c.match(/,/g) || []).length >= 3 ||
+    c.split(/\s+/).filter(Boolean).length > 10
+  ) {
+    return null;
+  }
 
   // 1. REJECT section headings
   if (

@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Schema as MongooseSchema } from 'mongoose';
+import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import { DataScopePlugin } from '../../../database/plugins/data-scope.plugin';
 
 export type InterviewDocument = Interview & Document;
@@ -7,19 +7,19 @@ export type InterviewDocument = Interview & Document;
 @Schema({ timestamps: true, collection: 'interviews' })
 export class Interview {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Organization', required: true, index: true })
-  orgId: MongooseSchema.Types.ObjectId;
+  orgId: Types.ObjectId;
 
   @Prop({ required: true, trim: true })
   interviewId: string;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Submission', required: true })
-  submissionId: MongooseSchema.Types.ObjectId;
+  submissionId: Types.ObjectId;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Candidate', required: true })
-  candidateId: MongooseSchema.Types.ObjectId;
+  candidateId: Types.ObjectId;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Requirement', required: true })
-  requirementId: MongooseSchema.Types.ObjectId;
+  requirementId: Types.ObjectId;
 
   @Prop({ default: 'L1 Technical' })
   round: string;

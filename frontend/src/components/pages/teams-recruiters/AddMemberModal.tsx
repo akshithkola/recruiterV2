@@ -15,13 +15,13 @@ interface Props {
   setNewIsTeamLead: (v: boolean) => void
   newAssignedLead: string
   setNewAssignedLead: (v: string) => void
-  newAssignedClient: string
-  setNewAssignedClient: (v: string) => void
+  newMemberPassword: string
+  setNewMemberPassword: (v: string) => void
   uniqueTeamLeads: string[]
 }
 export function AddMemberModal(p: Props) {
   if (!p.isAddModalOpen) return null
-  const { setIsAddModalOpen, handleCreateMember, newMemberName, setNewMemberName, newMemberEmail, setNewMemberEmail, newMemberRole, setNewMemberRole, newIsTeamLead, setNewIsTeamLead, newAssignedLead, setNewAssignedLead, newAssignedClient, setNewAssignedClient, uniqueTeamLeads } = p
+  const { setIsAddModalOpen, handleCreateMember, newMemberName, setNewMemberName, newMemberEmail, setNewMemberEmail, newMemberRole, setNewMemberRole, newIsTeamLead, setNewIsTeamLead, newAssignedLead, setNewAssignedLead, newMemberPassword, setNewMemberPassword, uniqueTeamLeads } = p
   const handleCreateMemberSubmit = handleCreateMember
   return (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
@@ -84,7 +84,7 @@ export function AddMemberModal(p: Props) {
                 <input
                   type="email"
                   required
-                  placeholder="ramesh.k@talentflow.io"
+                  placeholder="name@company.com"
                   value={newMemberEmail}
                   onChange={e => setNewMemberEmail(e.target.value)}
                   className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#6B3BF6]"
@@ -121,18 +121,15 @@ export function AddMemberModal(p: Props) {
               </div>
 
               <div>
-                <label className="block text-slate-700 font-bold mb-1.5">Mapped Client Partner</label>
-                <select
-                  value={newAssignedClient}
-                  onChange={e => setNewAssignedClient(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 focus:outline-none cursor-pointer"
-                >
-                  <option value="Accenture">Accenture</option>
-                  <option value="Goldman Sachs">Goldman Sachs</option>
-                  <option value="Tesla">Tesla</option>
-                  <option value="ITC Limited">ITC Limited</option>
-                  <option value="LTTS">LTTS</option>
-                </select>
+                <label className="block text-slate-700 font-bold mb-1.5">Temporary Password *</label>
+                <input
+                  type="password"
+                  required
+                  minLength={8}
+                  value={newMemberPassword}
+                  onChange={e => setNewMemberPassword(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#6B3BF6]"
+                />
               </div>
 
               <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">

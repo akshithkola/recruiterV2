@@ -11,25 +11,23 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
-import * as path from 'path';
+import { memoryStorage } from 'multer';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import {
+  MAX_UPLOAD_BYTES,
+  resumeMulterFileFilter,
+  validateUploadedResume,
+} from '../../common/security/upload-validation.util';
+import {
   MAX_BULK_RESUMES,
-  MAX_RESUME_BYTES,
-  RESUME_EXTENSIONS,
   ResumeParserService,
   UploadedResume,
 } from './resume-parser.service';
 
 const uploadOptions = {
-  limits: { fileSize: MAX_RESUME_BYTES, files: MAX_BULK_RESUMES },
-  fileFilter: (_req: any, file: { originalname: string }, cb: (e: Error | null, ok: boolean) => void) => {
-    const ext = path.extname(file.originalname || '').toLowerCase();
-    if (!RESUME_EXTENSIONS.has(ext)) {
-      return cb(new BadRequestException(`${file.originalname}: unsupported format. Use PDF, DOCX, DOC, TXT or an image.`), false);
-    }
-    cb(null, true);
-  },
+  storage: memoryStorage(),
+  limits: { fileSize: MAX_UPLOAD_BYTES, files: MAX_BULK_RESUMES },
+  fileFilter: resumeMulterFileFilter,
 };
 
 /** Resume parsing for the Candidate Search & Entry page (single and bulk). */
@@ -50,6 +48,7 @@ export class ResumeParserController {
   @UseInterceptors(FileInterceptor('resume', uploadOptions))
   async parse(@UploadedFile() file?: UploadedResume) {
     if (!file?.buffer?.length) throw new BadRequestException('Upload a resume under the form field "resume"');
+    validateUploadedResume(file);
     return { success: true, data: await this.parser.parseOne(file) };
   }
 
@@ -60,7 +59,13 @@ export class ResumeParserController {
   async parseBulk(@UploadedFiles() files?: UploadedResume[]) {
     const valid = (files || []).filter((f) => f?.buffer?.length);
     if (!valid.length) throw new BadRequestException('Upload at least one resume under the form field "resumes"');
-    const results = await this.parser.parseMany(valid);
+    if (valid.length > MAX_BULK_RESUMES) {
+      throw new BadRequestException(`Maximum limit of ${MAX_BULK_RESUMES} resumes allowed per bulk import request.`);
+    }
+    for (const f of valid) {
+      validateUploadedResume(f);
+    }
+    const results = await this.parser.parseMany(valid.slice(0, MAX_BULK_RESUMES));
     return {
       success: true,
       count: results.length,

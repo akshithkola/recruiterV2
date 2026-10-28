@@ -7,20 +7,31 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Candidate, CandidateDocument } from './schemas/candidate.schema';
+import {
+  CandidateDocumentRecord,
+  CandidateDocumentRecordDocument,
+} from './schemas/candidate-document.schema';
 import { CandidateRepository } from './repositories/candidate.repository';
 import { CreateCandidateDto } from './dto/create-candidate.dto';
 import { UpdateCandidateDto } from './dto/update-candidate.dto';
 import { DuplicateCheckDto } from './dto/duplicate-check.dto';
+import { assertCanAccessCandidate, orgScope, requireOrgId } from '../../common/security/resource-access.util';
 
 import { NotificationsService } from '../notifications/notifications.service';
+import { AuditService } from '../audit/audit.service';
+import { FilesService } from '../files/files.service';
 
 @Injectable()
 export class CandidatesService {
   constructor(
     @InjectModel(Candidate.name)
     private readonly candidateModel: Model<CandidateDocument>,
+    @InjectModel(CandidateDocumentRecord.name)
+    private readonly candidateDocumentModel: Model<CandidateDocumentRecordDocument>,
     private readonly candidateRepository: CandidateRepository,
     private readonly notificationsService: NotificationsService,
+    private readonly auditService: AuditService,
+    private readonly filesService: FilesService,
   ) {}
 
   /** Format document for API output */
@@ -59,7 +70,11 @@ export class CandidatesService {
       notes: obj.notes || null,
       skills: skillsList,
       primarySkills: skillsList,
-      resumeUrl: obj.resumeUrl || obj.resumeFileUrl || null,
+      resumeFileId: obj.resumeFileId ? String(obj.resumeFileId) : null,
+      resumeFileName: obj.resumeFileName || null,
+      resumeUrl: obj.resumeFileId
+        ? `/api/v1/files/${String(obj.resumeFileId)}/download`
+        : (obj.resumeUrl || obj.resumeFileUrl || null),
       status: obj.status || 'New',
       sourcedByRecruiterId: obj.sourcedByRecruiterId ? obj.sourcedByRecruiterId.toString() : null,
       createdAt: obj.createdAt || new Date(),
@@ -106,9 +121,7 @@ export class CandidatesService {
       limit?: number;
     },
   ) {
-    const orgId = currentUser?.orgId
-      ? new Types.ObjectId(currentUser.orgId.toString())
-      : new Types.ObjectId('6ab4f38ff2e0e1823c038948');
+    const orgId = requireOrgId(currentUser);
 
     const filter: Record<string, any> = { orgId, deletedAt: null };
 
@@ -181,30 +194,32 @@ export class CandidatesService {
     }
   }
 
-  /** GET /api/v1/candidates/:id */
-  async findById(id: string, currentUser: any) {
+  /** Load candidate by Mongo id or business id, scoped to caller org. */
+  private async loadCandidateForUser(id: string, currentUser: any): Promise<CandidateDocument> {
+    const scope = orgScope(currentUser);
     let doc: CandidateDocument | null = null;
-
     if (Types.ObjectId.isValid(id)) {
-      doc = await this.candidateModel.findOne({ _id: id, deletedAt: null }).exec();
+      doc = await this.candidateModel.findOne({ _id: id, ...scope }).exec();
     }
-
     if (!doc) {
-      doc = await this.candidateModel.findOne({ candidateId: id, deletedAt: null }).exec();
+      doc = await this.candidateModel.findOne({ candidateId: id, ...scope }).exec();
     }
-
     if (!doc) {
       throw new NotFoundException(`Candidate '${id}' not found`);
     }
+    assertCanAccessCandidate(doc, currentUser);
+    return doc;
+  }
 
+  /** GET /api/v1/candidates/:id */
+  async findById(id: string, currentUser: any) {
+    const doc = await this.loadCandidateForUser(id, currentUser);
     return this.sanitizeCandidate(doc);
   }
 
   /** POST /api/v1/candidates/duplicate-check */
   async duplicateCheck(dto: DuplicateCheckDto, currentUser: any) {
-    const orgId = currentUser?.orgId
-      ? new Types.ObjectId(currentUser.orgId.toString())
-      : new Types.ObjectId('6ab4f38ff2e0e1823c038948');
+    const orgId = requireOrgId(currentUser);
 
     if (dto.candidateId) {
       const match = await this.candidateModel.findOne({ orgId, candidateId: dto.candidateId, deletedAt: null }).exec();
@@ -245,11 +260,55 @@ export class CandidatesService {
     return { isDuplicate: false };
   }
 
+  /** Confirm an uploaded resume belongs to this org before linking it. */
+  private async resolveResume(currentUser: any, resumeFileId?: string) {
+    const raw = resumeFileId?.trim();
+    if (!raw) return null;
+    try {
+      return await this.filesService.findOne(currentUser, raw);
+    } catch (err) {
+      if (err instanceof NotFoundException) {
+        throw new BadRequestException('Uploaded resume was not found. Please upload the resume again.');
+      }
+      throw err;
+    }
+  }
+
+  /** Keep a primary Resume row in candidate_documents pointing at the stored file. */
+  private async recordPrimaryResume(candidate: CandidateDocument, fileId: Types.ObjectId) {
+    await this.candidateDocumentModel.updateMany(
+      {
+        orgId: candidate.orgId,
+        candidateId: candidate._id,
+        documentType: 'Resume',
+        deletedAt: null,
+        fileMetadataId: { $ne: fileId },
+      },
+      { $set: { isPrimaryResume: false } },
+    ).exec();
+
+    await this.candidateDocumentModel.findOneAndUpdate(
+      {
+        orgId: candidate.orgId,
+        candidateId: candidate._id,
+        fileMetadataId: fileId,
+        deletedAt: null,
+      },
+      {
+        $set: {
+          documentType: 'Resume',
+          isPrimaryResume: true,
+          schemaVersion: 1,
+        },
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true },
+    ).exec();
+  }
+
   /** POST /api/v1/candidates */
   async create(dto: CreateCandidateDto, currentUser: any) {
-    const orgId = currentUser?.orgId
-      ? new Types.ObjectId(currentUser.orgId.toString())
-      : new Types.ObjectId('6ab4f38ff2e0e1823c038948');
+    const orgId = requireOrgId(currentUser);
+    const resumeFile = await this.resolveResume(currentUser, dto.resumeFileId);
 
     const performedBy = currentUser?.id || currentUser?.userId
       ? new Types.ObjectId((currentUser.id || currentUser.userId).toString())
@@ -293,11 +352,19 @@ export class CandidatesService {
       notes: dto.notes || null,
       skills: skillsList,
       primarySkills: skillsList,
+      resumeFileId: resumeFile?._id || null,
+      resumeFileName: resumeFile?.originalName || null,
       sourcedByRecruiterId: performedBy,
       status: dto.status || 'New',
     });
 
     const saved = await newCandidate.save();
+
+    if (resumeFile) {
+      await this.recordPrimaryResume(saved, resumeFile._id as Types.ObjectId).catch((err) => {
+        console.error('Candidate resume document link failed:', err);
+      });
+    }
 
     if (this.notificationsService) {
       try {
@@ -320,17 +387,7 @@ export class CandidatesService {
 
   /** PUT /api/v1/candidates/:id */
   async update(id: string, dto: UpdateCandidateDto, currentUser: any) {
-    let doc: CandidateDocument | null = null;
-    if (Types.ObjectId.isValid(id)) {
-      doc = await this.candidateModel.findOne({ _id: id, deletedAt: null }).exec();
-    }
-    if (!doc) {
-      doc = await this.candidateModel.findOne({ candidateId: id, deletedAt: null }).exec();
-    }
-
-    if (!doc) {
-      throw new NotFoundException(`Candidate '${id}' not found`);
-    }
+    const doc = await this.loadCandidateForUser(id, currentUser);
 
     if (dto.name !== undefined) {
       doc.name = dto.name.trim();
@@ -351,7 +408,21 @@ export class CandidatesService {
       doc.email = cleanEmail;
     }
 
-    if (dto.phone !== undefined) doc.phone = dto.phone.trim();
+    if (dto.phone !== undefined && dto.phone.trim() !== doc.phone) {
+      const cleanPhone = dto.phone.trim();
+      const existingPhone = await this.candidateModel.findOne({
+        orgId: doc.orgId,
+        phone: cleanPhone,
+        _id: { $ne: doc._id },
+        deletedAt: null,
+      }).exec();
+      if (existingPhone) {
+        throw new ConflictException(
+          `Another candidate with phone '${cleanPhone}' already exists`,
+        );
+      }
+      doc.phone = cleanPhone;
+    }
     if (dto.linkedInUrl !== undefined) doc.linkedInUrl = dto.linkedInUrl;
     if (dto.currentCompany !== undefined) doc.currentCompany = dto.currentCompany;
     if (dto.qualification !== undefined) doc.qualification = dto.qualification;
@@ -376,7 +447,23 @@ export class CandidatesService {
       (doc as any).primarySkills = skillsList;
     }
 
+    let linkedResumeId: Types.ObjectId | null = null;
+    if (dto.resumeFileId?.trim()) {
+      const resumeFile = await this.resolveResume(currentUser, dto.resumeFileId);
+      if (resumeFile) {
+        doc.resumeFileId = resumeFile._id as Types.ObjectId;
+        doc.resumeFileName = resumeFile.originalName;
+        linkedResumeId = resumeFile._id as Types.ObjectId;
+      }
+    }
+
     const updated = await doc.save();
+
+    if (linkedResumeId) {
+      await this.recordPrimaryResume(updated, linkedResumeId).catch((err) => {
+        console.error('Candidate resume document link failed:', err);
+      });
+    }
 
     const performedBy = currentUser?.id || currentUser?.userId
       ? new Types.ObjectId((currentUser.id || currentUser.userId).toString())
@@ -425,6 +512,21 @@ export class CandidatesService {
       }
     }
 
+    await this.auditService
+      .recordSecurityAlert({
+        type: 'bulk_import',
+        action: 'Bulk candidate upload',
+        currentUser,
+        orgId: currentUser?.orgId,
+        targetEntity: 'Candidate',
+        details: {
+          total: candidateList.length,
+          createdCount,
+          skippedCount,
+        },
+      })
+      .catch(() => {});
+
     return {
       total: candidateList.length,
       createdCount,
@@ -436,13 +538,8 @@ export class CandidatesService {
 
   /** DELETE /api/v1/candidates/:id */
   async softDelete(id: string, currentUser: any) {
-    let targetId: string = id;
-    if (!Types.ObjectId.isValid(id)) {
-      const doc = await this.candidateModel.findOne({ candidateId: id, deletedAt: null }).exec();
-      if (!doc) throw new NotFoundException(`Candidate '${id}' not found`);
-      targetId = doc._id.toString();
-    }
-
+    const doc = await this.loadCandidateForUser(id, currentUser);
+    const targetId = doc._id.toString();
     const deleted = await this.candidateRepository.softDelete(targetId, currentUser);
     return { message: `Candidate '${deleted.candidateId || targetId}' soft-deleted successfully` };
   }

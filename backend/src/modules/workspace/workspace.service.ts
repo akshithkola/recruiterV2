@@ -17,6 +17,7 @@ import {
   mapRequirement,
   mapSubmission,
 } from './workspace.mapper';
+import { orgScope } from '../../common/security/resource-access.util';
 
 @Injectable()
 export class WorkspaceService {
@@ -32,10 +33,8 @@ export class WorkspaceService {
   ) {}
 
   private orgFilter(currentUser: any) {
-    const orgId = currentUser?.orgId
-      ? new Types.ObjectId(currentUser.orgId.toString())
-      : null;
-    return orgId ? { orgId, deletedAt: null } : { deletedAt: null };
+    // Fail closed: never dump cross-org workspace when orgId is missing.
+    return orgScope(currentUser);
   }
 
   async getWorkspacePayload(currentUser: any) {
@@ -84,7 +83,7 @@ export class WorkspaceService {
         .lean()
         .exec(),
       this.userModel.find({ ...base }).lean().exec(),
-      this.candidateModel.find(base).sort({ createdAt: -1 }).lean().exec(),
+      this.candidateModel.find(base).sort({ createdAt: -1 }).limit(100).lean().exec(),
       this.clientModel.find(base).sort({ clientName: 1 }).lean().exec(),
       this.activityLogModel.find({ orgId: base.orgId }).sort({ createdAt: -1 }).limit(200).lean().exec(),
       this.teamModel.find(base).populate('leadId', 'name email').populate('recruiterIds', 'name email').lean().exec(),
@@ -95,18 +94,20 @@ export class WorkspaceService {
     const intCounts = new Map<string, number>();
     const placedCounts = new Map<string, number>();
 
+    const recruiterBySubmission = new Map<string, string>();
     for (const s of submissions as any[]) {
       const recId = s.recruiterId?._id ? String(s.recruiterId._id) : String(s.recruiterId || '');
+      if (recId) recruiterBySubmission.set(String(s._id), recId);
       subCounts.set(recId, (subCounts.get(recId) || 0) + 1);
       if (s.stage === 'Placed') placedCounts.set(recId, (placedCounts.get(recId) || 0) + 1);
     }
+    const interviewRecruiterId = (iv: any): string => {
+      const sid = iv.submissionId?._id || iv.submissionId;
+      return sid ? recruiterBySubmission.get(String(sid)) || '' : '';
+    };
     for (const iv of interviews as any[]) {
-      const req = iv.requirementId;
-      const recIds = req?.assignedRecruiterIds || [];
-      for (const rid of recIds) {
-        const key = String(rid);
-        intCounts.set(key, (intCounts.get(key) || 0) + 1);
-      }
+      const key = interviewRecruiterId(iv);
+      if (key) intCounts.set(key, (intCounts.get(key) || 0) + 1);
     }
 
     const recruiters = users
@@ -115,7 +116,15 @@ export class WorkspaceService {
         const key = String(u._id);
         const lead = u.teamId
           ? users.find((x: any) => x.role === 'lead' && String(x.teamId) === String(u.teamId))
-          : users.find((x: any) => x.role === 'lead');
+          : null;
+        const assignedReqs = requirements.filter((r: any) =>
+          (r.assignedRecruiterIds || []).some((id: any) => String(id) === key),
+        );
+        const clientCounts = new Map<string, number>();
+        for (const r of assignedReqs as any[]) {
+          if (r.clientName) clientCounts.set(r.clientName, (clientCounts.get(r.clientName) || 0) + 1);
+        }
+        const primaryClient = [...clientCounts.entries()].sort((x, y) => y[1] - x[1])[0]?.[0] || '';
         const admin = users.find((x: any) => x.role === 'admin');
         return {
           id: u.userId || key,
@@ -125,23 +134,21 @@ export class WorkspaceService {
           submissions: subCounts.get(key) || 0,
           interviews: intCounts.get(key) || 0,
           placements: placedCounts.get(key) || 0,
-          target: 40,
+          target: 0,
           active: u.active !== false,
           today: 0,
           email: u.email,
-          requirementsCount: requirements.filter((r: any) =>
-            (r.assignedRecruiterIds || []).some((id: any) => String(id) === key),
-          ).length,
+          requirementsCount: assignedReqs.length,
           l1Interviews: 0,
           l2Interviews: 0,
           customInterviews: 0,
           finalInterviews: 0,
-          weeklyProgress: 80,
-          weeklyTarget: 10,
-          taskStatus: 'POSITIVE',
-          submissionType: 'Direct Sourcing',
-          primaryClient: (requirements[0] as any)?.clientName || '',
-          tat: '2.0 Days',
+          weeklyProgress: 0,
+          weeklyTarget: 0,
+          taskStatus: '',
+          submissionType: '',
+          primaryClient,
+          tat: '',
         };
       });
 
@@ -149,6 +156,21 @@ export class WorkspaceService {
       .filter((u: any) => u.role === 'lead')
       .map((u: any) => {
         const teamRecruiters = recruiters.filter((r) => r.lead === u.name);
+        const teamIds = new Set(
+          users.filter((x: any) => x.role === 'recruiter' && u.teamId && String(x.teamId) === String(u.teamId)).map((x: any) => String(x._id)),
+        );
+        const leadClients = [
+          ...new Set(
+            requirements
+              .filter(
+                (r: any) =>
+                  String(r.assignedLeadId || '') === String(u._id) ||
+                  (r.assignedRecruiterIds || []).some((id: any) => teamIds.has(String(id))),
+              )
+              .map((r: any) => r.clientName)
+              .filter(Boolean),
+          ),
+        ] as string[];
         const admin = users.find((x: any) => x.role === 'admin');
         return {
           id: u.userId || String(u._id),
@@ -159,8 +181,8 @@ export class WorkspaceService {
           interviews: teamRecruiters.reduce((a, r) => a + r.interviews, 0),
           placements: teamRecruiters.reduce((a, r) => a + r.placements, 0),
           email: u.email,
-          clientAccount: (requirements[0] as any)?.clientName || '',
-          clientAccounts: [...new Set(requirements.map((r: any) => r.clientName).filter(Boolean))],
+          clientAccount: leadClients[0] || '',
+          clientAccounts: leadClients,
         };
       });
 
@@ -175,7 +197,7 @@ export class WorkspaceService {
         submissions: submissions.length,
         interviews: interviews.length,
         placements: placedCounts.size,
-        revenue: '$0',
+        revenue: '',
         email: u.email,
       }));
 
@@ -204,7 +226,7 @@ export class WorkspaceService {
     });
 
     const mappedInterviews = interviews.map((iv: any) => {
-      const recName = recruiters[0]?.name || currentUser?.name || '';
+      const recName = usersById.get(interviewRecruiterId(iv))?.name || '';
       return mapInterview(iv, {
         candidateName: iv.candidateId?.name,
         title: iv.requirementId?.title,

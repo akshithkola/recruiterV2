@@ -63,7 +63,8 @@ export function useRequirementsPageState(props: RequirementsPageProps) {
   const availableClients = useMemo(() => {
     const clientsSet = new Set<string>()
     localRequirements.forEach(r => {
-      if (r.client) clientsSet.add(r.client)
+      const c = (r.client || (r as any).clientName || '').trim()
+      if (c) clientsSet.add(c)
     })
     return Array.from(clientsSet).sort()
   }, [localRequirements])
@@ -93,10 +94,18 @@ export function useRequirementsPageState(props: RequirementsPageProps) {
       .catch(() => {})
   }, [])
 
+  const isLeadOrAdmin = ['lead', 'admin', 'superadmin', 'devteam'].includes(String(role || '').toLowerCase())
   // States for "Assign to recruiters" modal matching screenshot
-  const [isAssignMyselfChecked, setIsAssignMyselfChecked] = useState(true)
+  // For team lead, super admin, or admin: self-assign should NOT be checked by default, only when clicked manually
+  const [isAssignMyselfChecked, setIsAssignMyselfChecked] = useState(!isLeadOrAdmin)
   const [selectedRecruiterNames, setSelectedRecruiterNames] = useState<Set<string>>(new Set())
   const [recruiterSearchQuery, setRecruiterSearchQuery] = useState('')
+
+  React.useEffect(() => {
+    if (['lead', 'admin', 'superadmin', 'devteam'].includes(String(role || '').toLowerCase())) {
+      setIsAssignMyselfChecked(false)
+    }
+  }, [role])
 
   // Current logged in user name based on role or session
   const currentUserName = useMemo(() => {

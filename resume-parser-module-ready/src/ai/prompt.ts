@@ -49,17 +49,19 @@ FIELD 7 — skills:
   • Deduplicate and return an array of strings with AT MOST 10 items. Return [] if no reliable skills can be identified.
 
 FIELD 7b — technology:
-  • Return [].
+  • Return []. (Tools/skills belong in FIELD 7 skills. Do NOT put skill lists here.)
 
 FIELD 8 — role:
-  • Extract the candidate's professional designation, role, or concise professional domain following STRICT source priority:
-    1. Priority 1: Explicit designation near candidate's name (title or subtitle directly below name, above contact info, e.g. "Global Mobility Immigration", "Python Developer", "Java Full Stack Developer", "Data Analyst", "Machine Learning Engineer").
-    2. Priority 2: Professional Summary / Summary / Profile / Career Summary opening sentence (e.g. "Global Mobility Immigration professional with 3+ years of experience" → "Global Mobility Immigration", "Data Analyst with 4 years of experience" → "Data Analyst"). Do NOT return the entire sentence.
+  • Extract ONLY the candidate's short professional designation / job title (this maps to the app Technologies field).
+  • STRICT source priority:
+    1. Priority 1: Explicit designation near candidate's name (title or subtitle directly below name, above contact info, e.g. "SAP Basis Consultant", "Python Developer", "Java Full Stack Developer", "Data Analyst").
+    2. Priority 2: Professional Summary / Summary / Profile opening (e.g. "Data Analyst with 4 years of experience" → "Data Analyst"). Do NOT return the entire sentence.
     3. Priority 3: Explicit designation line in employment history (e.g. "Senior Software Engineer").
-    4. Priority 4: Return null if no reliable explicit designation or professional domain is found.
-  • NEVER include numeric years of experience, experience duration, or phrases describing duration (e.g. "4 years of Python", "Java Developer - 4 years", "5+ years", "with 4 years of experience"). If a designation has experience duration attached, return ONLY the designation (e.g. "Python Developer").
-  • NEVER return location by itself, company names, bullet points, duties, internship activities, project descriptions, or complete sentences (e.g. do NOT return "UK, Germany Mobility Operations" when the designation is "Global Mobility Immigration").
-  • Return null if no reliable explicit designation or domain is found.
+    4. Priority 4: Return null if no reliable explicit designation is found.
+  • MUST be a short title (typically 2–5 words). NEVER return skill paragraphs, "Knowledge On …" lines, tool lists, product acronym lists (MDG, RMS, SAPPI…), kernel/HANA install blurbs, or comma-separated competency dumps.
+  • NEVER include numeric years of experience or duration phrases. If attached, return ONLY the designation (e.g. "Python Developer").
+  • NEVER return location, company names, duties, project descriptions, or complete sentences.
+  • Return null if no reliable explicit designation is found.
 
 FIELD 9 — location:
   • Candidate's city, state, or country if explicitly stated (e.g. "Bangalore, Karnataka", "Hyderabad", "Dallas, TX").

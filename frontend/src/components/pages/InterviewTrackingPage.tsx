@@ -41,13 +41,14 @@ import { RequirementDetailOverview } from './RequirementDetailOverview'
 import { PaginationFooter } from '../ui/PaginationFooter'
 import { interviewsService, offersService, submissionsService } from '../../services/workspace.service'
 import { apiErrorMessage } from './submissions/preamble'
+import { getSessionUser } from '../../store/session'
 
 export function mapBackendOfferToOfferRow(item: any): OfferLetterRowItem {
-  const candidateName = item.candidateName || item.candidate || 'Unknown Candidate'
+  const candidateName = item.candidateName || item.candidate || '—'
   const position = item.requirementTitle || item.position || 'Position'
   const client = item.clientName || item.client || 'Client'
-  const requirementId = typeof item.requirementId === 'string' ? item.requirementId : item.requirementId?.reqCode || item.requirementId?._id || 'REQ-001'
-  const offerDate = item.createdAt ? new Date(item.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Today'
+  const requirementId = typeof item.requirementId === 'string' ? item.requirementId : item.requirementId?.reqCode || item.requirementId?._id || ''
+  const offerDate = item.createdAt ? new Date(item.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
   const offeredCTC = typeof item.offeredCtc === 'number' ? `₹${item.offeredCtc.toLocaleString('en-IN')} PA` : (item.offeredCTC || '₹18,00,000 PA')
   const joiningDate = item.joiningDate ? new Date(item.joiningDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : undefined
   const status = item.status || 'Offer Released'
@@ -73,7 +74,7 @@ export function mapBackendOfferToOfferRow(item: any): OfferLetterRowItem {
 }
 
 export function mapBackendInterviewToScheduleRow(item: any): ScheduleRowItem {
-  const candidateName = item.candidateName || item.candidate || 'Unknown Candidate'
+  const candidateName = item.candidateName || item.candidate || '—'
   const position = item.requirementTitle || item.position || 'Software Engineer'
   const company = item.clientName || item.client || 'Client'
   const round = item.round || item.stage || 'L1 Technical'
@@ -104,12 +105,12 @@ export function mapBackendInterviewToScheduleRow(item: any): ScheduleRowItem {
     dateTime: dateTimeStr,
     mode,
     status,
-    requirementId: typeof item.requirementId === 'string' ? item.requirementId : item.requirementId?.reqCode || item.requirementId?._id || 'REQ-001',
+    requirementId: typeof item.requirementId === 'string' ? item.requirementId : item.requirementId?.reqCode || item.requirementId?._id || '',
     submissionId: typeof item.submissionId === 'string' ? item.submissionId : item.submissionId?._id || item.submissionId?.submissionId,
     candidateId: typeof item.candidateId === 'string' ? item.candidateId : item.candidateId?._id,
     submittedBy: item.recruiter || item.interviewerName || 'Recruiter',
-    candidateEmail: item.candidateId?.email || item.candidateEmail || 'candidate@example.com',
-    candidatePhone: item.candidateId?.phone || item.candidatePhone || '+91 98765 43210',
+    candidateEmail: item.candidateId?.email || item.candidateEmail || '',
+    candidatePhone: item.candidateId?.phone || item.candidatePhone || '',
     meetingUrl: item.meetingUrl,
     interviewerName: item.interviewerName,
     rejectionReason: item.status === 'Cancelled' ? 'Interview Cancelled' : item.rejectionReason,
@@ -175,270 +176,6 @@ export interface RejectedCandidateRowItem {
   candidateId?: string
 }
 
-const DEFAULT_REJECTED_CANDIDATES: RejectedCandidateRowItem[] = [
-  {
-    id: 'rej-0',
-    candidateName: 'Kunal Saxena',
-    candidateId: 'CAND-18015',
-    position: 'Cloud DevOps Architect',
-    company: 'Accenture',
-    rejectedStage: 'L2 Technical',
-    rejectionReason: 'System architecture design score below threshold',
-    evaluatorNotes: 'Candidate had good cloud basics but struggled with Kubernetes cluster failover scenario.',
-    evaluatedBy: 'Harish Gadipally (Lead)',
-    submittedBy: 'Harish Gadipally',
-    teamLead: 'Harish Gadipally',
-    rejectionDate: 'Aug 17, 2026',
-    requirementId: 'REQ-2026-08-12-001',
-  },
-  {
-    id: 'rej-1',
-    candidateName: 'Sandeep Patil',
-    candidateId: 'CAND-18012',
-    position: 'PLM / PDM Lead Engineer',
-    company: 'Accenture',
-    rejectedStage: 'L1 Technical',
-    rejectionReason: 'Technical evaluation score below threshold (C++ & PLM architecture round)',
-    evaluatorNotes: 'Failed coding assessment on C++ memory management and CAD API integrations.',
-    evaluatedBy: 'Rajesh V. (Tech Panel L1)',
-    submittedBy: 'Suresh kulkarni',
-    teamLead: 'Harish Gadipally',
-    rejectionDate: 'Aug 16, 2026',
-    requirementId: 'REQ-2026-08-12-004',
-  },
-  {
-    id: 'rej-2',
-    candidateName: 'Abhijit Narke',
-    candidateId: 'CAND-18009',
-    position: 'Java Lead Engineer',
-    company: 'Goldman Sachs',
-    rejectedStage: 'Screening',
-    rejectionReason: 'Notice period exceeds 60 days budget limit',
-    evaluatorNotes: 'Candidate serving 90 days notice period; client requires immediate joiner within 30 days.',
-    evaluatedBy: 'Harish Gadipally (Lead)',
-    submittedBy: 'Lingoji Pavani',
-    teamLead: 'Tom Walsh',
-    rejectionDate: 'Aug 14, 2026',
-    requirementId: 'REQ-2026-08-06-005',
-  },
-  {
-    id: 'rej-3',
-    candidateName: 'Ben Wallace',
-    candidateId: 'CAND-18007',
-    position: 'Python ML Specialist',
-    company: 'Tesla',
-    rejectedStage: 'L3 / Manager',
-    rejectionReason: 'Salary expectation exceeds approved budget for Senior Band',
-    evaluatorNotes: 'Expected CTC is ₹38 LPA vs approved client band max of ₹28 LPA.',
-    evaluatedBy: 'Sarah Jenkins (Director of AI)',
-    submittedBy: 'Adirala sathvika',
-    teamLead: 'Nina Brooks',
-    rejectionDate: 'Aug 13, 2026',
-    requirementId: 'REQ-2026-08-07-007',
-  },
-  {
-    id: 'rej-4',
-    candidateName: 'Rahul Deshmukh',
-    candidateId: 'CAND-18005',
-    position: 'Senior React Developer',
-    company: 'Accenture',
-    rejectedStage: 'L2 Technical',
-    rejectionReason: 'State management & SSR architecture design score insufficient',
-    evaluatorNotes: 'Struggled with Next.js SSR hydration and Redux Toolkit state normalization live coding exercise.',
-    evaluatedBy: 'Amitabh Sen (Lead Architect)',
-    submittedBy: 'Marcus Chen',
-    teamLead: 'Harish Gadipally',
-    rejectionDate: 'Aug 11, 2026',
-    requirementId: 'REQ-2026-08-12-001',
-  },
-  {
-    id: 'rej-5',
-    candidateName: 'Neha Kulkarni',
-    candidateId: 'CAND-18003',
-    position: 'DevOps Lead Engineer',
-    company: 'JP Morgan',
-    rejectedStage: 'Final HR Round',
-    rejectionReason: 'Shift timing availability mismatch & competing offer conflict',
-    evaluatorNotes: 'Unavailable for mandatory US shift rotation schedule.',
-    evaluatedBy: 'Ananya Roy (HR Business Partner)',
-    submittedBy: 'Priya Sharma',
-    teamLead: 'Tom Walsh',
-    rejectionDate: 'Aug 09, 2026',
-    requirementId: 'REQ-2026-08-12-003',
-  },
-  {
-    id: 'rej-6',
-    candidateName: 'Vikramaditya Sen',
-    candidateId: 'CAND-18001',
-    position: 'Automotive Embedded Engineer',
-    company: 'Continental Automotive',
-    rejectedStage: 'Screening',
-    rejectionReason: 'Mandatory Catia V6 door closure design certification missing',
-    evaluatorNotes: 'Failed initial JD screening checklist for Catia V6 packaging skills.',
-    evaluatedBy: 'Marcus Chen (Recruiter)',
-    submittedBy: 'Marcus Chen',
-    teamLead: 'Harish Gadipally',
-    rejectionDate: 'Aug 08, 2026',
-    requirementId: 'REQ-2026-08-07-006',
-  },
-]
-
-const DEFAULT_SCHEDULE_ROWS: ScheduleRowItem[] = [
-  {
-    id: '0',
-    candidateName: 'Pradeep Kumar',
-    position: 'Senior React / Fullstack Architect',
-    company: 'Accenture',
-    teamLead: 'Harish Gadipally',
-    submittedBy: 'Harish Gadipally',
-    round: 'L1 Technical',
-    dateTime: 'Today, 12:00 PM',
-    mode: 'Online',
-    status: 'In Progress',
-    requirementId: 'REQ-2026-08-12-001',
-  },
-  {
-    id: '1',
-    candidateName: 'Arpit Srivastav',
-    position: 'Senior React Native Mobile Dev',
-    company: 'Accenture',
-    teamLead: 'Harish Gadipally',
-    submittedBy: 'Marcus Chen',
-    round: 'L2 Technical',
-    dateTime: '2026-08-18 18:00',
-    mode: 'Online',
-    status: 'In Progress',
-    requirementId: 'REQ-2026-08-12-002',
-  },
-  {
-    id: '2',
-    candidateName: 'Vidyasagar Gade',
-    position: 'Cloud Solutions Architect',
-    company: 'Accenture',
-    teamLead: 'Harish Gadipally',
-    submittedBy: 'Priya Sharma',
-    round: 'Final HR Round (All Rounds Completed)',
-    dateTime: '2026-08-19 14:00',
-    mode: 'Online',
-    status: 'Completed',
-    requirementId: 'REQ-2026-08-12-003',
-  },
-  {
-    id: '3',
-    candidateName: 'Siddharth Rao',
-    position: 'PLM / PDM Lead Engineer',
-    company: 'Accenture',
-    teamLead: 'Harish Gadipally',
-    submittedBy: 'Suresh kulkarni',
-    round: 'L1 Technical',
-    dateTime: '2026-08-19 10:00',
-    mode: 'Online',
-    status: 'In Progress',
-    requirementId: 'REQ-2026-08-12-004',
-  },
-  {
-    id: '4',
-    candidateName: 'Alex Turner',
-    position: 'Lead Java Engineer',
-    company: 'Accenture',
-    teamLead: 'Harish Gadipally',
-    submittedBy: 'Marcus Chen',
-    round: 'Technical Round 1',
-    dateTime: '2026-08-20 13:06',
-    mode: 'Online',
-    status: 'Upcoming',
-    requirementId: 'REQ-2026-08-12-005',
-  },
-  {
-    id: '5',
-    candidateName: 'Kanchan Meshram',
-    position: 'AI Solutions Specialist',
-    company: 'Accenture',
-    teamLead: 'Harish Gadipally',
-    submittedBy: 'Priya Sharma',
-    round: 'Technical Round 2',
-    dateTime: '2026-08-20 11:45',
-    mode: 'Online',
-    status: 'In Progress',
-    requirementId: 'REQ-2026-08-12-006',
-  },
-  {
-    id: '6',
-    candidateName: 'Rania Khalil',
-    position: 'Java Architect',
-    company: 'Goldman Sachs',
-    teamLead: 'Tom Walsh',
-    submittedBy: 'lakshmi.v Recruiter',
-    round: 'Manager Round',
-    dateTime: 'Aug 06, 02:00 PM',
-    mode: 'Online',
-    status: 'In Progress',
-    requirementId: 'REQ-2026-08-06-005',
-  },
-  {
-    id: '7',
-    candidateName: 'Ben Wallace',
-    position: 'Python ML Engineer',
-    company: 'Tesla',
-    teamLead: 'Nina Brooks',
-    submittedBy: 'Recruiter',
-    round: 'Screening',
-    dateTime: 'Aug 07, 11:00 AM',
-    mode: 'Online',
-    status: 'In Progress',
-    requirementId: 'REQ-2026-08-07-006',
-  },
-  {
-    id: '8',
-    candidateName: 'Pritish Malik',
-    position: 'C# Automation - Bangalore/Mysore',
-    company: 'LTTS / L&T',
-    teamLead: 'Harish Gadipally',
-    submittedBy: 'Harish Gadipally',
-    round: 'L3 / Final Round (Offer Released)',
-    dateTime: 'Today, 02:30 PM',
-    mode: 'Online',
-    status: 'Completed',
-    requirementId: 'REQ-003',
-    remark: 'Cleared L3 technical evaluation with distinction. Client approved offer release.',
-    candidateEmail: 'pritish.m@ltts-candidate.com',
-    candidatePhone: '+91 98765 43210',
-    experience: '6 Years',
-    skills: ['C#', 'Automation Testing', 'Embedded Systems', 'Selenium'],
-  },
-  {
-    id: '9',
-    candidateName: 'Ananya Deshmukh',
-    position: 'Senior Data Scientist',
-    company: 'Microsoft',
-    teamLead: 'Harish Gadipally',
-    submittedBy: 'Harish Gadipally',
-    round: 'Final HR Round (All Rounds Completed)',
-    dateTime: 'Aug 21, 11:00 AM',
-    mode: 'Online',
-    status: 'Completed',
-    requirementId: 'REQ-004',
-    remark: 'Excellent system design & Python ML expertise. Final HR round completed.',
-    candidateEmail: 'ananya.d@data-talent.com',
-    candidatePhone: '+91 98123 45678',
-    experience: '8 Years',
-    skills: ['Python', 'Machine Learning', 'PyTorch', 'System Architecture'],
-  },
-  {
-    id: '10',
-    candidateName: 'Rajesh Verma',
-    position: 'Salesforce Admin',
-    company: 'Deloitte',
-    teamLead: 'Harish Gadipally',
-    submittedBy: 'Harish Gadipally',
-    round: 'L2 Technical Evaluation',
-    dateTime: 'Aug 21, 03:00 PM',
-    mode: 'Online',
-    status: 'In Progress',
-    requirementId: 'REQ-005',
-  },
-]
-
 export interface OfferLetterRowItem {
   id: string
   candidateName: string
@@ -457,135 +194,20 @@ export interface OfferLetterRowItem {
   raw?: any
 }
 
-const DEFAULT_OFFER_LETTERS: OfferLetterRowItem[] = [
-  {
-    id: 'off-1',
-    candidateName: 'Pritish Malik',
-    position: 'C# Automation - Bangalore/Mysore',
-    client: 'LTTS / L&T',
-    requirementId: 'REQ-003',
-    offerDate: 'Aug 19, 2026',
-    offeredCTC: '₹22,00,000 PA',
-    joiningDate: 'Sep 01, 2026',
-    status: 'Offer Released',
-    submittedBy: 'Marcus Chen',
-  },
-  {
-    id: 'off-2',
-    candidateName: 'Vidyasagar Gade',
-    position: 'Cloud Solutions Architect',
-    client: 'Accenture',
-    requirementId: 'REQ-2026-08-12-003',
-    offerDate: 'Aug 18, 2026',
-    offeredCTC: '₹34,00,000 PA',
-    joiningDate: 'Sep 15, 2026',
-    status: 'Accepted',
-    submittedBy: 'Harish Gadipally',
-  },
-  {
-    id: 'off-3',
-    candidateName: 'Arpit Srivastav',
-    position: 'Senior React Native Dev',
-    client: 'Accenture',
-    requirementId: 'REQ-2026-08-12-002',
-    offerDate: 'Aug 15, 2026',
-    offeredCTC: '₹26,00,000 PA',
-    joiningDate: 'Aug 25, 2026',
-    status: 'Joined',
-    submittedBy: 'Priya Sharma',
-  },
-  {
-    id: 'off-4',
-    candidateName: 'Kanchan Meshram',
-    position: 'AI Solutions Specialist',
-    client: 'Continental Automotive',
-    requirementId: 'REQ-2026-08-12-006',
-    offerDate: 'Aug 12, 2026',
-    offeredCTC: '₹28,00,000 PA',
-    status: 'Not Joined',
-    notJoinedReason: 'Competing offer with higher compensation',
-    notJoinedNote: 'Candidate accepted competing offer from Microsoft with ₹34 LPA CTC (20% higher than approved client CTC).',
-    notJoinedDate: 'Aug 22, 2026',
-    submittedBy: 'Marcus Chen',
-  },
-  {
-    id: 'off-5',
-    candidateName: 'Rohan Patil',
-    position: 'Java Lead Architect',
-    client: 'Goldman Sachs',
-    requirementId: 'REQ-2026-08-06-005',
-    offerDate: 'Aug 10, 2026',
-    offeredCTC: '₹36,00,000 PA',
-    status: 'Not Joined',
-    notJoinedReason: 'Counter offer from current employer',
-    notJoinedNote: 'Employer promoted candidate to Technical Director with retention bonus and matching CTC; candidate withdrew joining commitment.',
-    notJoinedDate: 'Aug 20, 2026',
-    submittedBy: 'Lingoji Pavani',
-  },
-  {
-    id: 'off-6',
-    candidateName: 'Meera Deshmukh',
-    position: 'DevOps & Kubernetes Lead',
-    client: 'Deloitte',
-    requirementId: 'REQ-2026-08-07-009',
-    offerDate: 'Aug 05, 2026',
-    offeredCTC: '₹30,00,000 PA',
-    joiningDate: 'Aug 18, 2026',
-    status: 'Joined',
-    submittedBy: 'Harish Gadipally',
-  },
-]
-
-const DEFAULT_FINAL_DECISIONS: FinalDecisionRowItem[] = [
-  {
-    id: 'fd-1',
-    candidateName: 'Abhijit Narke',
-    requirementId: 'REQ-2026-08-12-001',
-    requirement: 'Senior React / Fullstack Architect for Accenture',
-    decision: 'Selected for Interview',
-    rejectionReason: '—',
-    offerLetter: '—',
-    client: 'Accenture',
-    teamLead: 'Harish Gadipally',
-    submittedBy: 'Marcus Chen',
-  },
-  {
-    id: 'fd-2',
-    candidateName: 'Kiran Shantaram More',
-    requirementId: 'REQ-2026-08-12-002',
-    requirement: 'Senior React Native Mobile Dev for Accenture',
-    decision: 'Selected for Interview',
-    rejectionReason: '—',
-    offerLetter: '—',
-    client: 'Accenture',
-    teamLead: 'Harish Gadipally',
-    submittedBy: 'Priya Sharma',
-  },
-  {
-    id: 'fd-3',
-    candidateName: 'Vidyasagar Gade',
-    requirementId: 'REQ-2026-08-12-003',
-    requirement: 'Cloud Solutions Architect for Accenture',
-    decision: 'Selected for Interview',
-    rejectionReason: '—',
-    offerLetter: '—',
-    client: 'Accenture',
-    teamLead: 'Harish Gadipally',
-    submittedBy: 'Harish Gadipally',
-  },
-]
-
 interface InterviewTrackingPageProps {
   role?: Role
   interviews?: Interview[]
   onOpenFeedbackModal?: (iv: Interview) => void
   initialStatusToggle?: 'upcoming' | 'completed' | 'rejections' | 'all' | 'onboarding'
   onUpdateRequirements?: (requirements: Requirement[]) => void
+  /** Live requirements, used to open the real requirement behind an interview row. */
+  requirements?: Requirement[]
 }
 
 export function InterviewTrackingPage({
   role = 'recruiter',
   interviews,
+  requirements = [],
   onOpenFeedbackModal,
   initialStatusToggle,
   onUpdateRequirements,
@@ -593,6 +215,8 @@ export function InterviewTrackingPage({
   const normalizedRole = (role || '').toLowerCase()
   const isLead = normalizedRole === 'lead'
   const isRecruiter = normalizedRole === 'recruiter'
+  const sessionUser = getSessionUser()
+  const activeUserName = (sessionUser?.name || '').toLowerCase().trim()
 
   // Scope filter for Team Lead: 'my_interviews' (lead only), 'team_members' (members only), 'all' (members + lead)
   const [scopeTab, setScopeTab] = useState<'my_interviews' | 'team_members' | 'all'>('my_interviews')
@@ -610,10 +234,10 @@ export function InterviewTrackingPage({
   const [rejectionStageFilter, setRejectionStageFilter] = useState<string>('All Stages')
 
   // Tables State
-  const [scheduleList, setScheduleList] = useState<ScheduleRowItem[]>(DEFAULT_SCHEDULE_ROWS)
-  const [finalDecisions, setFinalDecisions] = useState<FinalDecisionRowItem[]>(DEFAULT_FINAL_DECISIONS)
-  const [offerLetters, setOfferLetters] = useState<OfferLetterRowItem[]>(DEFAULT_OFFER_LETTERS)
-  const [rejectedList, setRejectedList] = useState<RejectedCandidateRowItem[]>(DEFAULT_REJECTED_CANDIDATES)
+  const [scheduleList, setScheduleList] = useState<ScheduleRowItem[]>([])
+  const [finalDecisions, setFinalDecisions] = useState<FinalDecisionRowItem[]>([])
+  const [offerLetters, setOfferLetters] = useState<OfferLetterRowItem[]>([])
+  const [rejectedList, setRejectedList] = useState<RejectedCandidateRowItem[]>([])
 
   // Modals & Requirement Overview State
   const [isCalendarModalOpen, setIsCalendarModalOpen] = useState(false)
@@ -673,8 +297,8 @@ export function InterviewTrackingPage({
           evaluatedBy: selectedCandidateDetailModal.submittedBy || 'Recruiter',
           submittedBy: selectedCandidateDetailModal.submittedBy || 'Recruiter',
           teamLead: selectedCandidateDetailModal.teamLead || 'Team Lead',
-          rejectionDate: 'Today',
-          requirementId: selectedCandidateDetailModal.requirementId || 'REQ-001',
+          rejectionDate: '—',
+          requirementId: selectedCandidateDetailModal.requirementId || '',
         },
         ...prev,
       ])
@@ -700,7 +324,7 @@ export function InterviewTrackingPage({
   const reloadInterviews = React.useCallback(async () => {
     try {
       const data = await interviewsService.list()
-      if (Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data)) {
         setScheduleList(data.map(mapBackendInterviewToScheduleRow))
       }
     } catch (err) {
@@ -711,7 +335,7 @@ export function InterviewTrackingPage({
   const reloadOffers = React.useCallback(async () => {
     try {
       const data = await offersService.list()
-      if (Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data)) {
         setOfferLetters(data.map(mapBackendOfferToOfferRow))
       }
     } catch (err) {
@@ -727,10 +351,10 @@ export function InterviewTrackingPage({
           interviewsService.list().catch(() => []),
           offersService.list().catch(() => []),
         ])
-        if (active && Array.isArray(intData) && intData.length > 0) {
+        if (active && Array.isArray(intData)) {
           setScheduleList(intData.map(mapBackendInterviewToScheduleRow))
         }
-        if (active && Array.isArray(offerData) && offerData.length > 0) {
+        if (active && Array.isArray(offerData)) {
           setOfferLetters(offerData.map(mapBackendOfferToOfferRow))
         }
       } catch (err) {
@@ -779,23 +403,12 @@ export function InterviewTrackingPage({
 
 
   const handleOpenReqOverview = (reqId: string, position: string, company: string) => {
-    setSelectedReqDetail({
-      id: reqId,
-      title: position,
-      client: company,
-      company: company,
-      status: 'Open',
-      createdDate: '12 Aug 2026',
-      submissionsCount: 4,
-      interviewsCount: 2,
-      owner: 'Harish Gadipally',
-      assignedRecruiter: 'Harish Gadipally',
-      experienceRequired: '5 - 8 Years',
-      location: 'Hyderabad / Remote',
-      salaryRange: '₹18 - ₹24 LPA',
-      skills: ['React.js', 'TypeScript', 'Node.js', 'Tailwind CSS', 'PostgreSQL'],
-      description: `Requirement details for ${position} at ${company}. Full job overview, candidate pipeline, and interview history.`,
-    } as any)
+    // Open the real requirement; when it is not in the loaded list, show only what the row knows.
+    const key = String(reqId || '').trim()
+    const real = requirements.find(r =>
+      [r.id, (r as any).reqCode, (r as any)._id, (r as any).displayId].some(v => v && String(v) === key),
+    )
+    setSelectedReqDetail((real || { id: key, title: position, client: company, company }) as any)
   }
 
   // Map passed interviews prop into ScheduleRowItems
@@ -821,10 +434,10 @@ export function InterviewTrackingPage({
           position: iv.position,
           company: iv.client,
           round: iv.stage || 'L1',
-          dateTime: iv.date || 'Aug 06, 10:00 AM',
+          dateTime: iv.date || '',
           mode: 'Online',
           status: mappedStatus,
-          requirementId: `REQ-2026-0${idx + 1}`,
+          requirementId: (iv as any).requirementId || '',
         }
       })
     }
@@ -843,40 +456,40 @@ export function InterviewTrackingPage({
     if (isLead) {
       return combinedScheduleList.filter(s => {
         const by = (s.submittedBy || '').toLowerCase()
-        const isLeadSub = by.includes('harish') || by.includes('lead')
+        const isLeadSub = activeUserName ? by.includes(activeUserName) : true
         if (scopeTab === 'my_interviews') return isLeadSub
         if (scopeTab === 'team_members') return !isLeadSub
         return true
       })
     }
-    if (isRecruiter) {
+    if (isRecruiter && activeUserName) {
       return combinedScheduleList.filter(s => {
         const by = (s.submittedBy || '').toLowerCase()
-        return by.includes('marcus') || by.includes('recruiter') || by === ''
+        return !by || by.includes(activeUserName) || activeUserName.includes(by)
       })
     }
     return combinedScheduleList
-  }, [combinedScheduleList, isLead, isRecruiter, scopeTab])
+  }, [combinedScheduleList, isLead, isRecruiter, scopeTab, activeUserName])
 
   // Scope offer letters by role
   const scopeOfferLetters = useMemo(() => {
     if (isLead) {
       return offerLetters.filter(o => {
         const by = ((o as any).submittedBy || '').toLowerCase()
-        const isLeadSub = by.includes('harish') || by.includes('lead')
+        const isLeadSub = activeUserName ? by.includes(activeUserName) : true
         if (scopeTab === 'my_interviews') return isLeadSub
         if (scopeTab === 'team_members') return !isLeadSub
         return true
       })
     }
-    if (isRecruiter) {
+    if (isRecruiter && activeUserName) {
       return offerLetters.filter(o => {
         const by = ((o as any).submittedBy || '').toLowerCase()
-        return by.includes('marcus') || by.includes('recruiter') || by === ''
+        return !by || by.includes(activeUserName) || activeUserName.includes(by)
       })
     }
     return offerLetters
-  }, [offerLetters, isLead, isRecruiter, scopeTab])
+  }, [offerLetters, isLead, isRecruiter, scopeTab, activeUserName])
 
   const checkDateMatch = (
     rawDateStr: string | undefined,
@@ -964,20 +577,20 @@ export function InterviewTrackingPage({
     if (isLead) {
       return finalDecisions.filter(d => {
         const by = (d.submittedBy || '').toLowerCase()
-        const isLeadSub = by.includes('harish') || by.includes('lead')
+        const isLeadSub = activeUserName ? by.includes(activeUserName) : true
         if (scopeTab === 'my_interviews') return isLeadSub
         if (scopeTab === 'team_members') return !isLeadSub
         return true
       })
     }
-    if (isRecruiter) {
+    if (isRecruiter && activeUserName) {
       return finalDecisions.filter(d => {
         const by = (d.submittedBy || '').toLowerCase()
-        return by.includes('marcus') || by.includes('recruiter') || by === ''
+        return !by || by.includes(activeUserName) || activeUserName.includes(by)
       })
     }
     return finalDecisions
-  }, [finalDecisions, isLead, isRecruiter, scopeTab])
+  }, [finalDecisions, isLead, isRecruiter, scopeTab, activeUserName])
 
   // Evaluated Schedule List:
   // 1. Scheduled in future -> Upcoming
@@ -1110,20 +723,20 @@ export function InterviewTrackingPage({
     if (isLead) {
       return rejectedList.filter(r => {
         const by = (r.submittedBy || '').toLowerCase()
-        const isLeadSub = by.includes('harish') || by.includes('lead')
+        const isLeadSub = activeUserName ? by.includes(activeUserName) : true
         if (scopeTab === 'my_interviews') return isLeadSub
         if (scopeTab === 'team_members') return !isLeadSub
         return true
       })
     }
-    if (isRecruiter) {
+    if (isRecruiter && activeUserName) {
       return rejectedList.filter(r => {
         const by = (r.submittedBy || '').toLowerCase()
-        return by.includes('marcus') || by.includes('recruiter') || by === ''
+        return !by || by.includes(activeUserName) || activeUserName.includes(by)
       })
     }
     return rejectedList
-  }, [rejectedList, isLead, isRecruiter, scopeTab])
+  }, [rejectedList, isLead, isRecruiter, scopeTab, activeUserName])
 
   const filteredRejectedList = useMemo(() => {
     return scopeRejectedList.filter(item => {
@@ -1216,7 +829,7 @@ export function InterviewTrackingPage({
         {
           id: `fd-${Date.now()}`,
           candidateName: row.candidateName,
-          requirementId: row.requirementId || 'REQ-2026-08-12-001',
+          requirementId: row.requirementId || '',
           requirement: `${row.position} for ${row.company}`,
           decision: 'Selected for Interview',
           rejectionReason: '—',
@@ -1258,7 +871,7 @@ export function InterviewTrackingPage({
       {
         id: `fd-${Date.now()}`,
         candidateName: rejectModalCandidate.candidateName,
-        requirementId: rejectModalCandidate.requirementId || 'REQ-2026-08-12-001',
+        requirementId: rejectModalCandidate.requirementId || '',
         requirement: `${rejectModalCandidate.position} for ${rejectModalCandidate.company}`,
         decision: 'Rejected in Interview',
         rejectionReason: `${selectedRejectionStage}: ${finalReason}`,
@@ -1278,9 +891,9 @@ export function InterviewTrackingPage({
       evaluatorNotes: customRejectionNote.trim() || `Candidate rejected during ${selectedRejectionStage} evaluation.`,
       evaluatedBy: rejectModalCandidate.submittedBy || 'Tech Evaluation Panel',
       submittedBy: rejectModalCandidate.submittedBy || 'Recruiter',
-      teamLead: rejectModalCandidate.teamLead || 'Harish Gadipally',
-      rejectionDate: 'Today',
-      requirementId: rejectModalCandidate.requirementId || 'REQ-2026-08-12-001',
+      teamLead: rejectModalCandidate.teamLead || '—',
+      rejectionDate: '—',
+      requirementId: rejectModalCandidate.requirementId || '',
     }
 
     setRejectedList(prev => [newRejectedItem, ...prev])
@@ -1566,11 +1179,18 @@ export function InterviewTrackingPage({
               className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 focus:outline-none focus:border-[#6B3BF6] cursor-pointer"
             >
               <option value="All Clients">All Client Partners</option>
-              <option value="Accenture">Accenture</option>
-              <option value="Goldman Sachs">Goldman Sachs</option>
-              <option value="Tesla">Tesla</option>
-              <option value="Deloitte">Deloitte</option>
-              <option value="LTTS / L&T">LTTS / L&T</option>
+              {Array.from(
+                new Set(
+                  [...scheduleList.map(r => r.company), ...offerLetters.map(r => r.client), ...finalDecisions.map(r => r.client), ...rejectedList.map(r => r.company)]
+                    .filter((c): c is string => Boolean(c) && c !== '—'),
+                ),
+              )
+                .sort()
+                .map(c => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
             </select>
           </div>
 
@@ -1792,7 +1412,7 @@ export function InterviewTrackingPage({
                           </div>
                         )}
                         <div className="text-[10px] text-slate-400 mt-1">
-                          Submitted by: <strong className="text-slate-600">{item.submittedBy || 'Marcus Chen'}</strong>
+                          Submitted by: <strong className="text-slate-600">{item.submittedBy || '—'}</strong>
                         </div>
                       </td>
 
@@ -1818,7 +1438,7 @@ export function InterviewTrackingPage({
                           <span>{item.company}</span>
                         </div>
                         <div className="text-[10px] text-slate-500 font-medium mt-0.5">
-                          Lead: {item.teamLead || 'Harish Gadipally'}
+                          Lead: {item.teamLead || '—'}
                         </div>
                       </td>
 
@@ -1997,11 +1617,11 @@ export function InterviewTrackingPage({
                           <td className="px-4 py-4 max-w-xs">
                             <div className="flex items-center gap-1.5 mb-1">
                               <button
-                                onClick={() => handleOpenReqOverview(row.requirementId || 'REQ-2026-08-12-001', row.position, row.company)}
+                                onClick={() => handleOpenReqOverview(row.requirementId || '', row.position, row.company)}
                                 className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-purple-50 hover:bg-purple-100 text-[#6B3BF6] border border-purple-200 font-mono hover:underline cursor-pointer transition-all flex items-center gap-1"
                                 title="Click to view Requirement Overview"
                               >
-                                <span>{row.requirementId || 'REQ-2026-08-12-001'}</span>
+                                <span>{row.requirementId || ''}</span>
                                 <ExternalLink className="w-2.5 h-2.5 text-[#6B3BF6]" />
                               </button>
                             </div>
@@ -2015,7 +1635,7 @@ export function InterviewTrackingPage({
                               <span>{row.company || 'Accenture'}</span>
                             </div>
                             <div className="text-[10px] text-slate-500 font-medium mt-0.5">
-                              Lead: {row.teamLead || 'Harish Gadipally'} | By: {row.submittedBy || 'Marcus Chen'}
+                              Lead: {row.teamLead || '—'} | By: {row.submittedBy || '—'}
                             </div>
                           </td>
 
@@ -2090,11 +1710,11 @@ export function InterviewTrackingPage({
                           <td className="px-4 py-4 max-w-xs">
                             <div className="flex items-center gap-1.5 mb-1">
                               <button
-                                onClick={() => handleOpenReqOverview(row.requirementId || 'REQ-2026-08-12-001', row.position, row.company)}
+                                onClick={() => handleOpenReqOverview(row.requirementId || '', row.position, row.company)}
                                 className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-purple-50 hover:bg-purple-100 text-[#6B3BF6] border border-purple-200 font-mono hover:underline cursor-pointer transition-all flex items-center gap-1"
                                 title="Click to view Requirement Overview"
                               >
-                                <span>{row.requirementId || 'REQ-2026-08-12-001'}</span>
+                                <span>{row.requirementId || ''}</span>
                                 <ExternalLink className="w-2.5 h-2.5 text-[#6B3BF6]" />
                               </button>
                             </div>
@@ -2108,7 +1728,7 @@ export function InterviewTrackingPage({
                               <span>{row.company || 'Accenture'}</span>
                             </div>
                             <div className="text-[10px] text-slate-500 font-medium mt-0.5">
-                              Lead: {row.teamLead || 'Harish Gadipally'} | By: {row.submittedBy || 'Marcus Chen'}
+                              Lead: {row.teamLead || '—'} | By: {row.submittedBy || '—'}
                             </div>
                           </td>
 
@@ -2190,11 +1810,11 @@ export function InterviewTrackingPage({
                           <td className="px-4 py-4 max-w-xs">
                             <div className="flex items-center gap-1.5 mb-1">
                               <button
-                                onClick={() => handleOpenReqOverview(row.requirementId || 'REQ-2026-08-12-001', row.position, row.company)}
+                                onClick={() => handleOpenReqOverview(row.requirementId || '', row.position, row.company)}
                                 className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-purple-50 hover:bg-purple-100 text-[#6B3BF6] border border-purple-200 font-mono hover:underline cursor-pointer transition-all flex items-center gap-1"
                                 title="Click to view Requirement Overview"
                               >
-                                <span>{row.requirementId || 'REQ-2026-08-12-001'}</span>
+                                <span>{row.requirementId || ''}</span>
                                 <ExternalLink className="w-2.5 h-2.5 text-[#6B3BF6]" />
                               </button>
                             </div>
@@ -2208,7 +1828,7 @@ export function InterviewTrackingPage({
                               <span>{row.company || 'Accenture'}</span>
                             </div>
                             <div className="text-[10px] text-slate-500 font-medium mt-0.5">
-                              Lead: {row.teamLead || 'Harish Gadipally'} | By: {row.submittedBy || 'Marcus Chen'}
+                              Lead: {row.teamLead || '—'} | By: {row.submittedBy || '—'}
                             </div>
                           </td>
 
@@ -2427,7 +2047,7 @@ export function InterviewTrackingPage({
                           <span>{item.candidateName}</span>
                         </div>
                         <div className="text-[10px] text-slate-400 mt-0.5">
-                          Recruiter: <strong className="text-slate-600">{item.submittedBy || 'Marcus Chen'}</strong>
+                          Recruiter: <strong className="text-slate-600">{item.submittedBy || '—'}</strong>
                         </div>
                       </td>
 
@@ -2824,7 +2444,7 @@ export function InterviewTrackingPage({
               <div>
                 <div className="flex items-center gap-2">
                   <CalendarIcon className="w-5 h-5 text-[#6B3BF6]" />
-                  <h3 className="text-lg font-extrabold text-slate-900">August 2026 — Interview Schedule Calendar</h3>
+                  <h3 className="text-lg font-extrabold text-slate-900">{new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })} — Interview Schedule Calendar</h3>
                   <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-100 text-[#6B3BF6] border border-purple-200">
                     Live Calendar View
                   </span>
@@ -2902,32 +2522,37 @@ export function InterviewTrackingPage({
             {/* Monthly Calendar Grid (Aug 2026) */}
             <div className="grid grid-cols-7 gap-2">
               {/* Previous month filler days */}
-              {[26, 27, 28, 29, 30, 31].map(d => (
-                <div key={`prev-${d}`} className="min-h-24 p-2 bg-slate-50/40 rounded-2xl border border-slate-100/60 opacity-40">
-                  <span className="text-[10px] font-bold text-slate-400">{d}</span>
-                </div>
-              ))}
+              {(() => {
+                const now = new Date()
+                const lead = new Date(now.getFullYear(), now.getMonth(), 1).getDay()
+                return Array.from({ length: lead }, (_, i) => (
+                  <div key={`blank-${i}`} className="min-h-24 p-2 bg-slate-50/40 rounded-2xl border border-slate-100/60 opacity-40" />
+                ))
+              })()}
 
-              {/* August Days 1 - 31 */}
-              {Array.from({ length: 31 }, (_, i) => i + 1).map(day => {
-                const dayStr = day < 10 ? `0${day}` : `${day}`
+              {/* Days of the current month */}
+              {Array.from({ length: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate() }, (_, i) => i + 1).map(day => {
+                const now = new Date()
+                const isToday = day === now.getDate()
+                const monthLabel = now.toLocaleDateString('en-US', { month: 'short' })
                 const dayInterviews = combinedScheduleList.filter(s => {
                   if (calendarStateFilter !== 'all' && s.status !== calendarStateFilter) return false
-                  return s.dateTime.includes(`Aug ${dayStr}`) || s.dateTime.includes(`2026-08-${dayStr}`) || (day === 17 && s.dateTime.includes('Today'))
+                  const d = new Date(s.dateTime)
+                  return !Number.isNaN(d.getTime()) && d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === day
                 })
 
                 return (
                   <div
-                    key={`aug-${day}`}
+                    key={`day-${day}`}
                     className={`min-h-28 p-2.5 rounded-2xl border transition-all flex flex-col justify-between ${
-                      day === 17
+                      isToday
                         ? 'bg-purple-50/40 border-purple-300 ring-2 ring-[#6B3BF6]/20'
                         : 'bg-white border-slate-200/80 hover:border-purple-200'
                     }`}
                   >
                     <div className="flex items-center justify-between mb-1">
-                      <span className={`text-xs font-extrabold ${day === 17 ? 'text-[#6B3BF6] bg-purple-100 px-2 py-0.5 rounded-full' : 'text-slate-700'}`}>
-                        Aug {day}
+                      <span className={`text-xs font-extrabold ${isToday ? 'text-[#6B3BF6] bg-purple-100 px-2 py-0.5 rounded-full' : 'text-slate-700'}`}>
+                        {monthLabel} {day}
                       </span>
                       {dayInterviews.length > 0 && (
                         <span className="w-2 h-2 rounded-full bg-[#6B3BF6] animate-pulse" />
@@ -3055,7 +2680,7 @@ export function InterviewTrackingPage({
                   </div>
                   <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
                     <span className="text-slate-400 font-bold block">Team Lead</span>
-                    <span className="font-bold text-slate-800">{selectedRejectedCandidateModal.teamLead || 'Harish Gadipally'}</span>
+                    <span className="font-bold text-slate-800">{selectedRejectedCandidateModal.teamLead || '—'}</span>
                   </div>
                 </div>
               </div>
@@ -3215,7 +2840,7 @@ export function InterviewTrackingPage({
               <div className="bg-purple-50/70 p-3.5 rounded-2xl border border-purple-200 space-y-1">
                 <div className="font-extrabold text-slate-900 text-sm flex items-center justify-between">
                   <span>{viewNotJoinedDetailModal.candidateName}</span>
-                  <span className="text-[10px] text-slate-500 font-normal">Recruiter: {viewNotJoinedDetailModal.submittedBy || 'Marcus Chen'}</span>
+                  <span className="text-[10px] text-slate-500 font-normal">Recruiter: {viewNotJoinedDetailModal.submittedBy || '—'}</span>
                 </div>
                 <div className="text-slate-600 font-medium text-xs">Role: {viewNotJoinedDetailModal.position} ({viewNotJoinedDetailModal.requirementId})</div>
                 <div className="text-[#6B3BF6] font-bold text-xs">Client: {viewNotJoinedDetailModal.client}</div>
@@ -3363,7 +2988,7 @@ export function InterviewTrackingPage({
                   <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Phone Number</span>
                   <div className="font-bold text-slate-800 flex items-center gap-1.5">
                     <Phone className="w-3.5 h-3.5 text-[#6B3BF6] shrink-0" />
-                    <span>{selectedCandidateDetailModal.candidatePhone || '+91 98765 43210'}</span>
+                    <span>{selectedCandidateDetailModal.candidatePhone || '—'}</span>
                   </div>
                 </div>
 
@@ -3389,7 +3014,7 @@ export function InterviewTrackingPage({
                 <div>
                   <span className="text-[10px] text-purple-600 font-bold uppercase tracking-wider block">Requirement & Position</span>
                   <span className="font-extrabold text-slate-900 text-xs">
-                    {selectedCandidateDetailModal.position} ({selectedCandidateDetailModal.requirementId || 'REQ-2026-08-12-001'})
+                    {selectedCandidateDetailModal.position} ({selectedCandidateDetailModal.requirementId || '—'})
                   </span>
                 </div>
                 <div className="text-right">

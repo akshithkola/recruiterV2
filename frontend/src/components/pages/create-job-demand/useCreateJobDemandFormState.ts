@@ -24,10 +24,10 @@ export function useCreateJobDemandFormState(props: CreateJobDemandFormProps) {
     initialData?.assignedLead || 'offshore demands'
   )
   const [requirementFrom, setRequirementFrom] = useState(
-    initialData?.client || 'Other company / source...'
+    initialData?.client || 'Other'
   )
   const [customCompany, setCustomCompany] = useState(
-    initialData?.client || 'LTTS'
+    initialData?.client || ''
   )
   
   const [toEmails, setToEmails] = useState<string[]>(initialData?.toEmails || [])
@@ -35,9 +35,9 @@ export function useCreateJobDemandFormState(props: CreateJobDemandFormProps) {
   const [toEmailInput, setToEmailInput] = useState('')
   const [ccEmailInput, setCcEmailInput] = useState('')
   const [clientLeadPoc, setClientLeadPoc] = useState(
-    initialData?.clientEmail || 'Kallol.Chakraborty@Ltts.com'
+    initialData?.clientEmail || ''
   )
-  const [clientPoc, setClientPoc] = useState(initialData?.clientEmail || 'Kallol.Chakraborty@Ltts.com')
+  const [clientPoc, setClientPoc] = useState(initialData?.clientEmail || '')
   useEffect(() => {
     const finalClient = requirementFrom === 'Other' ? customCompany : requirementFrom
     const defaults = getClientEmailDefaults(finalClient)
@@ -77,7 +77,7 @@ export function useCreateJobDemandFormState(props: CreateJobDemandFormProps) {
 
 
   const [jobTitle, setJobTitle] = useState(
-    initialData?.title || 'Senior Engineer (Catia V6) for'
+    initialData?.title || ''
   )
   const [jobStatus, setJobStatus] = useState(
     initialData?.status === 'Closed' ? 'Closed' : 'Open'

@@ -28,10 +28,9 @@ export function RecruiterDetailChartsB({ vm }: { vm: RecruiterDetailVm }) {
                 <BarChart
                   layout="vertical"
                   data={[
-                    { stage: 'Sourced', count: recruiter.submissionsCount + 28, color: '#3B82F6' },
                     { stage: 'Submitted to Lead', count: recruiter.submissionsCount, color: '#6B3BF6' },
                     { stage: 'Client Shortlisted', count: recruiter.shortlistedCount, color: '#8B5CF6' },
-                    { stage: 'Interviewing', count: recruiter.interviewsCount || 10, color: '#EC4899' },
+                    { stage: 'Interviewing', count: recruiter.interviewsCount || 0, color: '#EC4899' },
                     { stage: 'Placed & Hired', count: recruiter.hiresCount, color: '#10B981' },
                   ]}
                   margin={{ top: 5, right: 30, left: 45, bottom: 5 }}
@@ -55,10 +54,9 @@ export function RecruiterDetailChartsB({ vm }: { vm: RecruiterDetailVm }) {
                   />
                   <Bar dataKey="count" radius={[0, 8, 8, 0]}>
                     {[
-                      { stage: 'Sourced', count: recruiter.submissionsCount + 28, color: '#3B82F6' },
-                      { stage: 'Submitted to Lead', count: recruiter.submissionsCount, color: '#6B3BF6' },
+                        { stage: 'Submitted to Lead', count: recruiter.submissionsCount, color: '#6B3BF6' },
                       { stage: 'Client Shortlisted', count: recruiter.shortlistedCount, color: '#8B5CF6' },
-                      { stage: 'Interviewing', count: recruiter.interviewsCount || 10, color: '#EC4899' },
+                      { stage: 'Interviewing', count: recruiter.interviewsCount || 0, color: '#EC4899' },
                       { stage: 'Placed & Hired', count: recruiter.hiresCount, color: '#10B981' },
                     ].map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />

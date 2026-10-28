@@ -31,6 +31,7 @@ from outlook_graph import acquire_token_from_env, iter_inbox_messages, GRAPH, _e
 from metaforge_api import IdAllocator
 from main import process_single_message, _parse_to_utc_dt, get_effective_cutoff_iso
 from reconciler import reconcile
+from llm_health import LLMUnavailable
 from utils import setup_logging
 
 _LOG = logging.getLogger("sync_to_backend")
@@ -111,6 +112,7 @@ def main() -> int:
     total_fetched = 0
     total_synced = 0
     total_quarantined = 0
+    ai_unavailable = None
     start_iso = ""
     end_iso = ""
 
@@ -184,6 +186,13 @@ def main() -> int:
                     skip_classifier=False,
                 )
                 total_synced += synced
+            except LLMUnavailable as e:
+                # The AI model is unreachable (e.g. daily quota used up). Nothing is saved, no attempt is
+                # counted and the watermark stays here, so this and later mail is processed normally on a
+                # later run once the model is back.
+                ai_unavailable = str(e)[:300]
+                _LOG.error("AI extraction unavailable, holding mail from %s until it recovers: %s", recv, ai_unavailable)
+                break
             except Exception as e:
                 _LOG.warning("Failed processing email %s: %s", gid[:16], e)
 
@@ -212,7 +221,9 @@ def main() -> int:
 
         # Every run: make sure every requirement clients listed recently exists in the application.
         reconcile_result = None
-        if settings.metaforge_mode == "api" and os.environ.get("MAIL_RECONCILE_ENABLED", "true").lower() != "false":
+        if ai_unavailable:
+            reconcile_result = {"skipped": "ai_unavailable"}
+        elif settings.metaforge_mode == "api" and os.environ.get("MAIL_RECONCILE_ENABLED", "true").lower() != "false":
             try:
                 days = max(1, int(os.environ.get("MAIL_RECONCILE_DAYS", "2") or 2))
                 rec_start = datetime.now(timezone.utc) - timedelta(days=days)
@@ -250,6 +261,7 @@ def main() -> int:
         "totalSynced": total_synced,
         "totalQuarantined": total_quarantined,
         "reconcile": reconcile_result,
+        "aiUnavailable": ai_unavailable,
     }
     result["startIso"] = start_iso
     if args.mode == "historical":

@@ -6,6 +6,7 @@ import type { AddCandidateVmState } from './useAddCandidatePageState'
 export function useAddCandidatePageHandlers2(s: AddCandidateVmState) {
   const {
     onAddCandidate, setImportMode, parsedFileName, setParsedFileName,
+    resumeFileId, setResumeFileId,
     setShowSuccessToast, setToastMsg, setDraftsList, isSaving, setIsSaving, candidateId,
     setCandidateId, submissionDate, candidateName, setCandidateName,
     currentCompany, setCurrentCompany, contactNumber, setContactNumber,
@@ -43,6 +44,7 @@ export function useAddCandidatePageHandlers2(s: AddCandidateVmState) {
       if (d.reasonForChange) setReasonForChange(d.reasonForChange)
       if (d.notes) setNotes(d.notes)
       if (d.parsedFileName) setParsedFileName(d.parsedFileName)
+      setResumeFileId(d.resumeFileId || null)
 
       setImportMode('single')
       setToastMsg(`Restored saved draft "${draft.title}". You can now complete and submit it!`)
@@ -86,13 +88,15 @@ export function useAddCandidatePageHandlers2(s: AddCandidateVmState) {
         reasonForChange: d.reasonForChange || '',
         notes: d.notes || '',
         status: 'Parsed',
+        resumeFileId: d.resumeFileId || resumeFileId || undefined,
       })
       onAddCandidate?.({
         ...saved,
         interviewAvailability: d.interviewAvailability || '',
         reasonForChange: d.reasonForChange || '',
         notes: d.notes || '',
-        resumeName: d.parsedFileName,
+        resumeName: saved.resumeName || d.parsedFileName,
+        resumeFileId: saved.resumeFileId || d.resumeFileId || resumeFileId || undefined,
         submissionDate: saved.submissionDate || d.submissionDate,
       })
       setDraftsList(removeSavedDraft(draft.id))

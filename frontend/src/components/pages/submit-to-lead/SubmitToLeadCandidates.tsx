@@ -19,7 +19,9 @@ export function SubmitToLeadCandidates({ vm }: { vm: SubmitToLeadVm }) {
   const skillsList = Array.isArray(requirement?.skills) ? requirement.skills : []
   const experienceLabel = (requirement as any)?.experience
     || ((requirement as any)?.experienceRange
-      ? `${(requirement as any).experienceRange.min} - ${(requirement as any).experienceRange.max} Years`
+      ? ((requirement as any).experienceRange.max == null
+          ? `${(requirement as any).experienceRange.min}+ Years`
+          : `${(requirement as any).experienceRange.min} - ${(requirement as any).experienceRange.max} Years`)
       : '')
 
   return (

@@ -1,12 +1,14 @@
+import { getSessionUser } from '../../../store/session'
 import React from 'react'
 import { getSavedDrafts, saveDraftItem } from '../../../data/savedDraftsStore'
 import { apiErrorMessage, createCandidateFromForm } from '../../../services/candidatePayload'
-import { filesService, resumeParserService, type ParsedResume } from '../../../services/workspace.service'
+import { filesService, resumeParserService, uploadedFileId, type ParsedResume } from '../../../services/workspace.service'
 import type { AddCandidateVmState } from './useAddCandidatePageState'
 
 export function useAddCandidatePageHandlers1(s: AddCandidateVmState) {
   const {
     onAddCandidate, setIsParsing, parsedFileName, setParsedFileName,
+    resumeFileId, setResumeFileId,
     setShowSuccessToast, setShowSaveDraftToast, setToastMsg, setDraftsList,
     isSaving, setIsSaving, selectedFile, setSelectedFile,
     candidateId, setCandidateId, submissionDate, candidateName,
@@ -50,7 +52,13 @@ export function useAddCandidatePageHandlers1(s: AddCandidateVmState) {
   const handleSelectResumeFile = (file: File) => {
     setSelectedFile(file)
     setParsedFileName(null)
+    setResumeFileId(null)
     resetCandidateFields()
+  }
+
+  const storeResumeFile = async (file: File): Promise<string> => {
+    const uploaded = await filesService.upload(file)
+    return uploadedFileId(uploaded)
   }
 
   // Fill the form from a parsed resume (fields the resume does not state stay empty for the recruiter).
@@ -84,13 +92,18 @@ export function useAddCandidatePageHandlers1(s: AddCandidateVmState) {
     }
 
     setIsParsing(true)
+    setResumeFileId(null)
     resetCandidateFields()
 
     try {
       const res = await resumeParserService.parse(fileToParse)
       applyParsedToForm(res.data)
-      // Keep a copy of the resume in file storage (best effort; parsing does not depend on it).
-      filesService.upload(fileToParse).catch(() => undefined)
+      try {
+        setResumeFileId(await storeResumeFile(fileToParse))
+      } catch (uploadErr) {
+        setResumeFileId(null)
+        showError(`Parsed the resume, but storing the file failed. Submit will try again. ${apiErrorMessage(uploadErr)}`)
+      }
     } catch (err: any) {
       setParsedFileName(null)
       showError(apiErrorMessage(err))
@@ -110,12 +123,29 @@ export function useAddCandidatePageHandlers1(s: AddCandidateVmState) {
     e.preventDefault()
     if (isSaving) return
     if (dupCheckResult.isDuplicate) {
-      showError(`Duplicate submission: ${candidateName || 'this candidate'} has already been submitted for this requirement.`)
+      if ((dupCheckResult as any).type === 'repository' || (dupCheckResult as any).existingCandidate) {
+        showError(`Candidate with this ${(dupCheckResult as any).duplicateField || 'email or phone'} already exists in the Candidate Repository.`)
+      } else {
+        showError(`Duplicate submission: ${candidateName || 'this candidate'} has already been submitted for this requirement.`)
+      }
       return
     }
 
     setIsSaving(true)
     try {
+      const queueItem = importMode === 'bulk' && activeQueueId
+        ? bulkQueue.find((q) => q.id === activeQueueId)
+        : undefined
+      let fileId = queueItem?.resumeFileId || resumeFileId || null
+      const fileToStore = queueItem?.file || selectedFile
+      if (!fileId && fileToStore) {
+        fileId = await storeResumeFile(fileToStore)
+        setResumeFileId(fileId)
+      }
+      if (fileToStore && !fileId) {
+        throw new Error('The resume file could not be stored. Please try submitting again.')
+      }
+
       const saved = await createCandidateFromForm({
         name: candidateName,
         email,
@@ -137,13 +167,15 @@ export function useAddCandidatePageHandlers1(s: AddCandidateVmState) {
         reasonForChange,
         notes,
         status: 'Parsed',
+        resumeFileId: fileId || undefined,
       })
       onAddCandidate?.({
         ...saved,
         interviewAvailability,
         reasonForChange,
         notes,
-        resumeName: parsedFileName || undefined,
+        resumeName: saved.resumeName || parsedFileName || undefined,
+        resumeFileId: saved.resumeFileId || fileId || undefined,
         submissionDate: saved.submissionDate || submissionDate,
       })
       setShowSuccessToast(true)
@@ -152,7 +184,7 @@ export function useAddCandidatePageHandlers1(s: AddCandidateVmState) {
       const match = candidateId.match(/(\d+)$/)
       if (match) {
         const nextNum = (parseInt(match[1], 10) + 1).toString().padStart(3, '0')
-        setCandidateId(`CAND-2026-08-07-${nextNum}`)
+        setCandidateId(`CAND-${new Date().toISOString().slice(0, 10)}-${nextNum}`)
       }
 
       setCandidateName('')
@@ -175,6 +207,8 @@ export function useAddCandidatePageHandlers1(s: AddCandidateVmState) {
       setReasonForChange('')
       setNotes('')
       setParsedFileName(null)
+      setResumeFileId(null)
+      setSelectedFile(null)
 
       // Bulk import: mark this resume submitted and open the next parsed one for review.
       if (importMode === 'bulk' && activeQueueId) {
@@ -182,7 +216,11 @@ export function useAddCandidatePageHandlers1(s: AddCandidateVmState) {
         setBulkQueue(remaining)
         const next = remaining.find((q) => q.status === 'parsed')
         setActiveQueueId(next ? next.id : null)
-        if (next?.data) applyParsedToForm(next.data)
+        if (next?.data) {
+          applyParsedToForm(next.data)
+          setSelectedFile(next.file)
+          setResumeFileId(next.resumeFileId || null)
+        }
       }
     } catch (err) {
       showError(apiErrorMessage(err))
@@ -197,7 +235,7 @@ export function useAddCandidatePageHandlers1(s: AddCandidateVmState) {
       type: 'candidate',
       title: draftTitle,
       subtitle: `${technologies || 'Technology'} • ${totalExperience || 'Exp'} • Current: ${currentCompany || 'Not specified'} (${currentCtc || 'CTC'})`,
-      createdBy: 'Harish Gadipally',
+      createdBy: getSessionUser()?.name || '',
       status: 'Saved for Later',
       data: {
         candidateId,
@@ -222,6 +260,7 @@ export function useAddCandidatePageHandlers1(s: AddCandidateVmState) {
         reasonForChange,
         notes,
         parsedFileName,
+        resumeFileId,
       },
     })
 

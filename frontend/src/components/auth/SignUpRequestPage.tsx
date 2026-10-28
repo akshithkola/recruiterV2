@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { Role } from '../../types'
-import { findAccountByEmail, isStrongPassword, isValidEmail, requestAccess } from '../../data/authService'
+import { isStrongPassword, isValidEmail, requestAccess } from '../../data/authService'
 import { AuthCard, AuthShell } from './AuthShell'
 import { SignUpRequestStep1 } from './SignUpRequestPage.step1'
 import { SignUpRequestStep2, SignUpRequestSubmitted } from './SignUpRequestPage.step2'
@@ -8,13 +8,14 @@ import { SignUpRequestStep2, SignUpRequestSubmitted } from './SignUpRequestPage.
 interface SignUpPageProps {
   onBack: () => void
   onSubmitted: () => void
+  onLogin?: (role: Role) => void
 }
 
 const REQUESTABLE_ROLES: Role[] = ['recruiter', 'lead', 'admin']
 
 type Step = 1 | 2
 
-export function SignUpPage({ onBack, onSubmitted }: SignUpPageProps) {
+export function SignUpPage({ onBack, onSubmitted, onLogin }: SignUpPageProps) {
   const [step, setStep] = useState<Step>(1)
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
@@ -43,7 +44,6 @@ export function SignUpPage({ onBack, onSubmitted }: SignUpPageProps) {
     if (!form.lastName.trim()) next.lastName = 'Last name is required'
     if (!form.email.trim()) next.email = 'Work email is required'
     else if (!isValidEmail(form.email)) next.email = 'Enter a valid work email address'
-    else if (findAccountByEmail(form.email)) next.email = 'An account already exists for this email'
     if (!form.organization.trim()) next.organization = 'Organization is required'
     setErrors(next)
     return Object.keys(next).length === 0
@@ -165,6 +165,7 @@ export function SignUpPage({ onBack, onSubmitted }: SignUpPageProps) {
           requestableRoles={REQUESTABLE_ROLES}
           onBack={onBack}
           onNext={handleNext}
+          onQuickLogin={onLogin}
         />
       )}
 

@@ -344,7 +344,8 @@ export function useRequirementsPageHandlers1(s: RequirementsVmState) {
       setSelectedReqIds(new Set())
       setIsAssignModalOpen(false)
       setSelectedRecruiterNames(new Set())
-      setIsAssignMyselfChecked(true)
+      const isLeadOrAdmin = ['lead', 'admin', 'superadmin', 'devteam'].includes(String(role || '').toLowerCase())
+      setIsAssignMyselfChecked(!isLeadOrAdmin)
       setRecruiterSearchQuery('')
 
       showToast('Requirement(s) assigned successfully.')

@@ -17,6 +17,29 @@ export type CapabilityKey =
   | 'reassignRequirements'
   | 'deleteRecords'
 
+/** Legacy keys — cleared on boot so XSS cannot recover old JWTs from localStorage. */
+const LEGACY_TOKEN_KEY = 'metaforge_access_token'
+const LEGACY_USER_KEY = 'metaforge_session_user'
+
+/** In-memory only. Auth proof lives in HttpOnly cookies set by the API. */
+let sessionUser: SessionUser | null = null
+
+function purgeLegacyTokenStorage(): void {
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.removeItem(LEGACY_TOKEN_KEY)
+    localStorage.removeItem(LEGACY_USER_KEY)
+    sessionStorage.removeItem(LEGACY_TOKEN_KEY)
+    sessionStorage.removeItem(LEGACY_USER_KEY)
+  } catch {
+    // ignore quota / private-mode errors
+  }
+}
+
+if (typeof window !== 'undefined') {
+  purgeLegacyTokenStorage()
+}
+
 export function hasCapability(key: CapabilityKey, user?: SessionUser | null): boolean {
   const current = user !== undefined ? user : getSessionUser()
   if (!current) return false
@@ -52,65 +75,32 @@ export function hasCapability(key: CapabilityKey, user?: SessionUser | null): bo
   }
 }
 
-const TOKEN_KEY = 'metaforge_access_token'
-const USER_KEY = 'metaforge_session_user'
-
-let accessToken: string | null = typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null
-let sessionUser: SessionUser | null = typeof window !== 'undefined' ? (() => {
-  try {
-    const raw = localStorage.getItem(USER_KEY)
-    return raw ? JSON.parse(raw) : null
-  } catch {
-    return null
-  }
-})() : null
-
+/**
+ * @deprecated Access tokens are HttpOnly cookies only — JS must not read them.
+ * Kept as a no-op null getter so any leftover callers do not break.
+ */
 export function getAccessToken(): string | null {
-  if (!accessToken && typeof window !== 'undefined') {
-    accessToken = localStorage.getItem(TOKEN_KEY)
-  }
-  return accessToken
+  return null
 }
 
-export function setAccessToken(token: string | null): void {
-  accessToken = token
-  if (typeof window !== 'undefined') {
-    if (token) {
-      localStorage.setItem(TOKEN_KEY, token)
-    } else {
-      localStorage.removeItem(TOKEN_KEY)
-    }
-  }
+/**
+ * @deprecated No-op. Tokens are set via Set-Cookie from the API, not from JS.
+ */
+export function setAccessToken(_token: string | null): void {
+  purgeLegacyTokenStorage()
 }
 
 export function getSessionUser(): SessionUser | null {
-  if (!sessionUser && typeof window !== 'undefined') {
-    try {
-      const raw = localStorage.getItem(USER_KEY)
-      sessionUser = raw ? JSON.parse(raw) : null
-    } catch {
-      sessionUser = null
-    }
-  }
   return sessionUser
 }
 
 export function setSessionUser(user: SessionUser | null): void {
   sessionUser = user
-  if (typeof window !== 'undefined') {
-    if (user) {
-      localStorage.setItem(USER_KEY, JSON.stringify(user))
-    } else {
-      localStorage.removeItem(USER_KEY)
-    }
-  }
+  // Never persist auth identity next to a JWT in localStorage.
+  purgeLegacyTokenStorage()
 }
 
 export function clearSession(): void {
-  accessToken = null
   sessionUser = null
-  if (typeof window !== 'undefined') {
-    localStorage.removeItem(TOKEN_KEY)
-    localStorage.removeItem(USER_KEY)
-  }
+  purgeLegacyTokenStorage()
 }

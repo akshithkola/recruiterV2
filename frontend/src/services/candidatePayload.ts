@@ -27,6 +27,7 @@ export interface CandidateFormFields {
   reasonForChange?: string
   notes?: string
   status?: string
+  resumeFileId?: string
 }
 
 export interface ApiCandidate {
@@ -53,6 +54,9 @@ export interface ApiCandidate {
   notes?: string | null
   status?: string
   createdAt?: string
+  resumeFileId?: string | null
+  resumeFileName?: string | null
+  resumeUrl?: string | null
 }
 
 export type UiCandidate = Candidate & { _id?: string }
@@ -126,6 +130,7 @@ export function buildCandidateBody(fields: CandidateFormFields, mode: 'create' |
   body.reasonForChange = fields.reasonForChange?.trim() || ''
   body.notes = fields.notes?.trim() || ''
   body.skills = splitSkills(fields.skills, fields.technologies)
+  if (fields.resumeFileId?.trim()) body.resumeFileId = fields.resumeFileId.trim()
   if (mode === 'create') {
     const status = fields.status && CREATE_STATUSES.has(fields.status) ? fields.status : 'Parsed'
     body.status = status
@@ -172,6 +177,8 @@ export function apiCandidateToUi(doc: ApiCandidate): UiCandidate {
     reasonForChange: blankToEmpty(doc.reasonForChange),
     notes: blankToEmpty(doc.notes),
     status: status as Candidate['status'],
+    resumeName: blankToEmpty(doc.resumeFileName) || undefined,
+    resumeFileId: doc.resumeFileId ? String(doc.resumeFileId) : undefined,
   }
 }
 
@@ -201,6 +208,7 @@ export function uiCandidateToRepo(candidate: UiCandidate): CandidateRepoItem {
     reasonForChange: candidate.reasonForChange,
     offerInHand: candidate.offerInHand,
     resumeReference: candidate.resumeName,
+    resumeFileId: candidate.resumeFileId,
     notes: candidate.notes,
   }
 }

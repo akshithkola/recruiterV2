@@ -199,9 +199,12 @@ def classify_email(
     max_attempts = 3
     backoff_delays = [2.0, 5.0]
 
+    from llm_health import LLMUnavailable, is_quota_exhausted, is_unavailable_error
+
     label: Literal["REQUIREMENT", "NOT_A_REQUIREMENT"] = "REQUIREMENT"
     confidence = 0.0
     call_succeeded = False
+    last_exc: Exception | None = None
 
     for attempt in range(1, max_attempts + 1):
         try:
@@ -233,15 +236,22 @@ def classify_email(
             call_succeeded = True
             break
         except Exception as exc:
+            last_exc = exc
             _LOG.warning(
                 "LLM classifier attempt %d/%d failed with %s: %s",
                 attempt,
                 max_attempts,
                 type(exc).__name__,
-                exc,
+                str(exc)[:200],
             )
+            if is_quota_exhausted(exc):
+                break
             if attempt < max_attempts:
                 time.sleep(backoff_delays[attempt - 1])
+
+    if not call_succeeded and is_unavailable_error(last_exc):
+        # Unreachable model: the email waits for the next run rather than being guessed.
+        raise LLMUnavailable(str(last_exc)[:300])
 
     if not call_succeeded:
         _LOG.error(

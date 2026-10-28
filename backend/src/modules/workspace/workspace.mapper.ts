@@ -100,8 +100,9 @@ function formatBudgetDisplay(budgetRange?: { min?: number; max?: number; currenc
 
 export function mapRequirement(r: any) {
   const recruiterNames = r.assignedRecruiterNames || '';
-  const owner = recruiterNames || r.assignedLeadName || 'Unassigned';
-  const assignmentStatus = r.assignmentStatus || (owner !== 'Unassigned' ? 'Assigned' : 'Unassigned');
+  const fallbackOwner = recruiterNames || r.assignedLeadName || 'Unassigned';
+  const assignmentStatus = r.assignmentStatus || (fallbackOwner !== 'Unassigned' ? 'Assigned' : 'Unassigned');
+  const owner = assignmentStatus === 'Unassigned' ? 'Unassigned' : fallbackOwner;
   const status = r.status === 'In Progress' ? 'Active' : (r.status || (assignmentStatus === 'Assigned' ? 'Assigned' : 'Open'));
   // reqCode is the stored application ID; id/displayId add the client's reference in brackets.
   const code = r.reqCode || idOf(r);
@@ -145,9 +146,11 @@ export function mapRequirement(r: any) {
     experienceLevel: r.experienceLevel || '',
     experienceRange: r.experienceRange || { min: 0, max: 0 },
     experience: r.experienceRange
-      ? (r.experienceRange.min === r.experienceRange.max
-          ? (r.experienceRange.min ? `${r.experienceRange.min} yrs` : '')
-          : `${r.experienceRange.min}-${r.experienceRange.max} yrs`)
+      ? (r.experienceRange.max == null
+          ? (r.experienceRange.min ? `${r.experienceRange.min}+ yrs` : '')
+          : r.experienceRange.min === r.experienceRange.max
+            ? (r.experienceRange.min ? `${r.experienceRange.min} yrs` : '')
+            : `${r.experienceRange.min}-${r.experienceRange.max} yrs`)
       : '',
     mandatorySkills: r.mandatorySkills || [],
     conversationId: r.conversationId || undefined,
@@ -217,8 +220,9 @@ export function mapActivityLog(log: any) {
       ? details.message || details.summary || JSON.stringify(details)
       : undefined;
   return {
-    id: log.targetId || idOf(log),
+    id: idOf(log),
     timestamp: relativeTime(log.createdAt),
+    createdAt: log.createdAt ? new Date(log.createdAt).toISOString() : undefined,
     userName: log.userName,
     userEmail: log.userEmail,
     userRole: log.userRole,
@@ -228,7 +232,7 @@ export function mapActivityLog(log: any) {
     targetEntity: log.targetEntity,
     targetId: log.targetId,
     clientName: log.clientName,
-    ipAddress: log.ipAddress || '127.0.0.1',
+    ipAddress: log.ipAddress || '—',
     status: log.status || 'Success',
     details: detailsText,
   };

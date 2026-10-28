@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Schema as MongooseSchema } from 'mongoose';
+import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import { DataScopePlugin } from '../../../database/plugins/data-scope.plugin';
 
 export type CandidateDocument = Candidate & Document;
@@ -7,7 +7,7 @@ export type CandidateDocument = Candidate & Document;
 @Schema({ timestamps: true, collection: 'candidates' })
 export class Candidate {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Organization', required: true, index: true })
-  orgId: MongooseSchema.Types.ObjectId;
+  orgId: Types.ObjectId;
 
   @Prop({ required: true, trim: true })
   candidateId: string;
@@ -67,10 +67,14 @@ export class Candidate {
   skills: string[];
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'FileMetadata', default: null })
-  resumeFileId: MongooseSchema.Types.ObjectId;
+  resumeFileId: Types.ObjectId;
+
+  /** Original filename of the attached resume, copied from file metadata at link time. */
+  @Prop({ default: null })
+  resumeFileName: string;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true })
-  sourcedByRecruiterId: MongooseSchema.Types.ObjectId;
+  sourcedByRecruiterId: Types.ObjectId;
 
   @Prop({ default: 'New', enum: ['New', 'Parsed', 'Submitted', 'Interviewing', 'Offered', 'Placed'] })
   status: string;

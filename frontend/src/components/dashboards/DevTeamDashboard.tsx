@@ -6,7 +6,6 @@ import { RequirementsPage } from '../pages/RequirementsPage'
 import { AddCandidatePage } from '../pages/AddCandidatePage'
 import { CandidateRepositoryPage } from '../pages/CandidateRepositoryPage'
 import { SubmissionsPage } from '../pages/SubmissionsPage'
-import { INITIAL_CANDIDATES } from '../../data/mockData'
 import { DevTeamDashboardOverview } from './DevTeamDashboard.overview'
 import { DevTeamDashboardAdminPanel } from './DevTeamDashboard.admin'
 
@@ -30,7 +29,7 @@ export function DevTeamDashboard({
   onOpenSubmit,
 }: Props) {
   const openPositions = requirements.reduce((a, r) => a + r.openings, 0)
-  const [candidatesList, setCandidatesList] = useState<Candidate[]>(INITIAL_CANDIDATES)
+  const [candidatesList, setCandidatesList] = useState<Candidate[]>([])
   const [candViewMode, setCandViewMode] = useState<'add' | 'repository'>('add')
   const [activeTab, setActiveTab] = useState<'overview' | 'requirements' | 'candidates' | 'submissions'>('overview')
 
@@ -113,7 +112,7 @@ export function DevTeamDashboard({
             leads={leads}
             interviews={interviews}
           />
-          <DevTeamDashboardAdminPanel />
+          <DevTeamDashboardAdminPanel admins={admins} leads={leads} recruiters={recruiters} />
         </>
       )}
 

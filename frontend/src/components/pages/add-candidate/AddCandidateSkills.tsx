@@ -49,12 +49,12 @@ export function AddCandidateSkills({ vm }: { vm: AddCandidateVm }) {
                   Technologies
                 </label>
                 <span className="text-[10px] text-slate-400">
-                  e.g. React, TypeScript, Node.js, SQL — use commas between items
+                  Designation / job title only — e.g. SAP Basis Consultant
                 </span>
               </div>
               <input
                 type="text"
-                placeholder="e.g. React, TypeScript, SQL, problem solving"
+                placeholder="e.g. SAP Basis Consultant, Java Developer"
                 value={technologies}
                 onChange={e => setTechnologies(e.target.value)}
                 className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6B3BF6]/20 focus:border-[#6B3BF6] text-slate-800 placeholder-slate-300"

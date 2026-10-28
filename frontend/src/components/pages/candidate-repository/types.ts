@@ -25,6 +25,7 @@ export interface CandidateRepoItem {
   reasonForChange?: string
   offerInHand?: string
   resumeReference?: string
+  resumeFileId?: string
   notes?: string
 }
 

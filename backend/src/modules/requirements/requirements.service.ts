@@ -22,13 +22,15 @@ import { AssignRequirementDto } from './dto/assign-requirement.dto';
 import { RevokeRequirementDto } from './dto/revoke-requirement.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { getClientEmailDefaults, sanitizeEmailList } from '../../common/constants/client-email-defaults';
+import { sanitizeEmailHtml } from '../../common/security/html-sanitize.util';
+import { assertCanAccessRequirement, orgScope, requireOrgId } from '../../common/security/resource-access.util';
 import { displayRequirementId, reqCodeCandidates } from '../../common/requirement-id';
 
 @Injectable()
 export class RequirementsService {
   private readonly logger = new Logger(RequirementsService.name);
   private syncState = {
-    status: 'idle' as 'idle' | 'running' | 'completed' | 'failed',
+    status: 'idle' as 'idle' | 'running' | 'completed' | 'waiting' | 'failed',
     lastSyncedAt: null as Date | null,
     totalProcessed: 0,
     totalSynced: 0,
@@ -217,7 +219,7 @@ export class RequirementsService {
 
   /** GET /api/v1/requirements */
   async findAll(currentUser: any, query?: { status?: string; priority?: string; clientId?: string; search?: string }) {
-    const orgId = currentUser.orgId ? new Types.ObjectId(currentUser.orgId) : new Types.ObjectId('6ab4f38ff2e0e1823c038948');
+    const orgId = requireOrgId(currentUser);
     const role = (currentUser.role || 'recruiter').toLowerCase();
 
     const filter: Record<string, any> = { orgId, deletedAt: null };
@@ -259,26 +261,67 @@ export class RequirementsService {
     return items.map(item => this.sanitizeRequirement(item));
   }
 
-  /** GET /api/v1/requirements/:id */
-  async findById(id: string, currentUser: any) {
+  /** Load requirement by Mongo id or reqCode, scoped to caller org. */
+  private async loadRequirementForUser(
+    id: string,
+    currentUser: any,
+    projection?: string,
+  ): Promise<RequirementDocument> {
+    const scope = orgScope(currentUser);
     let doc: RequirementDocument | null = null;
     if (Types.ObjectId.isValid(id)) {
-      doc = await this.requirementModel.findOne({ _id: id, deletedAt: null }).exec();
+      const byId = this.requirementModel.findOne({ _id: id, ...scope });
+      doc = projection ? await byId.select(projection).exec() : await byId.exec();
     }
     if (!doc) {
-      doc = await this.requirementModel.findOne({ reqCode: { $in: reqCodeCandidates(id) }, deletedAt: null }).exec();
+      const byCode = this.requirementModel.findOne({
+        reqCode: { $in: reqCodeCandidates(id) },
+        ...scope,
+      });
+      doc = projection ? await byCode.select(projection).exec() : await byCode.exec();
     }
-
     if (!doc) {
       throw new NotFoundException(`Requirement '${id}' not found`);
     }
+    assertCanAccessRequirement(doc, currentUser);
+    return doc;
+  }
 
+  /** GET /api/v1/requirements/:id */
+  async findById(id: string, currentUser: any) {
+    const doc = await this.loadRequirementForUser(id, currentUser);
     return this.sanitizeRequirement(doc);
+  }
+
+  /** GET /api/v1/requirements/:id/original-email */
+  async getOriginalEmail(id: string, currentUser: any) {
+    const projection = '+sourceEmailBody +sourceEmailHtml';
+    const doc = await this.loadRequirementForUser(id, currentUser, projection);
+
+    const r: any = doc;
+    const bodyText = r.sourceEmailBody || null;
+    const rawHtml = r.sourceEmailHtml || null;
+    // Sanitize before leaving the API — untrusted client mail HTML.
+    const bodyHtml = rawHtml ? sanitizeEmailHtml(rawHtml) : null;
+    return {
+      requirementId: doc.reqCode || doc._id.toString(),
+      subject: r.sourceSubject || doc.title || null,
+      from: doc.clientEmail || null,
+      fromName: r.sourceFromName || null,
+      to: doc.toEmails || [],
+      cc: doc.ccEmails || [],
+      receivedAt: r.sourceEmailReceivedAt || doc.emailArrivedTime || null,
+      bodyText,
+      bodyHtml,
+      // Records ingested before the original mail was stored only have the extracted job description.
+      hasOriginal: Boolean(bodyText || rawHtml),
+      fallbackDescription: bodyText || rawHtml ? null : r.description || null,
+    };
   }
 
   /** POST /api/v1/requirements */
   async create(dto: CreateRequirementDto, currentUser: any) {
-    const orgId = currentUser.orgId ? new Types.ObjectId(currentUser.orgId) : new Types.ObjectId('6ab4f38ff2e0e1823c038948');
+    const orgId = requireOrgId(currentUser);
     const performedBy = currentUser.id || currentUser.userId ? new Types.ObjectId(currentUser.id || currentUser.userId) : new Types.ObjectId();
 
     const clientJdId = (dto as any).sourceClientJdId || null;
@@ -358,17 +401,7 @@ export class RequirementsService {
 
   /** PUT /api/v1/requirements/:id */
   async update(id: string, dto: UpdateRequirementDto, currentUser: any) {
-    let doc: RequirementDocument | null = null;
-    if (Types.ObjectId.isValid(id)) {
-      doc = await this.requirementModel.findOne({ _id: id, deletedAt: null }).exec();
-    }
-    if (!doc) {
-      doc = await this.requirementModel.findOne({ reqCode: { $in: reqCodeCandidates(id) }, deletedAt: null }).exec();
-    }
-
-    if (!doc) {
-      throw new NotFoundException(`Requirement '${id}' not found`);
-    }
+    const doc = await this.loadRequirementForUser(id, currentUser);
 
     const previousValue = doc.toObject();
     const performedBy = currentUser.id || currentUser.userId ? new Types.ObjectId(currentUser.id || currentUser.userId) : new Types.ObjectId();
@@ -491,17 +524,7 @@ export class RequirementsService {
 
   /** POST /api/v1/requirements/:id/assign */
   async assign(id: string, dto: AssignRequirementDto, currentUser: any) {
-    let doc: RequirementDocument | null = null;
-    if (Types.ObjectId.isValid(id)) {
-      doc = await this.requirementModel.findOne({ _id: id, deletedAt: null }).exec();
-    }
-    if (!doc) {
-      doc = await this.requirementModel.findOne({ reqCode: { $in: reqCodeCandidates(id) }, deletedAt: null }).exec();
-    }
-
-    if (!doc) {
-      throw new NotFoundException(`Requirement '${id}' not found`);
-    }
+    const doc = await this.loadRequirementForUser(id, currentUser);
 
     if (doc.status === 'On Hold' || doc.status === 'Hold') {
       throw new BadRequestException(`Cannot assign recruiters or lead to requirement '${doc.reqCode || id}' while it is On Hold`);
@@ -671,24 +694,26 @@ export class RequirementsService {
 
   /** POST /api/v1/requirements/:id/revoke */
   async revoke(id: string, dto: RevokeRequirementDto, currentUser: any) {
-    let doc: RequirementDocument | null = null;
-    if (Types.ObjectId.isValid(id)) {
-      doc = await this.requirementModel.findOne({ _id: id, deletedAt: null }).exec();
-    }
-    if (!doc) {
-      doc = await this.requirementModel.findOne({ reqCode: { $in: reqCodeCandidates(id) }, deletedAt: null }).exec();
-    }
-
-    if (!doc) {
-      throw new NotFoundException(`Requirement '${id}' not found`);
-    }
+    const doc = await this.loadRequirementForUser(id, currentUser);
 
     const previousValue = doc.toObject();
     const performedBy = currentUser.id || currentUser.userId ? new Types.ObjectId(currentUser.id || currentUser.userId) : new Types.ObjectId();
 
-    doc.revokeRequested = true;
-    doc.revokeReason = dto.reason;
-    doc.status = 'On Hold';
+    const role = String(currentUser.role || '').toLowerCase();
+    const isDirectRevoke = ['superadmin', 'admin', 'devteam', 'lead'].includes(role);
+
+    if (isDirectRevoke) {
+      // Detach recruiters and revert to Unassigned; the lead keeps visibility via assignedLeadId.
+      doc.assignedRecruiterIds = [];
+      doc.assignmentStatus = 'Unassigned';
+      doc.status = 'Open';
+      doc.revokeRequested = false;
+      doc.revokeReason = dto.reason;
+    } else {
+      doc.revokeRequested = true;
+      doc.revokeReason = dto.reason;
+      doc.status = 'On Hold';
+    }
 
     const updated = await doc.save();
 
@@ -699,7 +724,7 @@ export class RequirementsService {
       performedBy,
       previousValue,
       updated.toObject(),
-      `Revoke requested: ${dto.reason}`,
+      isDirectRevoke ? `Requirement revoked and unassigned: ${dto.reason}` : `Revoke requested: ${dto.reason}`,
     );
 
     return this.sanitizeRequirement(updated);
@@ -707,12 +732,8 @@ export class RequirementsService {
 
   /** DELETE /api/v1/requirements/:id */
   async softDelete(id: string, currentUser: any) {
-    let targetId: string = id;
-    if (!Types.ObjectId.isValid(id)) {
-      const doc = await this.requirementModel.findOne({ reqCode: { $in: reqCodeCandidates(id) }, deletedAt: null }).exec();
-      if (!doc) throw new NotFoundException(`Requirement '${id}' not found`);
-      targetId = doc._id.toString();
-    }
+    const doc = await this.loadRequirementForUser(id, currentUser);
+    const targetId = doc._id.toString();
 
     const deleted = await this.requirementRepository.softDelete(targetId, currentUser);
     const performedBy = currentUser.id || currentUser.userId ? new Types.ObjectId(currentUser.id || currentUser.userId) : new Types.ObjectId();
@@ -941,7 +962,13 @@ export class RequirementsService {
         this.syncState.totalSynced = Math.max(this.syncState.totalSynced, parsed?.totalSynced || 0);
         this.syncState.message = onDone(parsed);
         const rec = parsed?.reconcile;
-        if (rec && !rec.error) {
+        if (parsed?.aiUnavailable) {
+          // Mail is held, not lost: the pipeline retries it every run until the AI model is reachable again.
+          this.syncState.status = 'waiting';
+          this.syncState.error = `AI extraction unavailable: ${parsed.aiUnavailable}`;
+          this.syncState.message += ' New requirement mail is on hold until AI extraction is available again (nothing saved from guesses).';
+          this.logger.error(`[${label}] AI extraction unavailable, mail held for retry: ${parsed.aiUnavailable}`);
+        } else if (rec && !rec.skipped && !rec.error) {
           const recovered = (rec.recovered || []).length;
           const still: string[] = rec.stillMissing || [];
           this.syncState.message += ` Reconciled ${rec.checked} listed requirement ID(s)` +
@@ -1247,13 +1274,34 @@ export class RequirementsService {
     const arrived = parseDate(payload.receivedDateTime || payload.demand_received_date || payload.emailArrivedTime) || new Date();
     const pocName = firstText(payload.from_name, payload.client_lead_poc_name, payload.poc_name);
     const sourceSubject = firstText(payload.subject, payload.email_subject) || null;
+    const sourceEmailBody = firstText(payload.bodyText, payload.body_text, payload.body) || null;
+    const sourceEmailHtml = firstText(payload.bodyHtml, payload.body_html) || null;
 
     const client = await this.ensureMailClient(orgId, clientName, clientEmail, pocName);
+    const isLtts =
+      (clientName || '').trim().toLowerCase() === 'ltts' ||
+      (client?.clientName || '').trim().toLowerCase() === 'ltts' ||
+      /l\s*&\s*t\s*technology|ltts/i.test(clientName || '') ||
+      /l\s*&\s*t\s*technology|ltts/i.test(client?.clientName || '');
+
+    let finalSourceClientJdId = sourceClientJdId;
+    if (isLtts && finalSourceClientJdId) {
+      const exists = await this.requirementModel.exists({
+        orgId,
+        clientId: client._id,
+        sourceClientJdId: finalSourceClientJdId,
+        deletedAt: null,
+      });
+      if (exists) {
+        finalSourceClientJdId = `${finalSourceClientJdId}-R${Date.now()}`;
+      }
+    }
+
     const lookAlikes: string[] = [];
-    const existing = await this.findMailRequirement({
+    const existing = isLtts ? null : await this.findMailRequirement({
       orgId,
       clientId: client._id as Types.ObjectId,
-      sourceClientJdId,
+      sourceClientJdId: finalSourceClientJdId,
       sourceMessageId,
       conversationId,
       inReplyTo,
@@ -1269,7 +1317,7 @@ export class RequirementsService {
     }, lookAlikes);
 
     // allow_lookalike: a reviewer confirmed this is a separate requirement (pipeline review queue).
-    if (!existing && !sourceClientJdId && lookAlikes.length > 0 && !payload.allow_lookalike) {
+    if (!isLtts && !existing && !finalSourceClientJdId && lookAlikes.length > 0 && !payload.allow_lookalike) {
       // Identity is ambiguous: neither create a possible duplicate nor merge into a different
       // requirement. The pipeline queues this for human review.
       this.logger.warn(`Ingest of "${title}" (${clientName}) is ambiguous with ${lookAlikes.join(', ')}; needs review`);
@@ -1284,6 +1332,13 @@ export class RequirementsService {
     }
 
     if (existing) {
+      // Keep the first stored mail as the original; only fill it for records that predate this field.
+      if (sourceEmailBody || sourceEmailHtml) {
+        await this.requirementModel.updateOne(
+          { _id: existing._id, sourceEmailBody: null, sourceEmailHtml: null },
+          { $set: { sourceEmailBody, sourceEmailHtml, sourceFromName: pocName || null, sourceSubject: (existing as any).sourceSubject || sourceSubject } },
+        ).exec();
+      }
       return this.applyRequirementDeltaUpdate({
         existing,
         orgId,
@@ -1303,7 +1358,7 @@ export class RequirementsService {
         openings,
         status,
         priority,
-        sourceClientJdId,
+        sourceClientJdId: finalSourceClientJdId,
         sourceMessageId,
         conversationId,
         inReplyTo,
@@ -1346,10 +1401,13 @@ export class RequirementsService {
         lastUpdatedAt: null,
         idempotencyKey,
         sourceMessageId,
-        sourceClientJdId,
+        sourceClientJdId: finalSourceClientJdId,
         conversationId,
         inReplyTo,
         sourceSubject,
+        sourceEmailBody,
+        sourceEmailHtml,
+        sourceFromName: pocName || null,
       });
       // The Requirement ID's day is the requirement's original creation date (the client email).
       const saved = await this.saveNewRequirement(draft, arrived);
@@ -1364,7 +1422,7 @@ export class RequirementsService {
         },
       };
     } catch (err: any) {
-      if (err?.code === 11000) {
+      if (!isLtts && err?.code === 11000) {
         this.logger.warn(`E11000 duplicate key caught during ingestFromEmail. Re-fetching existing record to apply update.`);
         const raceExisting = await this.findMailRequirement({
           orgId,
@@ -1932,11 +1990,16 @@ function parseCount(value: unknown): number | null {
   return Number.isFinite(count) && count > 0 ? count : null;
 }
 
-function parseExperience(value: string): { min: number; max: number } {
+function parseExperience(value: string): { min: number; max: number | null } {
   const text = String(value ?? '').trim();
   const rangeMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:-|to|–|—)\s*(\d+(?:\.\d+)?)/i);
   if (rangeMatch) {
     return { min: Number(rangeMatch[1]), max: Number(rangeMatch[2]) };
+  }
+  // "5+ years" / "minimum 5 years" is a minimum with no upper limit, not exactly 5.
+  const open = text.match(/(\d+(?:\.\d+)?)\s*\+/) || text.match(/\b(?:min(?:imum)?|at\s+least)\s*[:\-]?\s*(\d+(?:\.\d+)?)/i);
+  if (open) {
+    return { min: Number(open[1]), max: null };
   }
   const single = text.match(/(\d+(?:\.\d+)?)/);
   if (!single) return { min: 0, max: 0 };
@@ -2162,8 +2225,8 @@ function isLocationCompatible(loc1?: string | null, loc2?: string | null): boole
 }
 
 function isExperienceCompatible(
-  exp1?: { min: number; max: number } | string | null,
-  exp2?: { min: number; max: number } | string | null,
+  exp1?: { min: number; max: number | null } | string | null,
+  exp2?: { min: number; max: number | null } | string | null,
 ): boolean {
   if (!exp1 || !exp2) return true;
   const p1 = typeof exp1 === 'object' && 'min' in exp1 ? exp1 : parseExperience(String(exp1));
@@ -2172,7 +2235,9 @@ function isExperienceCompatible(
   if (p1.min === 0 && p1.max === 0) return true;
   if (p2.min === 0 && p2.max === 0) return true;
 
-  if (p2.min > p1.max + 1 || p1.min > p2.max + 1) {
+  const max1 = p1.max ?? Number.POSITIVE_INFINITY;
+  const max2 = p2.max ?? Number.POSITIVE_INFINITY;
+  if (p2.min > max1 + 1 || p1.min > max2 + 1) {
     return false;
   }
   return true;

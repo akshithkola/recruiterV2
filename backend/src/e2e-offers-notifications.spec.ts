@@ -80,26 +80,27 @@ async function runE2ETests() {
     const cand = await candidateModel.create({
       orgId: orgId1,
       candidateId: 'CAND-TEST-01',
-      fullName: 'E2E Test Candidate',
+      name: 'E2E Test Candidate',
+      sourcedByRecruiterId: userId1,
       email: 'e2e.candidate@example.com',
       phone: '+1234567890',
       skills: ['TypeScript', 'NestJS'],
-    });
+    } as any);
     const req = await requirementModel.create({
       orgId: orgId1,
       reqCode: 'REQ-TEST-01',
       title: 'E2E Software Engineer',
       clientName: 'Test Client Ltd',
       status: 'Open',
-    });
+    } as any);
     subDoc = await submissionModel.create({
       orgId: orgId1,
       submissionId: 'SUB-TEST-01',
-      candidateId: cand._id,
-      requirementId: req._id,
+      candidateId: cand?._id,
+      requirementId: req?._id,
       recruiterId: userId1,
       stage: 'Interview In Progress',
-    });
+    } as any);
   }
 
   // Test Offer Creation

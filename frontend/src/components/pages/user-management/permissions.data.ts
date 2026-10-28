@@ -64,7 +64,7 @@ export const INITIAL_ROLES: EnterpriseRoleData[] = [
     description: 'Complete unrestricted access across all organizational modules, system settings, billing, and user governance.',
     userCount: 3,
     isSystem: true,
-    lastUpdated: '10 Aug 2026',
+    lastUpdated: '—',
     permissions: {
       req_view_all: true, req_create: true, req_edit: true, req_assign: true, req_delete: true,
       cand_search: true, cand_add: true, cand_export: true, cand_delete: true,
@@ -81,7 +81,7 @@ export const INITIAL_ROLES: EnterpriseRoleData[] = [
     description: 'Full operational control over hiring teams, requirement assignments, candidate flow, and performance reports.',
     userCount: 8,
     isSystem: true,
-    lastUpdated: '08 Aug 2026',
+    lastUpdated: '—',
     permissions: {
       req_view_all: true, req_create: true, req_edit: true, req_assign: true, req_delete: false,
       cand_search: true, cand_add: true, cand_export: true, cand_delete: false,
@@ -98,7 +98,7 @@ export const INITIAL_ROLES: EnterpriseRoleData[] = [
     description: 'Supervises assigned recruiter team, monitors daily submission targets, and manages interview scheduling.',
     userCount: 14,
     isSystem: true,
-    lastUpdated: '05 Aug 2026',
+    lastUpdated: '—',
     permissions: {
       req_view_all: true, req_create: false, req_edit: false, req_assign: true, req_delete: false,
       cand_search: true, cand_add: true, cand_export: true, cand_delete: false,
@@ -115,7 +115,7 @@ export const INITIAL_ROLES: EnterpriseRoleData[] = [
     description: 'Individual recruiter focused on sourcing candidates, submitting to requirements, and tracking scheduled slots.',
     userCount: 48,
     isSystem: true,
-    lastUpdated: '01 Aug 2026',
+    lastUpdated: '—',
     permissions: {
       req_view_all: false, req_create: false, req_edit: false, req_assign: false, req_delete: false,
       cand_search: true, cand_add: true, cand_export: false, cand_delete: false,

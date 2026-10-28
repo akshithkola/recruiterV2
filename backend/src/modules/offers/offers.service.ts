@@ -16,6 +16,10 @@ import { CreateOfferDto } from './dto/create-offer.dto';
 import { UpdateOfferDto } from './dto/update-offer.dto';
 import { UpdateOfferStatusDto } from './dto/update-offer-status.dto';
 import { NotificationsService } from '../notifications/notifications.service';
+import {
+  assertCanAccessSubmission,
+  requireOrgId,
+} from '../../common/security/resource-access.util';
 
 @Injectable()
 export class OffersService {
@@ -104,9 +108,7 @@ export class OffersService {
       search?: string;
     },
   ) {
-    const orgId = currentUser?.orgId
-      ? new Types.ObjectId(currentUser.orgId.toString())
-      : new Types.ObjectId('6ab4f38ff2e0e1823c038948');
+    const orgId = requireOrgId(currentUser);
 
     const filter: Record<string, any> = { orgId, deletedAt: null };
 
@@ -144,9 +146,7 @@ export class OffersService {
 
   /** GET /api/v1/offers/:id */
   async findById(id: string, currentUser: any) {
-    const orgId = currentUser?.orgId
-      ? new Types.ObjectId(currentUser.orgId.toString())
-      : new Types.ObjectId('6ab4f38ff2e0e1823c038948');
+    const orgId = requireOrgId(currentUser);
 
     let doc: OfferDocument | null = null;
 
@@ -177,20 +177,21 @@ export class OffersService {
 
   /** POST /api/v1/offers */
   async create(dto: CreateOfferDto, currentUser: any) {
-    const orgId = currentUser?.orgId
-      ? new Types.ObjectId(currentUser.orgId.toString())
-      : new Types.ObjectId('6ab4f38ff2e0e1823c038948');
+    const orgId = requireOrgId(currentUser);
 
     if (!Types.ObjectId.isValid(dto.submissionId)) {
       throw new BadRequestException('Invalid submissionId ObjectId');
     }
 
     const submissionObjectId = new Types.ObjectId(dto.submissionId);
-    const subDoc = await this.submissionModel.findById(submissionObjectId).exec();
+    const subDoc = await this.submissionModel
+      .findOne({ _id: submissionObjectId, orgId, deletedAt: null })
+      .exec();
 
     if (!subDoc) {
       throw new NotFoundException(`Submission '${dto.submissionId}' not found`);
     }
+    assertCanAccessSubmission(subDoc, currentUser);
 
     // Check duplicate active offer for submission
     const existing = await this.offerModel.findOne({
@@ -260,9 +261,7 @@ export class OffersService {
 
   /** PUT /api/v1/offers/:id */
   async update(id: string, dto: UpdateOfferDto, currentUser: any) {
-    const orgId = currentUser?.orgId
-      ? new Types.ObjectId(currentUser.orgId.toString())
-      : new Types.ObjectId('6ab4f38ff2e0e1823c038948');
+    const orgId = requireOrgId(currentUser);
 
     let doc: OfferDocument | null = null;
     if (Types.ObjectId.isValid(id)) {
@@ -284,7 +283,9 @@ export class OffersService {
     if (dto.status !== undefined) {
       doc.status = dto.status;
       if (dto.status === 'Joined' || dto.status === 'Placed') {
-        const subDoc = await this.submissionModel.findById(doc.submissionId).exec();
+        const subDoc = await this.submissionModel
+          .findOne({ _id: doc.submissionId, orgId, deletedAt: null })
+          .exec();
         if (subDoc) {
           subDoc.stage = 'Placed';
           await subDoc.save();
@@ -300,9 +301,7 @@ export class OffersService {
 
   /** PUT /api/v1/offers/:id/status */
   async updateStatus(id: string, dto: UpdateOfferStatusDto, currentUser: any) {
-    const orgId = currentUser?.orgId
-      ? new Types.ObjectId(currentUser.orgId.toString())
-      : new Types.ObjectId('6ab4f38ff2e0e1823c038948');
+    const orgId = requireOrgId(currentUser);
 
     let doc: OfferDocument | null = null;
     if (Types.ObjectId.isValid(id)) {
@@ -354,12 +353,14 @@ export class OffersService {
 
   /** DELETE /api/v1/offers/:id */
   async softDelete(id: string, currentUser: any) {
-    const orgId = currentUser?.orgId
-      ? new Types.ObjectId(currentUser.orgId.toString())
-      : new Types.ObjectId('6ab4f38ff2e0e1823c038948');
+    const orgId = requireOrgId(currentUser);
 
     let targetId: string = id;
-    if (!Types.ObjectId.isValid(id)) {
+    if (Types.ObjectId.isValid(id)) {
+      const byId = await this.offerModel.findOne({ _id: id, orgId, deletedAt: null }).exec();
+      if (!byId) throw new NotFoundException(`Offer '${id}' not found`);
+      targetId = byId._id.toString();
+    } else {
       const doc = await this.offerModel.findOne({ offerId: id, orgId, deletedAt: null }).exec();
       if (!doc) throw new NotFoundException(`Offer '${id}' not found`);
       targetId = doc._id.toString();

@@ -20,6 +20,7 @@ export {
   isMetaforgeParserAvailable,
   getAiParsingSuspendedReason,
   applyEvidenceLock,
+  clearParseCache,
 } from './metaforgeParser';
 
 // Local Deterministic Parser

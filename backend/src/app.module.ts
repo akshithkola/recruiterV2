@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 
 import { AppController } from './app.controller';
 import { OrganizationModule } from './modules/organizations/organization.module';
@@ -29,6 +30,7 @@ import { RolesGuard } from './common/guards/roles.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
 import { WorkspaceModule } from './modules/workspace/workspace.module';
 import { ResumeParserModule } from './modules/resume-parser/resume-parser.module';
+import { RecruiterAttendanceModule } from './modules/recruiter-attendance/recruiter-attendance.module';
 
 // AI
 import {
@@ -285,10 +287,19 @@ import {
     MailModule,
     WorkspaceModule,
     SeedModule,
+    RecruiterAttendanceModule,
+    ThrottlerModule.forRoot([
+      {
+        name: 'default',
+        ttl: 60000,
+        limit: 100,
+      },
+    ]),
   ],
 
   controllers: [AppController],
   providers: [
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
     { provide: APP_GUARD, useClass: PermissionsGuard },
   ],

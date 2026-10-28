@@ -24,6 +24,9 @@ export function RequirementsSearch({ vm }: { vm: RequirementsVm }) {
     selectedReqIds,
     setSelectedReqIds,
     setIsAssignModalOpen,
+    setIsAssignMyselfChecked,
+    setSelectedRecruiterNames,
+    setRecruiterSearchQuery,
     availableClients,
     currentUserName,
     handleSelfAssign,
@@ -43,7 +46,13 @@ export function RequirementsSearch({ vm }: { vm: RequirementsVm }) {
               type="text"
               placeholder="Search by Requirement ID, Client name, Role, Location, Owner or Recruiter..."
               value={globalSearch}
-              onChange={e => setGlobalSearch(e.target.value)}
+              onChange={e => {
+                const val = e.target.value
+                setGlobalSearch(val)
+                if (val.trim() && statusDropdown === 'Unassigned') {
+                  setStatusDropdown('All')
+                }
+              }}
               className="w-full pl-10 pr-9 py-2.5 text-xs sm:text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-gray-800 placeholder-gray-400 bg-gray-50/50 transition-all"
             />
             {globalSearch && (
@@ -94,7 +103,14 @@ export function RequirementsSearch({ vm }: { vm: RequirementsVm }) {
             <Calendar className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             <select
               value={dateFilter}
-              onChange={e => setDateFilter(e.target.value)}
+              onChange={e => {
+                const val = e.target.value
+                setDateFilter(val)
+                if (val !== 'Custom range') {
+                  setCustomStartDate('')
+                  setCustomEndDate('')
+                }
+              }}
               className="w-full appearance-none pl-9 pr-8 py-2.5 text-xs sm:text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-gray-700 bg-gray-50/50 font-semibold cursor-pointer"
             >
               <option value="All">All Dates</option>
@@ -110,24 +126,33 @@ export function RequirementsSearch({ vm }: { vm: RequirementsVm }) {
 
         {/* Custom Date Range Picker when Custom Range is active */}
         {dateFilter === 'Custom range' && (
-          <div className="flex flex-wrap items-center gap-2.5 pt-2 border-t border-gray-100 animate-in fade-in duration-150">
-            <span className="text-xs font-bold text-gray-500 flex items-center gap-1">
+          <div className="flex flex-wrap items-center gap-3 pt-2.5 border-t border-gray-100 animate-in fade-in duration-150">
+            <span className="text-xs font-bold text-gray-600 flex items-center gap-1.5">
               <Calendar className="w-3.5 h-3.5 text-blue-600" />
               <span>Select Date Range:</span>
             </span>
-            <input
-              type="date"
-              value={customStartDate}
-              onChange={e => setCustomStartDate(e.target.value)}
-              className="px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg text-gray-800 focus:outline-none focus:border-blue-500 bg-gray-50 font-medium"
-            />
-            <span className="text-xs text-gray-400 font-bold">to</span>
-            <input
-              type="date"
-              value={customEndDate}
-              onChange={e => setCustomEndDate(e.target.value)}
-              className="px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg text-gray-800 focus:outline-none focus:border-blue-500 bg-gray-50 font-medium"
-            />
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-gray-500 font-semibold">From:</span>
+              <input
+                type="date"
+                value={customStartDate}
+                onChange={e => setCustomStartDate(e.target.value)}
+                className="px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg text-gray-800 focus:outline-none focus:border-blue-500 bg-gray-50 font-medium cursor-pointer shadow-2xs"
+                title="Start Date"
+                aria-label="Start date"
+              />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-gray-500 font-semibold">To:</span>
+              <input
+                type="date"
+                value={customEndDate}
+                onChange={e => setCustomEndDate(e.target.value)}
+                className="px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg text-gray-800 focus:outline-none focus:border-blue-500 bg-gray-50 font-medium cursor-pointer shadow-2xs"
+                title="End Date"
+                aria-label="End date"
+              />
+            </div>
             <button
               type="button"
               onClick={() => {
@@ -205,7 +230,13 @@ export function RequirementsSearch({ vm }: { vm: RequirementsVm }) {
             {/* Assign to Someone Button — Hidden for recruiters */}
             {role !== 'recruiter' && (
               <button
-                onClick={() => setIsAssignModalOpen(true)}
+                onClick={() => {
+                  const isLeadOrAdmin = ['lead', 'admin', 'superadmin', 'devteam'].includes(String(role || '').toLowerCase())
+                  setIsAssignMyselfChecked(!isLeadOrAdmin)
+                  setSelectedRecruiterNames(new Set())
+                  setRecruiterSearchQuery('')
+                  setIsAssignModalOpen(true)
+                }}
                 className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold shadow-sm transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer"
               >
                 <UserPlus className="w-3.5 h-3.5" />

@@ -7,8 +7,36 @@ import { MetaforgeParsed } from '../types';
 
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 
+const modelCooldowns = new Map<string, number>();
+let preferredWorkingModel: string | null = null;
+
+export function markModelSuccess(model: string) {
+  preferredWorkingModel = model;
+  modelCooldowns.delete(model);
+}
+
+export function markModelFailure(model: string, cooldownMs = 60_000) {
+  modelCooldowns.set(model, Date.now() + cooldownMs);
+}
+
 function getModelsToTry(): string[] {
-  return [config.geminiModel, ...config.geminiFallbackModels.filter((m) => m !== config.geminiModel)];
+  const now = Date.now();
+  const allModels = [config.geminiModel, ...config.geminiFallbackModels.filter((m) => m !== config.geminiModel)];
+
+  for (const [m, expireAt] of modelCooldowns.entries()) {
+    if (now >= expireAt) {
+      modelCooldowns.delete(m);
+    }
+  }
+
+  const available = allModels.filter((m) => !modelCooldowns.has(m));
+  const candidatePool = available.length > 0 ? available : allModels;
+
+  if (preferredWorkingModel && candidatePool.includes(preferredWorkingModel)) {
+    return [preferredWorkingModel, ...candidatePool.filter((m) => m !== preferredWorkingModel)];
+  }
+
+  return candidatePool;
 }
 
 function isRetryableModelError(status: number, msg: string): boolean {
@@ -52,7 +80,7 @@ export async function callGemini(
   parts: any[],
   {
     maxRetries = 2,
-    maxOutputTokens = 4096,
+    maxOutputTokens = 1536,
     systemInstruction,
     useJsonMode = true,
   }: {
@@ -71,6 +99,9 @@ export async function callGemini(
     const generationConfig: Record<string, any> = {
       temperature: 0.1,
       maxOutputTokens,
+      // Gemini 2.5+ uses thinking tokens against maxOutputTokens by default.
+      // That often yields empty/truncated JSON with modest budgets (ERR: No JSON).
+      thinkingConfig: { thinkingBudget: 0 },
     };
     if (useJsonMode) {
       generationConfig.responseMimeType = 'application/json';
@@ -109,22 +140,26 @@ export async function callGemini(
             throw new Error(`Invalid Gemini API key: ${msg}`);
           }
           if (resp.status === 429 || /quota|resource.?exhausted/i.test(msg)) {
+            markModelFailure(model, 180_000); // 3 min cooldown
             throw new Error(`Gemini API quota exceeded: ${msg}`);
           }
-          if (resp.status === 404 || /not found|not supported/i.test(msg)) {
+          if (resp.status === 404 || /not found|not supported|no longer available/i.test(msg)) {
+            markModelFailure(model, 3600_000); // 1 hour cooldown for dead models
             lastError = new Error(msg);
             break;
           }
           if (isRetryableModelError(resp.status, msg) && attempt < maxRetries - 1) {
-            await sleep(/high demand|overloaded/i.test(msg) ? 2000 : 1000);
+            await sleep(/high demand|overloaded/i.test(msg) ? 1000 : 500);
             continue;
           }
           if (/high demand|overloaded/i.test(msg)) {
+            markModelFailure(model, 30_000);
             throw new Error('AI models are busy right now. Please wait a moment and try again.');
           }
           throw new Error(msg);
         }
 
+        markModelSuccess(model);
         return extractGeminiText(data);
       } catch (err: any) {
         lastError = err instanceof Error ? err : new Error(String(err));

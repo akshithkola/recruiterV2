@@ -99,7 +99,7 @@ export function renderModulePage(props: ModulePageRouteProps) {
   }
 
   if (pageKey === 'Clients' || pageKey === 'Client Management') {
-    return <ClientsPage role={role} />
+    return <ClientsPage role={role} requirements={requirements} />
   }
 
   if (pageKey === 'Users' || pageKey === 'User Management') {
@@ -107,26 +107,10 @@ export function renderModulePage(props: ModulePageRouteProps) {
   }
 
   if (pageKey === 'Recruiters' || pageKey === 'Teams' || pageKey === 'Teams & Recruiters') {
-    return <TeamsRecruitersPage role={role} />
+    return <TeamsRecruitersPage role={role} recruiters={recruiters} />
   }
 
   if (pageKey === 'Activity Logs' || pageKey === 'Audit Logs') {
-    if (role !== 'recruiter') {
-      return (
-        <ReportsPage
-          role={role}
-          initialReportsTab="reports"
-          initialMainTab="audit"
-          requirements={requirements}
-          submissions={submissions}
-          interviews={interviews}
-          recruiters={recruiters}
-          onOpenSubmit={onOpenSubmit}
-          onOpenFeedback={onOpenFeedback}
-          onUpdateRequirements={onUpdateRequirements}
-        />
-      )
-    }
     return <ActivityLogsPage role={role} logs={activityLogs} />
   }
 
@@ -147,11 +131,11 @@ export function renderModulePage(props: ModulePageRouteProps) {
         />
       )
     }
-    return <HistoryPage role={role} currentUserName={currentUserName} currentUserEmail={currentUserEmail} />
+    return <HistoryPage role={role} currentUserName={currentUserName} currentUserEmail={currentUserEmail} recruiters={recruiters} requirements={requirements} submissions={submissions} />
   }
 
   if (pageKey === 'My Team') {
-    return <MyTeamPage />
+    return <MyTeamPage requirements={requirements} recruiters={recruiters} />
   }
 
   if (pageKey === 'Requirements') {
@@ -251,11 +235,9 @@ export function renderModulePage(props: ModulePageRouteProps) {
     <div className="space-y-6 w-full pb-12 font-sans">
       <PageHeader title={meta.title} subtitle={meta.description} />
       {meta.actions && <QuickActions actions={meta.actions} />}
-      {meta.columns && meta.sampleRows && (
-        <Panel title={meta.title}>
-          <DataTable columns={meta.columns} rows={meta.sampleRows} />
-        </Panel>
-      )}
+      <Panel title={meta.title}>
+        <p className="text-sm text-slate-500">No data to show yet.</p>
+      </Panel>
     </div>
   )
 }

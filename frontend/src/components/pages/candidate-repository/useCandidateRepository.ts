@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Requirement } from '../../../types'
-import { INITIAL_REQUIREMENTS } from '../../../data/mockData'
 import { uiCandidateToRepo, UiCandidate, apiCandidateToUi } from '../../../services/candidatePayload'
 import { candidatesService } from '../../../services/workspace.service'
 import { CandidateRepoItem, CandidateRepositoryPageProps } from './types'
@@ -13,7 +12,7 @@ const STABLE_DEFAULT_CANDIDATES: UiCandidate[] = []
 
 export function useCandidateRepository({
   candidates = STABLE_DEFAULT_CANDIDATES,
-  requirements = INITIAL_REQUIREMENTS,
+  requirements = [],
   selectedReqId = null,
   role = 'recruiter',
   onOpenAddForm,
@@ -88,7 +87,7 @@ export function useCandidateRepository({
       ({
         id: activeReqId,
         title: 'Requirement ' + activeReqId,
-        client: 'Metaforge Client',
+        client: '',
         priority: 'High',
         status: 'Active',
       } as Requirement)

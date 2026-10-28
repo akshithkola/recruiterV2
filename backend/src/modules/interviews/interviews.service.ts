@@ -23,6 +23,12 @@ import { SubmitFeedbackDto } from './dto/submit-feedback.dto';
 import { CancelInterviewDto } from './dto/cancel-interview.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { MailService } from '../mail/mail.service';
+import {
+  assertCanAccessInterview,
+  assertCanAccessSubmission,
+  orgScope,
+  requireOrgId,
+} from '../../common/security/resource-access.util';
 
 @Injectable()
 export class InterviewsService {
@@ -145,9 +151,7 @@ export class InterviewsService {
       search?: string;
     },
   ) {
-    const orgId = currentUser?.orgId
-      ? new Types.ObjectId(currentUser.orgId.toString())
-      : new Types.ObjectId('6ab4f38ff2e0e1823c038948');
+    const orgId = requireOrgId(currentUser);
 
     const filter: Record<string, any> = { orgId, deletedAt: null };
 
@@ -191,31 +195,46 @@ export class InterviewsService {
     return items.map((item) => this.sanitizeInterview(item));
   }
 
-  /** GET /api/v1/interviews/:id */
-  async findById(id: string, currentUser: any) {
+  /** Load interview by Mongo id or business id, scoped to caller org + role. */
+  private async loadInterviewForUser(
+    id: string,
+    currentUser: any,
+    populate = false,
+  ): Promise<InterviewDocument> {
+    const scope = orgScope(currentUser);
+    const applyPopulate = (q: any) => {
+      if (!populate) return q;
+      return q
+        .populate('candidateId', 'name fullName email phone')
+        .populate('requirementId', 'title reqCode clientName')
+        .populate('submissionId', 'submissionId stage');
+    };
     let doc: InterviewDocument | null = null;
-
     if (Types.ObjectId.isValid(id)) {
-      doc = await this.interviewModel
-        .findOne({ _id: id, deletedAt: null })
-        .populate('candidateId', 'name fullName email phone')
-        .populate('requirementId', 'title reqCode clientName')
-        .populate('submissionId', 'submissionId stage')
-        .exec();
+      doc = await applyPopulate(this.interviewModel.findOne({ _id: id, ...scope })).exec();
     }
-
     if (!doc) {
-      doc = await this.interviewModel
-        .findOne({ interviewId: id, deletedAt: null })
-        .populate('candidateId', 'name fullName email phone')
-        .populate('requirementId', 'title reqCode clientName')
-        .populate('submissionId', 'submissionId stage')
-        .exec();
+      doc = await applyPopulate(
+        this.interviewModel.findOne({ interviewId: id, ...scope }),
+      ).exec();
     }
-
     if (!doc) {
       throw new NotFoundException(`Interview '${id}' not found`);
     }
+    let linkedSubmission: any = null;
+    if (doc.submissionId) {
+      const subId = (doc.submissionId as any)._id || doc.submissionId;
+      linkedSubmission = await this.submissionModel
+        .findOne({ _id: subId, ...scope })
+        .exec();
+    }
+    assertCanAccessInterview(doc, currentUser, linkedSubmission || undefined);
+    return doc;
+  }
+
+  /** GET /api/v1/interviews/:id */
+  async findById(id: string, currentUser: any) {
+    const doc = await this.loadInterviewForUser(id, currentUser, true);
 
     const sanitized = this.sanitizeInterview(doc);
 
@@ -233,24 +252,29 @@ export class InterviewsService {
 
   /** POST /api/v1/interviews */
   async create(dto: CreateInterviewDto, currentUser: any) {
-    const orgId = currentUser?.orgId
-      ? new Types.ObjectId(currentUser.orgId.toString())
-      : new Types.ObjectId('6ab4f38ff2e0e1823c038948');
+    const orgId = requireOrgId(currentUser);
 
     let subDoc: any = null;
     let candidateDoc: any = null;
 
-    // 1. Try finding submission by _id or submissionId code
+    // 1. Try finding submission by _id or submissionId code (org-scoped)
     if (dto.submissionId && Types.ObjectId.isValid(dto.submissionId)) {
-      subDoc = await this.submissionModel.findOne({ _id: new Types.ObjectId(dto.submissionId), deletedAt: null }).exec();
+      subDoc = await this.submissionModel
+        .findOne({ _id: new Types.ObjectId(dto.submissionId), orgId, deletedAt: null })
+        .exec();
     }
     if (!subDoc && dto.submissionId) {
       subDoc = await this.submissionModel.findOne({ orgId, submissionId: dto.submissionId.trim(), deletedAt: null }).exec();
     }
+    if (subDoc) {
+      assertCanAccessSubmission(subDoc, currentUser);
+    }
 
     // 2. If not found by submission, check if dto.submissionId is actually a candidate _id
     if (!subDoc && dto.submissionId && Types.ObjectId.isValid(dto.submissionId)) {
-      candidateDoc = await this.candidateModel.findOne({ _id: new Types.ObjectId(dto.submissionId), deletedAt: null }).exec();
+      candidateDoc = await this.candidateModel
+        .findOne({ _id: new Types.ObjectId(dto.submissionId), orgId, deletedAt: null })
+        .exec();
       if (candidateDoc) {
         subDoc = await this.submissionModel.findOne({ orgId, candidateId: candidateDoc._id, deletedAt: null }).sort({ createdAt: -1 }).exec();
       }
@@ -258,7 +282,9 @@ export class InterviewsService {
 
     // 3. If not found, check if dto.candidateId is provided
     if (!subDoc && dto.candidateId && Types.ObjectId.isValid(dto.candidateId)) {
-      candidateDoc = await this.candidateModel.findOne({ _id: new Types.ObjectId(dto.candidateId), deletedAt: null }).exec();
+      candidateDoc = await this.candidateModel
+        .findOne({ _id: new Types.ObjectId(dto.candidateId), orgId, deletedAt: null })
+        .exec();
       if (candidateDoc) {
         subDoc = await this.submissionModel.findOne({ orgId, candidateId: candidateDoc._id, deletedAt: null }).sort({ createdAt: -1 }).exec();
       }
@@ -296,7 +322,9 @@ export class InterviewsService {
       if (candidateDoc) {
         let reqDoc: any = null;
         if (dto.requirementId && Types.ObjectId.isValid(dto.requirementId)) {
-          reqDoc = await this.requirementModel.findOne({ _id: new Types.ObjectId(dto.requirementId), deletedAt: null }).exec();
+          reqDoc = await this.requirementModel
+            .findOne({ _id: new Types.ObjectId(dto.requirementId), orgId, deletedAt: null })
+            .exec();
         }
         if (!reqDoc) {
           reqDoc = await this.requirementModel.findOne({ orgId, deletedAt: null }).sort({ createdAt: -1 }).exec();
@@ -330,11 +358,14 @@ export class InterviewsService {
     if (!subDoc) {
       throw new NotFoundException(`Unable to resolve submission or candidate record for interview.`);
     }
+    assertCanAccessSubmission(subDoc, currentUser);
 
     const submissionObjectId = subDoc._id as Types.ObjectId;
 
     if (!candidateDoc && subDoc.candidateId) {
-      candidateDoc = await this.candidateModel.findById(subDoc.candidateId).exec();
+      candidateDoc = await this.candidateModel
+        .findOne({ _id: subDoc.candidateId, orgId, deletedAt: null })
+        .exec();
     }
 
     const candidateId = candidateDoc?._id
@@ -343,9 +374,13 @@ export class InterviewsService {
 
     let reqDoc: any = null;
     if (dto.requirementId && Types.ObjectId.isValid(dto.requirementId)) {
-      reqDoc = await this.requirementModel.findById(dto.requirementId).exec();
+      reqDoc = await this.requirementModel
+        .findOne({ _id: dto.requirementId, orgId, deletedAt: null })
+        .exec();
     } else if (subDoc.requirementId) {
-      reqDoc = await this.requirementModel.findById(subDoc.requirementId).exec();
+      reqDoc = await this.requirementModel
+        .findOne({ _id: subDoc.requirementId, orgId, deletedAt: null })
+        .exec();
     }
     const requirementId = reqDoc?._id || subDoc.requirementId;
 
@@ -620,17 +655,7 @@ export class InterviewsService {
 
   /** PUT /api/v1/interviews/:id/reschedule */
   async reschedule(id: string, dto: RescheduleInterviewDto, currentUser: any) {
-    let doc: InterviewDocument | null = null;
-    if (Types.ObjectId.isValid(id)) {
-      doc = await this.interviewModel.findOne({ _id: id, deletedAt: null }).exec();
-    }
-    if (!doc) {
-      doc = await this.interviewModel.findOne({ interviewId: id, deletedAt: null }).exec();
-    }
-
-    if (!doc) {
-      throw new NotFoundException(`Interview '${id}' not found`);
-    }
+    const doc = await this.loadInterviewForUser(id, currentUser);
 
     const newDate = new Date(dto.dateTime);
     if (isNaN(newDate.getTime())) {
@@ -669,17 +694,7 @@ export class InterviewsService {
 
   /** PUT /api/v1/interviews/:id/feedback */
   async submitFeedback(id: string, dto: SubmitFeedbackDto, currentUser: any) {
-    let doc: InterviewDocument | null = null;
-    if (Types.ObjectId.isValid(id)) {
-      doc = await this.interviewModel.findOne({ _id: id, deletedAt: null }).exec();
-    }
-    if (!doc) {
-      doc = await this.interviewModel.findOne({ interviewId: id, deletedAt: null }).exec();
-    }
-
-    if (!doc) {
-      throw new NotFoundException(`Interview '${id}' not found`);
-    }
+    const doc = await this.loadInterviewForUser(id, currentUser);
 
     const evaluatorName = dto.evaluatorName || currentUser?.name || doc.interviewerName;
     const evaluatorEmail = (dto.evaluatorEmail || currentUser?.email || doc.interviewerEmail).toLowerCase();
@@ -725,17 +740,7 @@ export class InterviewsService {
 
   /** POST /api/v1/interviews/:id/cancel */
   async cancel(id: string, dto: CancelInterviewDto, currentUser: any) {
-    let doc: InterviewDocument | null = null;
-    if (Types.ObjectId.isValid(id)) {
-      doc = await this.interviewModel.findOne({ _id: id, deletedAt: null }).exec();
-    }
-    if (!doc) {
-      doc = await this.interviewModel.findOne({ interviewId: id, deletedAt: null }).exec();
-    }
-
-    if (!doc) {
-      throw new NotFoundException(`Interview '${id}' not found`);
-    }
+    const doc = await this.loadInterviewForUser(id, currentUser);
 
     doc.status = 'Cancelled';
     const updated = await doc.save();
@@ -763,13 +768,8 @@ export class InterviewsService {
 
   /** DELETE /api/v1/interviews/:id */
   async softDelete(id: string, currentUser: any) {
-    let targetId: string = id;
-    if (!Types.ObjectId.isValid(id)) {
-      const doc = await this.interviewModel.findOne({ interviewId: id, deletedAt: null }).exec();
-      if (!doc) throw new NotFoundException(`Interview '${id}' not found`);
-      targetId = doc._id.toString();
-    }
-
+    const doc = await this.loadInterviewForUser(id, currentUser);
+    const targetId = doc._id.toString();
     const deleted = await this.interviewRepository.softDelete(targetId, currentUser);
     return { message: `Interview '${deleted.interviewId || targetId}' soft-deleted successfully` };
   }

@@ -30,7 +30,7 @@ import {
   ArrowLeft,
   X,
 } from 'lucide-react'
-import { Role } from '../../types'
+import { Role, Recruiter, Requirement, Submission } from '../../types'
 import { PaginationFooter } from '../ui/PaginationFooter'
 
 interface SubmittedClientsPillCellProps {
@@ -152,192 +152,108 @@ export interface RecruiterHistoryItem {
   }[]
 }
 
-const RECRUITERS_HISTORY_DATA: RecruiterHistoryItem[] = [
-  {
-    id: 'HIST-101',
-    recruiterName: 'Marcus Chen',
-    recruiterEmail: 'm.chen@talentflow.io',
-    recruiterAvatar: 'M',
-    roleTitle: 'Senior Technical Recruiter',
-    userRole: 'recruiter',
-    teamLead: 'Harish Gadipally',
-    clientAccounts: ['Accenture'],
-    assignedRequirementsCount: 14,
-    sourcedProfilesCount: 48,
-    submittedProfilesCount: 32,
-    workingProfilesCount: 11,
-    onHoldProfilesCount: 3,
-    placedCount: 2,
-    topSkillsSourced: ['React', 'Java Fullstack', 'Node.js', 'AWS'],
-    recentSourcedCandidates: [
-      { id: 'CAND-001', candidateName: 'Priya Nair', requirementName: 'Lead Java Full Stack Developer', clientName: 'Accenture', sourcedDate: 'Aug 07, 2026', status: 'Submitted', experience: '8 yrs', skills: ['Java', 'Spring Boot', 'React'], contactEmail: 'p.nair@email.com' },
-      { id: 'CAND-002', candidateName: 'Alex Turner', requirementName: 'Senior React Developer', clientName: 'Accenture', sourcedDate: 'Aug 05, 2026', status: 'Working', experience: '6 yrs', skills: ['React', 'TypeScript', 'Redux'], contactEmail: 'alex.t@email.com' },
-      { id: 'CAND-003', candidateName: 'Rania Khalil', requirementName: 'Node.js Backend Specialist', clientName: 'Accenture', sourcedDate: 'Aug 03, 2026', status: 'Working', experience: '7 yrs', skills: ['Node.js', 'Express', 'MongoDB'], contactEmail: 'r.khalil@email.com' },
-      { id: 'CAND-004', candidateName: 'Vikram Mehta', requirementName: 'AWS DevOps Architect', clientName: 'Accenture', sourcedDate: 'Jul 28, 2026', status: 'On Hold', experience: '10 yrs', skills: ['AWS', 'Kubernetes', 'Docker'], contactEmail: 'v.mehta@email.com' },
-      { id: 'CAND-005', candidateName: 'Ananya Sharma', requirementName: 'Lead Java Full Stack Developer', clientName: 'Accenture', sourcedDate: 'Jul 25, 2026', status: 'Sourced', experience: '5 yrs', skills: ['Java', 'Angular'], contactEmail: 'ananya.s@email.com' },
-      { id: 'CAND-006', candidateName: 'David Miller', requirementName: 'Senior React Developer', clientName: 'Accenture', sourcedDate: 'Jul 22, 2026', status: 'Submitted', experience: '7 yrs', skills: ['React', 'GraphQL'], contactEmail: 'd.miller@email.com' },
-    ],
-    assignedRequirementsList: [
-      { id: 'REQ-001', reqName: 'Lead Java Full Stack Developer', clientName: 'Accenture', status: 'In Progress', assignedDate: 'Aug 01, 2026', submissionsCount: 14, sourcedCount: 18, workingCount: 5 },
-      { id: 'REQ-002', reqName: 'Senior React Developer', clientName: 'Accenture', status: 'In Progress', assignedDate: 'Jul 20, 2026', submissionsCount: 10, sourcedCount: 15, workingCount: 4 },
-      { id: 'REQ-003', reqName: 'Node.js Backend Engineer', clientName: 'Accenture', status: 'Open', assignedDate: 'Jul 15, 2026', submissionsCount: 8, sourcedCount: 15, workingCount: 2 },
-      { id: 'REQ-004', reqName: 'AWS Cloud Infrastructure Architect', clientName: 'Accenture', status: 'Open', assignedDate: 'Jul 10, 2026', submissionsCount: 0, sourcedCount: 0, workingCount: 0 },
-    ],
-  },
-  {
-    id: 'HIST-102',
-    recruiterName: 'Priya Sharma',
-    recruiterEmail: 'p.sharma@talentflow.io',
-    recruiterAvatar: 'P',
-    roleTitle: 'IT Recruiter',
-    userRole: 'recruiter',
-    teamLead: 'Harish Gadipally',
-    clientAccounts: ['Accenture'],
-    assignedRequirementsCount: 12,
-    sourcedProfilesCount: 38,
-    submittedProfilesCount: 24,
-    workingProfilesCount: 9,
-    onHoldProfilesCount: 3,
-    placedCount: 2,
-    topSkillsSourced: ['Java', 'Spring Boot', 'Microservices', 'Angular'],
-    recentSourcedCandidates: [
-      { id: 'CAND-006', candidateName: 'Suresh Kumar', requirementName: 'Spring Boot Developer', clientName: 'Accenture', sourcedDate: 'Aug 06, 2026', status: 'Submitted', experience: '6 yrs' },
-      { id: 'CAND-007', candidateName: 'Meera Rao', requirementName: 'Microservices Engineer', clientName: 'Accenture', sourcedDate: 'Aug 04, 2026', status: 'Working', experience: '5 yrs' },
-      { id: 'CAND-008', candidateName: 'Karan Patel', requirementName: 'Angular Frontend Lead', clientName: 'Accenture', sourcedDate: 'Jul 30, 2026', status: 'On Hold', experience: '7 yrs' },
-    ],
-    assignedRequirementsList: [
-      { id: 'REQ-005', reqName: 'Spring Boot Specialist', clientName: 'Accenture', status: 'In Progress', assignedDate: 'Aug 02, 2026', submissionsCount: 12, sourcedCount: 18, workingCount: 5 },
-      { id: 'REQ-006', reqName: 'Angular UI Developer', clientName: 'Accenture', status: 'Open', assignedDate: 'Jul 22, 2026', submissionsCount: 12, sourcedCount: 20, workingCount: 4 },
-    ],
-  },
-  {
-    id: 'HIST-103',
-    recruiterName: 'Suresh kulkarni',
-    recruiterEmail: 'suresh.k@talentflow.io',
-    recruiterAvatar: 'S',
-    roleTitle: 'Technical Recruiter',
-    userRole: 'recruiter',
-    teamLead: 'Harish Gadipally',
-    clientAccounts: ['Accenture'],
-    assignedRequirementsCount: 8,
-    sourcedProfilesCount: 26,
-    submittedProfilesCount: 16,
-    workingProfilesCount: 6,
-    onHoldProfilesCount: 2,
-    placedCount: 1,
-    topSkillsSourced: ['Python', 'Django', 'PostgreSQL', 'Docker'],
-    recentSourcedCandidates: [
-      { id: 'CAND-009', candidateName: 'Amit Verma', requirementName: 'Python Backend Lead', clientName: 'Accenture', sourcedDate: 'Aug 05, 2026', status: 'Submitted', experience: '7 yrs' },
-      { id: 'CAND-010', candidateName: 'Neha Gupta', requirementName: 'Django Engineer', clientName: 'Accenture', sourcedDate: 'Aug 01, 2026', status: 'Working', experience: '4 yrs' },
-    ],
-    assignedRequirementsList: [
-      { id: 'REQ-007', reqName: 'Python Backend Engineer', clientName: 'Accenture', status: 'In Progress', assignedDate: 'Jul 28, 2026', submissionsCount: 16, sourcedCount: 26, workingCount: 6 },
-    ],
-  },
-  {
-    id: 'HIST-104',
-    recruiterName: 'lakshmi.v Recruiter',
-    recruiterEmail: 'lakshmi.v@talentflow.io',
-    recruiterAvatar: 'L',
-    roleTitle: 'Lead Recruiter',
-    userRole: 'lead',
-    teamLead: 'Tom Walsh',
-    clientAccounts: ['Goldman Sachs'],
-    assignedRequirementsCount: 18,
-    sourcedProfilesCount: 58,
-    submittedProfilesCount: 42,
-    workingProfilesCount: 12,
-    onHoldProfilesCount: 4,
-    placedCount: 3,
-    topSkillsSourced: ['Core Java', 'FinTech', 'Low Latency C++', 'Kafka'],
-    recentSourcedCandidates: [
-      { id: 'CAND-011', candidateName: 'Rohan Joshi', requirementName: 'FinTech Java Lead', clientName: 'Goldman Sachs', sourcedDate: 'Aug 07, 2026', status: 'Submitted', experience: '11 yrs' },
-      { id: 'CAND-012', candidateName: 'Deepa Roy', requirementName: 'Low Latency C++ Developer', clientName: 'Goldman Sachs', sourcedDate: 'Aug 04, 2026', status: 'Working', experience: '9 yrs' },
-    ],
-    assignedRequirementsList: [
-      { id: 'REQ-008', reqName: 'Java Quantitative Architect', clientName: 'Goldman Sachs', status: 'In Progress', assignedDate: 'Jul 10, 2026', submissionsCount: 22, sourcedCount: 30, workingCount: 8 },
-    ],
-  },
-  {
-    id: 'HIST-105',
-    recruiterName: 'Lingoji Pavani',
-    recruiterEmail: 'lingoji.p@talentflow.io',
-    recruiterAvatar: 'L',
-    roleTitle: 'Senior Technical Recruiter',
-    userRole: 'recruiter',
-    teamLead: 'Tom Walsh',
-    clientAccounts: ['Goldman Sachs'],
-    assignedRequirementsCount: 10,
-    sourcedProfilesCount: 32,
-    submittedProfilesCount: 20,
-    workingProfilesCount: 8,
-    onHoldProfilesCount: 2,
-    placedCount: 2,
-    topSkillsSourced: ['PySpark', 'Snowflake', 'Big Data', 'ETL'],
-    recentSourcedCandidates: [
-      { id: 'CAND-013', candidateName: 'Tarun Deshmukh', requirementName: 'Snowflake Data Engineer', clientName: 'Goldman Sachs', sourcedDate: 'Aug 03, 2026', status: 'Working', experience: '8 yrs' },
-    ],
-    assignedRequirementsList: [
-      { id: 'REQ-009', reqName: 'Big Data Pipeline Lead', clientName: 'Goldman Sachs', status: 'In Progress', assignedDate: 'Jul 18, 2026', submissionsCount: 14, sourcedCount: 22, workingCount: 5 },
-    ],
-  },
-  {
-    id: 'HIST-106',
-    recruiterName: 'Arvind GR',
-    recruiterEmail: 'arvind.g@talentflow.io',
-    recruiterAvatar: 'A',
-    roleTitle: 'Technical Sourcing Recruiter',
-    userRole: 'recruiter',
-    teamLead: 'Tom Walsh',
-    clientAccounts: ['Goldman Sachs'],
-    assignedRequirementsCount: 6,
-    sourcedProfilesCount: 22,
-    submittedProfilesCount: 12,
-    workingProfilesCount: 6,
-    onHoldProfilesCount: 2,
-    placedCount: 1,
-    topSkillsSourced: ['DevOps', 'Kubernetes', 'Terraform', 'CI/CD'],
-    recentSourcedCandidates: [
-      { id: 'CAND-014', candidateName: 'Siddharth Sen', requirementName: 'Kubernetes Cloud Engineer', clientName: 'Goldman Sachs', sourcedDate: 'Jul 29, 2026', status: 'Submitted', experience: '6 yrs' },
-    ],
-    assignedRequirementsList: [
-      { id: 'REQ-010', reqName: 'Cloud SRE Engineer', clientName: 'Goldman Sachs', status: 'Open', assignedDate: 'Jul 25, 2026', submissionsCount: 12, sourcedCount: 22, workingCount: 6 },
-    ],
-  },
-  {
-    id: 'HIST-107',
-    recruiterName: 'Harish Gadipally',
-    recruiterEmail: 'harish.g@metaforgeit.com',
-    recruiterAvatar: 'H',
-    roleTitle: 'Senior Recruiting Lead / Team Lead',
-    userRole: 'lead',
-    teamLead: 'Harish Gadipally (Self)',
-    clientAccounts: ['Accenture', 'LTTS'],
-    assignedRequirementsCount: 45,
-    sourcedProfilesCount: 142,
-    submittedProfilesCount: 98,
-    workingProfilesCount: 32,
-    onHoldProfilesCount: 8,
-    placedCount: 6,
-    topSkillsSourced: ['Full Stack', 'Cloud Architecture', 'Tech Lead', 'Spring'],
-    recentSourcedCandidates: [
-      { id: 'CAND-015', candidateName: 'Rajesh K', requirementName: 'Principal Architect', clientName: 'LTTS', sourcedDate: 'Aug 08, 2026', status: 'Submitted', experience: '14 yrs' },
-      { id: 'CAND-016', candidateName: 'Sanjay Dutt', requirementName: 'Solutions Lead', clientName: 'Accenture', sourcedDate: 'Aug 02, 2026', status: 'Working', experience: '12 yrs' },
-    ],
-    assignedRequirementsList: [
-      { id: 'REQ-011', reqName: 'Principal Solutions Architect', clientName: 'LTTS', status: 'In Progress', assignedDate: 'Jun 15, 2026', submissionsCount: 45, sourcedCount: 60, workingCount: 15 },
-      { id: 'REQ-012', reqName: 'Lead Cloud Specialist', clientName: 'Accenture', status: 'In Progress', assignedDate: 'Jul 01, 2026', submissionsCount: 53, sourcedCount: 82, workingCount: 17 },
-    ],
-  },
-]
+const fmtDate = (v?: string) => {
+  if (!v) return '—'
+  const d = new Date(v)
+  return Number.isNaN(d.getTime()) ? v : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+const subStatus = (stage?: string): 'Submitted' | 'Working' | 'On Hold' | 'Sourced' => {
+  const v = (stage || '').toLowerCase()
+  if (v.includes('hold')) return 'On Hold'
+  if (/interview|shortlist|offer|review|selected/.test(v)) return 'Working'
+  return 'Submitted'
+}
+
+/** History rows built from live recruiters, their assigned requirements and their submissions. */
+export function buildRecruiterHistory(
+  recruiters: Recruiter[],
+  requirements: Requirement[],
+  submissions: Submission[],
+): RecruiterHistoryItem[] {
+  const assigned = (name: string) =>
+    requirements.filter(r => (r.owner || '').split(',').map(n => n.trim()).includes(name))
+  const recruiterRows: RecruiterHistoryItem[] = recruiters.map(r => {
+    const reqs = assigned(r.name)
+    const subs = submissions.filter(s => s.recruiter === r.name)
+    const clients = [...new Set([...reqs.map(q => q.client), ...subs.map(s => s.client)].filter(Boolean))]
+    return {
+      id: `HIST-${r.id}`,
+      recruiterName: r.name,
+      recruiterEmail: r.email || '',
+      recruiterAvatar: (r.name || '?').charAt(0).toUpperCase(),
+      roleTitle: 'Recruiter',
+      userRole: 'recruiter',
+      teamLead: r.lead || '—',
+      clientAccounts: clients,
+      assignedRequirementsCount: reqs.length,
+      sourcedProfilesCount: subs.length,
+      submittedProfilesCount: r.submissions || subs.length,
+      interviewsCount: r.interviews || 0,
+      workingProfilesCount: subs.filter(s => subStatus(s.stage) === 'Working').length,
+      onHoldProfilesCount: subs.filter(s => subStatus(s.stage) === 'On Hold').length,
+      placedCount: r.placements || 0,
+      topSkillsSourced: [],
+      recentSourcedCandidates: subs.map(s => ({
+        id: s.id,
+        candidateName: s.candidate,
+        requirementName: requirements.find(q => q.id === s.req || (q as any).reqCode === s.req)?.title || s.req,
+        clientName: s.client,
+        sourcedDate: fmtDate(s.submittedAt || s.createdAt || s.date),
+        status: subStatus(s.stage),
+        experience: s.experience || '—',
+        contactEmail: s.email,
+      })),
+      assignedRequirementsList: reqs.map(q => ({
+        id: q.id,
+        reqName: q.title,
+        clientName: q.client,
+        status: (q.status === 'Closed' ? 'Closed' : (q.submissions || 0) > 0 ? 'In Progress' : 'Open') as 'Open' | 'In Progress' | 'Closed',
+        assignedDate: fmtDate(q.createdAt),
+        submissionsCount: q.submissions || 0,
+      })),
+    }
+  })
+  // Each lead: the sum of the lead's recruiters.
+  const leadNames = [...new Set(recruiters.map(r => r.lead).filter(Boolean))] as string[]
+  const leadRows: RecruiterHistoryItem[] = leadNames.map(lead => {
+    const team = recruiterRows.filter(x => x.teamLead === lead)
+    const sum = (f: (x: RecruiterHistoryItem) => number) => team.reduce((n, x) => n + f(x), 0)
+    return {
+      id: `HIST-LEAD-${lead}`,
+      recruiterName: lead,
+      recruiterEmail: '',
+      recruiterAvatar: lead.charAt(0).toUpperCase(),
+      roleTitle: 'Team Lead',
+      userRole: 'lead',
+      teamLead: lead,
+      clientAccounts: [...new Set(team.flatMap(x => x.clientAccounts))],
+      assignedRequirementsCount: sum(x => x.assignedRequirementsCount),
+      sourcedProfilesCount: sum(x => x.sourcedProfilesCount),
+      submittedProfilesCount: sum(x => x.submittedProfilesCount),
+      interviewsCount: sum(x => x.interviewsCount || 0),
+      workingProfilesCount: sum(x => x.workingProfilesCount),
+      onHoldProfilesCount: sum(x => x.onHoldProfilesCount),
+      placedCount: sum(x => x.placedCount),
+      topSkillsSourced: [],
+      recentSourcedCandidates: team.flatMap(x => x.recentSourcedCandidates),
+      assignedRequirementsList: team.flatMap(x => x.assignedRequirementsList),
+    }
+  })
+  return [...leadRows, ...recruiterRows]
+}
 
 interface HistoryPageProps {
   role: Role
+  recruiters?: Recruiter[]
+  requirements?: Requirement[]
+  submissions?: Submission[]
   currentUserName?: string
   currentUserEmail?: string
 }
 
-export function HistoryPage({ role, currentUserName, currentUserEmail }: HistoryPageProps) {
+export function HistoryPage({ role, currentUserName, currentUserEmail, recruiters = [], requirements = [], submissions = [] }: HistoryPageProps) {
+  const RECRUITERS_HISTORY_DATA = useMemo(() => buildRecruiterHistory(recruiters, requirements, submissions), [recruiters, requirements, submissions])
   // Determine if viewing as Super Admin / Admin or as a Recruiter / Lead
   const isSuperAdminOrAdmin = role === 'superadmin' || role === 'admin' || role === 'devteam'
   const isAuthorized = isSuperAdminOrAdmin || role === 'recruiter' || role === 'lead'
@@ -350,88 +266,9 @@ export function HistoryPage({ role, currentUserName, currentUserEmail }: History
   const [recruiterDetailModalTab, setRecruiterDetailModalTab] = useState<'requirements' | 'sourced'>('requirements')
 
   // Helpers to get full list of worked requirements and sourced profiles matching counts
-  const getFullAssignedRequirements = (rec: RecruiterHistoryItem) => {
-    const existing = rec.assignedRequirementsList || []
-    if (existing.length >= rec.assignedRequirementsCount) return existing
+  const getFullAssignedRequirements = (rec: RecruiterHistoryItem) => rec.assignedRequirementsList || []
 
-    const diff = rec.assignedRequirementsCount - existing.length
-    const sampleTitles = [
-      'Senior Java Full Stack Developer',
-      'React Native Mobile Engineer',
-      'Cloud DevOps Architect',
-      'Data Engineer (PySpark & AWS)',
-      'Backend Go/Microservices Dev',
-      'QA Automation Lead (Cypress)',
-      'SAP S/4HANA Functional Lead',
-      'UI/UX Senior Designer',
-      'Cybersecurity Analyst',
-      'System Infrastructure Admin',
-      'Python/Django Backend Engineer',
-      'Azure Cloud Solution Architect',
-    ]
-
-    const extraReqs = Array.from({ length: diff }, (_, i) => {
-      const idNum = 100 + existing.length + i + 1
-      const title = sampleTitles[i % sampleTitles.length]
-      const client = rec.clientAccounts[i % rec.clientAccounts.length] || 'Accenture'
-      const status: 'Open' | 'In Progress' | 'Closed' = i % 3 === 0 ? 'In Progress' : i % 3 === 1 ? 'Open' : 'Closed'
-      const assignedDate = `${(15 - (i % 12)).toString().padStart(2, '0')} Jul 2026`
-      const submissionsCount = i % 3 === 0 ? 4 + (i % 6) : i % 3 === 1 ? 2 + (i % 3) : 0
-      const sourcedCount = submissionsCount + 2 + (i % 5)
-      const workingCount = Math.floor(submissionsCount * 0.5)
-
-      return {
-        id: `REQ-${idNum}`,
-        reqName: title,
-        clientName: client,
-        status,
-        assignedDate,
-        submissionsCount,
-        sourcedCount,
-        workingCount,
-      }
-    })
-
-    return [...existing, ...extraReqs]
-  }
-
-  const getFullSourcedCandidates = (rec: RecruiterHistoryItem) => {
-    const existing = rec.recentSourcedCandidates || []
-    if (existing.length >= rec.sourcedProfilesCount) return existing
-
-    const diff = rec.sourcedProfilesCount - existing.length
-    const sampleNames = [
-      'Priya Nair', 'Alex Turner', 'Rania Khalil', 'Vikram Mehta', 'Ananya Sharma',
-      'David Miller', 'Suresh Kumar', 'Meera Rao', 'Karan Patel', 'Amit Verma',
-      'Neha Gupta', 'Rohan Joshi', 'Deepa Roy', 'Kavya Reddy', 'Siddharth Rao',
-      'Pooja Hegde', 'Tarun Joshi', 'Sneha Kapoor', 'Nikhil Saxena', 'Ritika Sen',
-    ]
-
-    const extraCandidates = Array.from({ length: diff }, (_, i) => {
-      const idNum = 100 + existing.length + i + 1
-      const candidateName = `${sampleNames[i % sampleNames.length]} (${i + 1})`
-      const reqName = rec.assignedRequirementsList[i % rec.assignedRequirementsList.length]?.reqName || 'Senior Technical Developer'
-      const clientName = rec.clientAccounts[i % rec.clientAccounts.length] || 'Accenture'
-      const sourcedDate = `${(28 - (i % 25)).toString().padStart(2, '0')} Aug 2026`
-      const statuses: ('Submitted' | 'Working' | 'On Hold' | 'Sourced')[] = ['Submitted', 'Working', 'On Hold', 'Sourced']
-      const status = statuses[i % 4]
-      const exp = `${3 + (i % 7)} yrs`
-
-      return {
-        id: `CAND-${idNum}`,
-        candidateName,
-        requirementName: reqName,
-        clientName,
-        sourcedDate,
-        status,
-        experience: exp,
-        skills: ['Java', 'React', 'AWS'],
-        contactEmail: `${candidateName.toLowerCase().replace(/[^a-z]/g, '')}@talentflow.io`,
-      }
-    })
-
-    return [...existing, ...extraCandidates]
-  }
+  const getFullSourcedCandidates = (rec: RecruiterHistoryItem) => rec.recentSourcedCandidates || []
 
   // Recruiter Personal View Active Tab & Status Filter
   const [recruiterTab, setRecruiterTab] = useState<'requirements' | 'sourced'>('requirements')
@@ -462,21 +299,21 @@ export function HistoryPage({ role, currentUserName, currentUserEmail }: History
       if (found) return found
     }
     if (role === 'lead') {
-      return RECRUITERS_HISTORY_DATA.find(r => r.userRole === 'lead') || RECRUITERS_HISTORY_DATA[6]
+      return RECRUITERS_HISTORY_DATA.find(r => r.userRole === 'lead') || null
     }
-    return RECRUITERS_HISTORY_DATA[0] // Marcus Chen
-  }, [currentUserEmail, currentUserName, role])
+    return null
+  }, [RECRUITERS_HISTORY_DATA, currentUserEmail, currentUserName, role])
 
   // Filtered Recruiters List for Super Admin or Team Lead
   const filteredRecruiters = useMemo(() => {
     return RECRUITERS_HISTORY_DATA.filter(rec => {
       // If role is lead, filter recruiters belonging to this Team Lead's pod/team
       if (role === 'lead') {
-        const myName = (myRecruiterHistory?.recruiterName || 'Harish Gadipally').toLowerCase()
+        const myName = (myRecruiterHistory?.recruiterName || currentUserName || '').toLowerCase()
         const leadName = (rec.teamLead || '').toLowerCase()
         const recName = (rec.recruiterName || '').toLowerCase()
 
-        const isMyTeam = leadName.includes('harish') || recName.includes('harish') || (myName !== 'marcus chen' && (leadName.includes(myName) || recName.includes(myName)))
+        const isMyTeam = !myName || leadName.includes(myName) || recName.includes(myName)
         if (!isMyTeam) return false
       }
 
@@ -682,7 +519,7 @@ export function HistoryPage({ role, currentUserName, currentUserEmail }: History
             </div>
 
             <div className="text-xs font-extrabold text-[#6B3BF6] bg-purple-50 px-3 py-1.5 rounded-xl border border-purple-200">
-              Team Lead Module • {myRecruiterHistory?.recruiterName || 'Harish Gadipally'}
+              Team Lead Module • {myRecruiterHistory?.recruiterName || currentUserName || '—'}
             </div>
           </div>
         )}
@@ -735,7 +572,7 @@ export function HistoryPage({ role, currentUserName, currentUserEmail }: History
             <div>
               <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#6B3BF6] block">Assigned Reqs</span>
               <div className="text-lg font-black text-slate-900 tracking-tight font-mono">
-                {myRecruiterHistory.assignedRequirementsCount} Reqs
+                {myRecruiterHistory?.assignedRequirementsCount ?? 0} Reqs
               </div>
               <span className="text-[9px] text-[#6B3BF6] font-bold block mt-0.5">Click to view list →</span>
             </div>
@@ -760,7 +597,7 @@ export function HistoryPage({ role, currentUserName, currentUserEmail }: History
             <div>
               <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#6B3BF6] block">Sourced Profiles</span>
               <div className="text-lg font-black text-slate-900 tracking-tight font-mono">
-                {myRecruiterHistory.sourcedProfilesCount} Sourced
+                {myRecruiterHistory?.sourcedProfilesCount ?? 0} Sourced
               </div>
               <span className="text-[9px] text-[#6B3BF6] font-bold block mt-0.5">Click to view repo →</span>
             </div>
@@ -785,7 +622,7 @@ export function HistoryPage({ role, currentUserName, currentUserEmail }: History
             <div>
               <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-700 block">Submitted Profiles</span>
               <div className="text-lg font-black text-slate-900 tracking-tight font-mono">
-                {myRecruiterHistory.submittedProfilesCount} Submitted
+                {myRecruiterHistory?.submittedProfilesCount ?? 0} Submitted
               </div>
               <span className="text-[9px] text-slate-600 font-bold block mt-0.5">Click to view list →</span>
             </div>
@@ -810,7 +647,7 @@ export function HistoryPage({ role, currentUserName, currentUserEmail }: History
             <div>
               <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-700 block">Working Profiles</span>
               <div className="text-lg font-black text-slate-900 tracking-tight font-mono">
-                {myRecruiterHistory.workingProfilesCount} Working
+                {myRecruiterHistory?.workingProfilesCount ?? 0} Working
               </div>
               <span className="text-[9px] text-slate-600 font-bold block mt-0.5">Click to view current working requirements →</span>
             </div>
@@ -1169,7 +1006,7 @@ export function HistoryPage({ role, currentUserName, currentUserEmail }: History
           </div>
 
           <div className="text-xs font-extrabold text-[#6B3BF6] bg-purple-50 px-3 py-1.5 rounded-xl border border-purple-200">
-            Team Lead Module • {myRecruiterHistory?.recruiterName || 'Harish Gadipally'}
+            Team Lead Module • {myRecruiterHistory?.recruiterName || currentUserName || '—'}
           </div>
         </div>
       )}
@@ -1188,7 +1025,7 @@ export function HistoryPage({ role, currentUserName, currentUserEmail }: History
           </div>
           <p className="text-xs text-slate-500 mt-1">
             {role === 'lead'
-              ? `Tracking assigned requirements, repository sourced profiles, submitted candidates, and working pipeline records for ${myRecruiterHistory?.recruiterName || 'Harish Gadipally'}'s team members.`
+              ? `Tracking assigned requirements, repository sourced profiles, submitted candidates, and working pipeline records for ${myRecruiterHistory?.recruiterName || currentUserName || '—'}'s team members.`
               : 'Centralized history tracking assigned requirements, repository sourced profiles, submitted candidates, active working pipeline, and on-hold candidate records per recruiter.'}
           </p>
         </div>

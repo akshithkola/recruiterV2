@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Interview, Requirement, Submission, ActivityLogItem, Candidate } from '../../types'
+import { Interview, Requirement, Submission, ActivityLogItem, Candidate, Role } from '../../types'
 import { RequirementDetailOverview } from '../pages/RequirementDetailOverview'
 import { workspaceService, usersService } from '../../services/workspace.service'
 import { getSessionUser } from '../../store/session'
@@ -26,6 +26,7 @@ import {
 } from 'lucide-react'
 import { PaginationFooter } from '../ui/PaginationFooter'
 import { PageHeader } from '../layout/PageHeader'
+import { useScrollReveal, useStaggerEnter } from '../../lib/animations'
 
 interface Props {
   candidates?: Candidate[]
@@ -70,6 +71,8 @@ export function RecruiterDashboard({
   const session = getSessionUser()
   const currentUserName = propUserName || session?.name || 'Recruiter'
   const currentUserEmail = propUserEmail || session?.email || ''
+  const sessionRole = String(session?.role || 'recruiter').toLowerCase()
+  const canDirectRevoke = ['superadmin', 'admin', 'devteam', 'lead'].includes(sessionRole)
   const [recentActivityPageSize, setRecentActivityPageSize] = React.useState<number>(5)
   const [dbUsers, setDbUsers] = useState<any[]>([])
   const [isRevokeModalOpen, setIsRevokeModalOpen] = useState(false)
@@ -151,7 +154,8 @@ export function RecruiterDashboard({
   }, [activityLogs, submissions, interviews, currentUserName, currentUserEmail])
   const [selectedReqForDetail, setSelectedReqForDetail] = useState<Requirement | null>(null)
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false)
-  const [isAssignMyselfChecked, setIsAssignMyselfChecked] = useState(true)
+  const isLeadOrAdmin = ['lead', 'admin', 'superadmin', 'devteam'].includes(sessionRole)
+  const [isAssignMyselfChecked, setIsAssignMyselfChecked] = useState(!isLeadOrAdmin)
   const [selectedRecruiterNames, setSelectedRecruiterNames] = useState<Set<string>>(new Set())
   const [recruiterSearchQuery, setRecruiterSearchQuery] = useState('')
 
@@ -196,6 +200,10 @@ export function RecruiterDashboard({
   // Inline Candidate Repository & Submission workflow state (kept strictly inside My Work page)
   const [inlineReqId, setInlineReqId] = useState<string | null>(null)
 
+  // Hooks must stay above any early returns (selectedReqForDetail / inlineView).
+  const activeReqsRef = useScrollReveal<HTMLElement>({ y: 20, duration: 0.6 })
+  const kpiGridRef = useStaggerEnter<HTMLDivElement>({ y: 16, duration: 0.4, stagger: 0.07 })
+
   const handleOpenInlineCandidateRepo = (reqId: string) => {
     setInlineReqId(reqId)
     setTimeout(() => {
@@ -207,26 +215,10 @@ export function RecruiterDashboard({
   }
 
   const handleOpenReqOverview = (reqId: string, reqName?: string, reqClient?: string) => {
-    const found = requirements.find(r => r.id === reqId) || {
-      id: reqId,
-      client: reqClient || 'harish',
-      title: reqName || 'Implement and support SAP Transportation Management solutions in S 4HANA',
-      priority: 'Medium' as const,
-      status: 'Active' as const,
-      assignmentStatus: 'Assigned' as const,
-      owner: 'Harish Gadipally',
-      submissions: 7,
-      interviews: 0,
-      placed: 0,
-      rejections: 0,
-      clientEmail: reqClient || 'harish',
-      clientPhone: '+91 98765 43210',
-      location: 'Remote, Hybrid, Onsite',
-      openings: 1,
-      dueDate: '2026-06-19',
-      emailArrivedTime: 'Jun 19, 2026, 05:30 AM',
-      budget: '₹5,000,000',
-    }
+    // The real requirement; when it is not loaded, only what the row itself shows.
+    const found =
+      requirements.find(r => r.id === reqId) ||
+      ({ id: reqId, client: reqClient || '', title: reqName || '' } as unknown as Requirement)
     setSelectedReqForDetail(found)
   }
 
@@ -318,7 +310,7 @@ export function RecruiterDashboard({
 
     setIsAssignModalOpen(false)
     setSelectedRecruiterNames(new Set())
-    setIsAssignMyselfChecked(true)
+    setIsAssignMyselfChecked(!isLeadOrAdmin)
     setRecruiterSearchQuery('')
   }
 
@@ -329,45 +321,70 @@ export function RecruiterDashboard({
     if (!target) return
 
     const reqKey = target._id || target.id
+    let saved: any
     try {
-      await workspaceService.revokeRequirement(reqKey, { reason })
+      saved = await workspaceService.revokeRequirement(reqKey, { reason })
     } catch (err: any) {
       console.error('Failed to revoke requirement:', err)
       showToast(err?.message || 'Failed to submit revoke request')
       return
     }
 
-    const updatedReq: Requirement = {
-      ...target,
-      status: 'On Hold',
-      revokeRequested: true,
-      revokeReason: reason,
-      revokeRequestedBy: currentUserName,
-      revokeRequestedAt: 'Just now',
-    }
+    // Lead/Admin revokes detach the recruiters immediately; a recruiter only files a request.
+    const isDirectRevoke = canDirectRevoke || saved?.assignmentStatus === 'Unassigned'
+    const updatedReq: Requirement = isDirectRevoke
+      ? {
+          ...target,
+          owner: 'Unassigned',
+          assignmentStatus: 'Unassigned',
+          status: 'Open',
+          revokeRequested: false,
+          revokeReason: reason,
+          revokeRequestedBy: undefined,
+          revokeRequestedAt: undefined,
+          updatedAt: new Date().toISOString(),
+        }
+      : {
+          ...target,
+          status: 'On Hold',
+          revokeRequested: true,
+          revokeReason: reason,
+          revokeRequestedBy: currentUserName,
+          revokeRequestedAt: 'Just now',
+        }
     const nextRequirements = requirements.map(r =>
       r.id === target.id || r._id === target._id ? updatedReq : r
     )
     onUpdateRequirements?.(nextRequirements)
-    setSelectedReqForDetail(updatedReq)
     setIsRevokeModalOpen(false)
-    showToast('Revoke request submitted. Requirement is On Hold pending approval.')
+    if (isDirectRevoke) {
+      // No longer assigned to anyone, so it leaves My Workspace.
+      setSelectedReqForDetail(null)
+      showToast(`Requirement ${target.id} revoked and set to Unassigned. It left your My Workspace list.`)
+    } else {
+      setSelectedReqForDetail(updatedReq)
+      showToast('Revoke request submitted. Requirement is On Hold pending approval.')
+    }
 
     onAddActivityLog?.({
       id: `LOG-${Date.now()}`,
       timestamp: 'Just now',
       userName: currentUserName,
       userEmail: currentUserEmail || '',
-      userRole: 'recruiter',
+      userRole: (sessionRole || 'recruiter') as any,
       userAvatar: currentUserName.charAt(0),
-      action: `Requested Revoke Permission for Requirement ${target.id}`,
+      action: isDirectRevoke
+        ? `Revoked Requirement ${target.id} (Reverted to Unassigned)`
+        : `Requested Revoke Permission for Requirement ${target.id}`,
       category: 'Requirements',
       targetEntity: `Requirement ${target.id}`,
       targetId: target.id,
       clientName: target.client,
       ipAddress: '192.168.1.45',
-      status: 'Warning',
-      details: `Reason for revoke request: ${reason}. Pending approval from Team Lead / Admin.`,
+      status: isDirectRevoke ? 'Success' : 'Warning',
+      details: isDirectRevoke
+        ? `Reason for revocation: ${reason}. Previous owner was ${target.owner || 'Assigned Recruiter'}. Requirement reverted to Unassigned.`
+        : `Reason for revoke request: ${reason}. Pending approval from Team Lead / Admin.`,
     })
   }
 
@@ -379,7 +396,7 @@ export function RecruiterDashboard({
           role="recruiter"
           onBack={() => setSelectedReqForDetail(null)}
           onOpenAssignModal={() => {
-            setIsAssignMyselfChecked(true)
+            setIsAssignMyselfChecked(!isLeadOrAdmin)
             setSelectedRecruiterNames(new Set())
             setRecruiterSearchQuery('')
             setIsAssignModalOpen(true)
@@ -411,7 +428,11 @@ export function RecruiterDashboard({
               </div>
 
               <div className="p-6 space-y-4">
-                <label className="bg-blue-50/80 border border-blue-200/80 rounded-2xl p-4 flex items-start gap-3.5 cursor-pointer hover:bg-blue-50 transition-colors block">
+                <label className={`border rounded-2xl p-4 flex items-start gap-3.5 cursor-pointer transition-all block ${
+                  isAssignMyselfChecked
+                    ? 'bg-blue-50/80 border-blue-300 ring-1 ring-blue-200'
+                    : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/60'
+                }`}>
                   <input
                     type="checkbox"
                     checked={isAssignMyselfChecked}
@@ -419,10 +440,10 @@ export function RecruiterDashboard({
                     className="mt-1 w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer shrink-0"
                   />
                   <div>
-                    <div className="text-sm font-bold text-blue-900 leading-snug">
+                    <div className={`text-sm font-bold leading-snug ${isAssignMyselfChecked ? 'text-blue-900' : 'text-slate-800'}`}>
                       Keep myself ({currentUserName})
                     </div>
-                    <div className="text-xs text-blue-600/90 leading-normal mt-0.5 font-normal">
+                    <div className={`text-xs leading-normal mt-0.5 font-normal ${isAssignMyselfChecked ? 'text-blue-600/90' : 'text-slate-500'}`}>
                       Stay assigned along with any recruiters selected below.
                     </div>
                   </div>
@@ -501,7 +522,7 @@ export function RecruiterDashboard({
           isOpen={isRevokeModalOpen}
           onClose={() => setIsRevokeModalOpen(false)}
           requirement={selectedReqForDetail}
-          userRole="recruiter"
+          userRole={(canDirectRevoke ? sessionRole : 'recruiter') as Role}
           currentUserName={currentUserName}
           onSubmitRevoke={(reqId, reason) => {
             void handleConfirmRevoke(reqId, reason)
@@ -703,6 +724,7 @@ export function RecruiterDashboard({
           role="recruiter"
           interviews={interviews}
           onOpenFeedbackModal={onOpenFeedbackModal}
+          requirements={requirements}
         />
       </div>
     )
@@ -732,6 +754,7 @@ export function RecruiterDashboard({
           role="recruiter"
           interviews={interviews}
           onOpenFeedbackModal={onOpenFeedbackModal}
+          requirements={requirements}
           initialStatusToggle="onboarding"
         />
       </div>
@@ -769,7 +792,7 @@ export function RecruiterDashboard({
       {/* Performance Summary Section */}
       <section>
         <h2 className="text-base font-semibold text-slate-800 mb-3">Performance Summary</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div ref={kpiGridRef} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Card 1: Assigned Requirements */}
           <div
             onClick={() => handleSetInlineView('requirements')}
@@ -855,7 +878,7 @@ export function RecruiterDashboard({
       </section>
 
       {/* Active Requirements + Submitted Candidates Section */}
-      <section id="active-requirements-section" className="space-y-4">
+      <section id="active-requirements-section" ref={activeReqsRef} className="space-y-4">
         {/* Section Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>

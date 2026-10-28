@@ -180,7 +180,7 @@ export function ScheduleInterviewFormFields({
           <label className="block font-semibold text-slate-700 mb-1.5">Candidate Phone</label>
           <input
             type="text"
-            placeholder="+91 98765 43210"
+            placeholder="+91 XXXXX XXXXX"
             value={candidatePhone}
             onChange={e => setCandidatePhone(e.target.value)}
             className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#2563EB]"

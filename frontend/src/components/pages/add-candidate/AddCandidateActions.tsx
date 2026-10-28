@@ -36,7 +36,11 @@ export function AddCandidateActions({ vm }: { vm: AddCandidateVm }) {
               {dupCheckResult.isDuplicate ? (
                 <>
                   <ShieldAlert className="w-4 h-4 text-rose-700" />
-                  <span>Duplicate Submission - Cannot Submit</span>
+                  <span>
+                    {(dupCheckResult as any).type === 'repository' || (dupCheckResult as any).existingCandidate
+                      ? 'Duplicate Candidate - Already in Repository'
+                      : 'Duplicate Submission - Cannot Submit'}
+                  </span>
                 </>
               ) : (
                 <>

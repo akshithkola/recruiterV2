@@ -44,7 +44,7 @@ export function useSubmissionsPageHandlers1(s: SubmissionsVmState) {
 
     // Update Requirement status and Recruitment Progress step if callback exists
     if (onUpdateRequirements && requirements.length > 0) {
-      const targetReqId = targetSubForInterview?.reqId || 'REQ-2026-08-12-001'
+      const targetReqId = targetSubForInterview?.reqId || ''
       const updatedReqs: Requirement[] = requirements.map(r => {
         if (r.id === targetReqId) {
           return {
@@ -69,23 +69,7 @@ export function useSubmissionsPageHandlers1(s: SubmissionsVmState) {
     if (existing) {
       setSelectedReqDetail(existing)
     } else {
-      setSelectedReqDetail({
-        id: reqId,
-        title: position,
-        client: company,
-        company: company,
-        status: 'Interview Scheduled',
-        createdDate: '12 Aug 2026',
-        submissionsCount: 7,
-        interviewsCount: 3,
-        owner: 'Harish Gadipally',
-        assignedRecruiter: 'Harish Gadipally',
-        experienceRequired: '5 - 10 Years',
-        location: 'Hyderabad / Remote',
-        salaryRange: '₹18 - ₹28 LPA',
-        skills: ['.NET Core', 'C#', 'SQL Server', 'Microservices', 'Azure'],
-        description: `Requirement details for ${position} at ${company}. Full job overview, candidate pipeline, and submission history.`,
-      } as any)
+      setSelectedReqDetail({ id: reqId, title: position, client: company, company } as any)
     }
   }
 
@@ -130,7 +114,7 @@ export function useSubmissionsPageHandlers1(s: SubmissionsVmState) {
           if (activeTokens.some(t => byTokens.includes(t))) return true
           return false
         }
-        return by.includes('marcus') || by === 'marcus chen'
+        return true
       }
 
       const isClientSubmission = (item: ScreenshotSubmission) => {
@@ -155,16 +139,7 @@ export function useSubmissionsPageHandlers1(s: SubmissionsVmState) {
         )
       }
 
-      const hasMatchingRecruiter = submissionsList.some(matchRecruiter)
-      if (hasMatchingRecruiter) {
-        return submissionsList.filter(item => matchRecruiter(item) && isClientSubmission(item))
-      }
-
-      // Default fallback if recruiter session has no seed records yet
-      return submissionsList.filter(item => {
-        const by = item.submittedBy.toLowerCase()
-        return (by.includes('marcus') || by === 'marcus chen') && isClientSubmission(item)
-      })
+      return submissionsList.filter(item => matchRecruiter(item) && isClientSubmission(item))
     }
 
     return submissionsList

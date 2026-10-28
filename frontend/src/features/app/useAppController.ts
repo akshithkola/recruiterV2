@@ -5,7 +5,7 @@ import { AuthScreen, Interview, InterviewStatus, Recruiter, Role, Submission, Re
 import { workspaceService } from '../../services/workspace.service'
 import { restoreSession } from '../../data/authService'
 import { getSessionUser } from '../../store/session'
-import { titleForRole } from '../../data/seedCredentials'
+import { titleForRole } from '../../data/roleMeta'
 import { createSaveInterviewFeedbackHandler, createSubmitCandidateHandler } from './appHandlers'
 import { createAuthenticatedHandler, createLogoutHandler, createNavSelectHandler } from './appSessionHandlers'
 import { saveSubmissionsStore } from '../../data/submissionsStore'

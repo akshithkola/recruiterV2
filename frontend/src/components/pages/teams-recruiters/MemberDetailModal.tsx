@@ -1,7 +1,7 @@
 import { Lock, X, Clock } from 'lucide-react'
 import { UnifiedTeamMember } from './types'
 import { getRecruiterScreenTime, formatDuration, canViewScreenTime } from '../../../utils/screenTimeTracker'
-import { DEMO_ACCOUNTS } from '../../../data/mockData'
+import { getSessionUser } from '../../../store/session'
 import { Role } from '../../../types'
 
 interface Props {
@@ -70,7 +70,7 @@ export function MemberDetailModal(p: Props) {
 
               {/* SCREEN TIME RECORDED CARD (PRIVACY ENFORCED FOR LEADS/ADMINS ONLY) */}
               {role !== 'recruiter' && (() => {
-                const currentUser = DEMO_ACCOUNTS[role] || { name: 'Current User' }
+                const currentUser = { name: getSessionUser()?.name || '' }
                 const isAllowed = canViewScreenTime(role, currentUser.name, selectedMemberDetail.name, selectedMemberDetail.teamLead)
                 if (!isAllowed) {
                   return (

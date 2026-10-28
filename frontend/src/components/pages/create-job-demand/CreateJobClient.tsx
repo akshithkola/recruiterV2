@@ -1,7 +1,23 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
+import { clientsService } from '../../../services/workspace.service'
 import { CreateJobDemandVm } from './useCreateJobDemandForm'
 
 export function CreateJobClient({ vm }: { vm: CreateJobDemandVm }) {
+  // Clients registered in the application; "Other" allows a new name.
+  const [clientNames, setClientNames] = useState<string[]>([])
+  useEffect(() => {
+    let active = true
+    clientsService
+      .list()
+      .then((rows: any) => {
+        const list: any[] = Array.isArray(rows) ? rows : rows?.items || rows?.data || []
+        if (active) setClientNames([...new Set(list.map(c => String(c.clientName || c.name || '').trim()).filter(Boolean))].sort())
+      })
+      .catch(() => active && setClientNames([]))
+    return () => {
+      active = false
+    }
+  }, [])
   const {
     requirementFrom,
     setRequirementFrom,
@@ -32,19 +48,21 @@ export function CreateJobClient({ vm }: { vm: CreateJobDemandVm }) {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
           <div>
             <label className="block font-semibold text-slate-700 mb-1">
-              Requirement From <span className="text-[10px] text-slate-400 font-normal ml-1">Pick a preset or Other to type a new company or source.</span>
+              Requirement From <span className="text-[10px] text-slate-400 font-normal ml-1">Pick a client or Other to type a new one.</span>
             </label>
             <select
               value={requirementFrom}
               onChange={e => setRequirementFrom(e.target.value)}
               className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-medium text-slate-800 focus:ring-2 focus:ring-[#6B3BF6]/20 outline-none cursor-pointer"
             >
-              <option value="ITC">ITC</option>
-              <option value="Accenture">Accenture</option>
-              <option value="Goldman Sachs">Goldman Sachs</option>
-              <option value="LTTS">LTTS</option>
-              <option value="TCS">TCS</option>
-              <option value="Cognizant">Cognizant</option>
+              {requirementFrom && requirementFrom !== 'Other' && !clientNames.includes(requirementFrom) && (
+                <option value={requirementFrom}>{requirementFrom}</option>
+              )}
+              {clientNames.map(c => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
               <option value="Other">Other</option>
             </select>
           </div>

@@ -17,7 +17,6 @@ export const CLIENT_EMAIL_DEFAULTS: Record<string, ClientEmailConfig> = {
       from: 'anusha.k@iexcel.co.in',
       to: [
         'hiring@iexcel.co.in',
-        'offshorejobs@metaforgeit.com',
       ],
       cc: [
         'rkarnam@metaforgeit.com',
@@ -66,7 +65,6 @@ export const CLIENT_EMAIL_DEFAULTS: Record<string, ClientEmailConfig> = {
         'Ashwini.Kudi@Ltts.com',
         'Kallol.Chakraborty@Ltts.com',
         'rachana.g@metaforgeit.com',
-        'offshorejobs@metaforgeit.com',
       ],
     },
   },

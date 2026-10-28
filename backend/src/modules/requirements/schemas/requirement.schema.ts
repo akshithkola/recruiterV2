@@ -92,7 +92,7 @@ export class Requirement {
   })
   experienceRange: {
     min: number;
-    max: number;
+    max: number | null;
   };
 
   @Prop({ default: 'Hybrid' })
@@ -124,6 +124,17 @@ export class Requirement {
 
   @Prop({ type: String, default: null, trim: true })
   sourceSubject: string;
+
+  // Original client email as extracted by the mail pipeline. Excluded from normal queries
+  // (they can be large); read via GET /requirements/:id/original-email.
+  @Prop({ type: String, default: null, select: false })
+  sourceEmailBody: string;
+
+  @Prop({ type: String, default: null, select: false })
+  sourceEmailHtml: string;
+
+  @Prop({ type: String, default: null, trim: true })
+  sourceFromName: string;
 
   @Prop({ type: String, default: null, trim: true })
   description: string;

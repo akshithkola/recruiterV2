@@ -77,7 +77,7 @@ B.Tech in Computer Science, 2020
     }
     const admin = await db.collection('users').findOne({ orgId: { $ne: null }, deletedAt: null, role: { $in: ['superadmin', 'admin'] } });
     token = jwt.sign({ sub: String(admin._id), userId: String(admin.userId || admin._id), email: admin.email, role: admin.role, orgId: String(admin.orgId) },
-      process.env.JWT_SECRET || 'super-secret-jwt-key-2026', { expiresIn: '1h' });
+      process.env.JWT_SECRET || (() => { throw new Error('JWT_SECRET must be set'); })(), { expiresIn: '1h' });
 
     await check(1, 'Endpoints require login', async () => {
       const r = await fetch(`${BASE}/resume-parser/health`);

@@ -2,7 +2,8 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import * as bcrypt from 'bcryptjs';
+import { hashPasswordArgon2id } from '../../common/security/password.util';
+import { allowDemoCredentials, isProductionEnv, resolveDemoPassword } from '../../common/security/secrets.util';
 import { Organization, OrganizationDocument } from '../organizations/schemas/organization.schema';
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { Client, ClientDocument } from '../clients/schemas/client.schema';
@@ -14,17 +15,18 @@ import { Interview, InterviewDocument } from '../interviews/schemas/interview.sc
 import { ActivityLog, ActivityLogDocument } from '../audit/schemas/activity-log.schema';
 import { Team, TeamDocument } from '../teams/schemas/team.schema';
 
+/** Demo user identities only — passwords come from SEED_DEMO_PASSWORD / DEMO_PASSWORD_* env. */
 const DEMO_USERS = [
-  { email: 'r.haines@talentflow.io', password: 'Admin@2026', role: 'superadmin', name: 'Robert Haines', userId: 'USR-1001' },
-  { email: 'd.park@talentflow.io', password: 'Admin@2026', role: 'admin', name: 'David Park', userId: 'USR-1002' },
-  { email: 'l.ho@talentflow.io', password: 'Admin@2026', role: 'admin', name: 'Lisa Ho', userId: 'USR-1007' },
-  { email: 'harish.g@metaforgeit.com', password: 'Lead@2026', role: 'lead', name: 'Harish Gadipally', userId: 'USR-1003' },
-  { email: 't.walsh@talentflow.io', password: 'Lead@2026', role: 'lead', name: 'Tom Walsh', userId: 'USR-1008' },
-  { email: 'm.chen@talentflow.io', password: 'Rec@2026', role: 'recruiter', name: 'Marcus Chen', userId: 'USR-1004' },
-  { email: 'p.sharma@talentflow.io', password: 'Rec@2026', role: 'recruiter', name: 'Priya Sharma', userId: 'USR-1009' },
-  { email: 'j.obrien@talentflow.io', password: 'Rec@2026', role: 'recruiter', name: "James O'Brien", userId: 'USR-1010' },
-  { email: 'dev.team@talentflow.io', password: 'Dev@2026', role: 'devteam', name: 'Dev Team Engineer', userId: 'USR-1005' },
-  { email: 'client@accenture.com', password: 'Client@2026', role: 'client', name: 'Client Account Lead', userId: 'USR-1006' },
+  { email: 'r.haines@talentflow.io', role: 'superadmin', name: 'Robert Haines', userId: 'USR-1001' },
+  { email: 'd.park@talentflow.io', role: 'admin', name: 'David Park', userId: 'USR-1002' },
+  { email: 'l.ho@talentflow.io', role: 'admin', name: 'Lisa Ho', userId: 'USR-1007' },
+  { email: 'harish.g@metaforgeit.com', role: 'lead', name: 'Harish Gadipally', userId: 'USR-1003' },
+  { email: 't.walsh@talentflow.io', role: 'lead', name: 'Tom Walsh', userId: 'USR-1008' },
+  { email: 'm.chen@talentflow.io', role: 'recruiter', name: 'Marcus Chen', userId: 'USR-1004' },
+  { email: 'p.sharma@talentflow.io', role: 'recruiter', name: 'Priya Sharma', userId: 'USR-1009' },
+  { email: 'j.obrien@talentflow.io', role: 'recruiter', name: "James O'Brien", userId: 'USR-1010' },
+  { email: 'dev.team@talentflow.io', role: 'devteam', name: 'Dev Team Engineer', userId: 'USR-1005' },
+  { email: 'client@accenture.com', role: 'client', name: 'Client Account Lead', userId: 'USR-1006' },
 ];
 
 @Injectable()
@@ -46,10 +48,20 @@ export class SeedService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
+    if (isProductionEnv()) {
+      this.logger.log('SEED_ON_START skipped: demo seeding is forbidden in production');
+      return;
+    }
     const enabled = String(
-      this.config.get('SEED_ON_START') ?? (process.env.NODE_ENV === 'production' ? 'false' : 'true'),
+      this.config.get('SEED_ON_START') ?? 'false',
     ).toLowerCase() === 'true';
     if (!enabled) return;
+    if (!allowDemoCredentials()) {
+      this.logger.warn(
+        'SEED_ON_START ignored: set ALLOW_DEMO_LOGIN=true and SEED_DEMO_PASSWORD (env/vault) for local demo users',
+      );
+      return;
+    }
     try {
       await this.seed();
     } catch (err) {
@@ -73,6 +85,13 @@ export class SeedService implements OnModuleInit {
 
     const usersByEmail = new Map<string, UserDocument>();
     for (const demo of DEMO_USERS) {
+      const password = resolveDemoPassword(demo.role) || resolveDemoPassword();
+      if (!password) {
+        this.logger.warn(
+          `Skipping demo user ${demo.email}: set SEED_DEMO_PASSWORD or DEMO_PASSWORD_${demo.role.toUpperCase()} in env`,
+        );
+        continue;
+      }
       let user = await this.userModel.findOne({ email: demo.email }).exec();
       if (!user) {
         user = await this.userModel.create({
@@ -80,7 +99,7 @@ export class SeedService implements OnModuleInit {
           userId: demo.userId,
           name: demo.name,
           email: demo.email,
-          passwordHash: await bcrypt.hash(demo.password, 10),
+          passwordHash: await hashPasswordArgon2id(password),
           role: demo.role,
           active: true,
           schemaVersion: 1,

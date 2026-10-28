@@ -47,30 +47,30 @@ export function apiErrorMessage(err: unknown): string {
 }
 
 export function mapBackendSubmission(s: any): ScreenshotSubmission {
-  const candidateName = s.candidateName || s.candidate || s.candidateId?.name || 'Unknown Candidate'
-  const requirementTitle = s.requirementTitle || s.req || s.requirementId?.title || 'Requirement'
-  const reqCode = s.requirementId?.reqCode || s.reqCode || s.reqId || s.req || 'REQ-001'
-  const clientName = s.clientName || s.client || s.requirementId?.client || 'Client Account'
-  const recruiterName = s.recruiterName || s.recruiter || s.recruiterId?.name || 'Recruiter'
-  const dateStr = s.date || (s.submittedAt ? new Date(s.submittedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Today')
+  const candidateName = s.candidateName || s.candidate || s.candidateId?.name || '—'
+  const requirementTitle = s.requirementTitle || s.req || s.requirementId?.title || '—'
+  const reqCode = s.requirementId?.reqCode || s.reqCode || s.reqId || s.req || ''
+  const clientName = s.clientName || s.client || s.requirementId?.client || '—'
+  const recruiterName = s.recruiterName || s.recruiter || s.recruiterId?.name || '—'
+  const dateStr = s.date || (s.submittedAt ? new Date(s.submittedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—')
 
-  const email = s.email || s.candidateEmail || s.candidateId?.email || `${candidateName.toLowerCase().replace(/[^a-z0-9]/g, '')}@gmail.com`
-  const phone = s.phone || s.candidatePhone || s.candidateId?.phone || '+91 98765 43210'
-  const skills = s.skills || s.candidateId?.skills || ['React', 'TypeScript', 'Node.js']
-  const expectedSalary = s.expectedSalary || s.expectedCtc || s.candidateId?.expectedSalary || '16 LPA'
-  const currentSalary = s.currentSalary || s.currentCtc || s.candidateId?.currentSalary || '11 LPA'
-  const noticePeriod = s.noticePeriod || s.candidateId?.noticePeriod || '30 Days'
-  const location = s.location || s.candidateId?.location || 'Bengaluru / Hyderabad'
+  const email = s.email || s.candidateEmail || s.candidateId?.email || ''
+  const phone = s.phone || s.candidatePhone || s.candidateId?.phone || ''
+  const skills = s.skills || s.candidateId?.skills || []
+  const expectedSalary = s.expectedSalary || s.expectedCtc || s.candidateId?.expectedSalary || ''
+  const currentSalary = s.currentSalary || s.currentCtc || s.candidateId?.currentSalary || ''
+  const noticePeriod = s.noticePeriod || s.candidateId?.noticePeriod || ''
+  const location = s.location || s.candidateId?.location || ''
 
   return {
     id: s.id || s._id || s.submissionId,
     submissionId: s.submissionId || s.id || s._id,
     candidateName,
     requirement: requirementTitle,
-    reqId: typeof reqCode === 'object' ? 'REQ-001' : String(reqCode),
+    reqId: typeof reqCode === 'object' ? '' : String(reqCode),
     clientName,
-    experience: s.experience || (s.candidateId?.totalExperienceYears ? `${s.candidateId.totalExperienceYears} Years` : '5 Years'),
-    currentCompany: s.currentCompany || clientName,
+    experience: s.experience || (s.candidateId?.totalExperienceYears ? `${s.candidateId.totalExperienceYears} Years` : ''),
+    currentCompany: s.currentCompany || s.candidateId?.currentCompany || '',
     submittedBy: recruiterName,
     submittedOn: dateStr,
     status: s.stage || 'Submitted to Client',
@@ -83,7 +83,7 @@ export function mapBackendSubmission(s: any): ScreenshotSubmission {
     currentSalary,
     noticePeriod,
     location,
-    clientPoc: s.clientPoc || s.clientContact || 'Hiring Manager',
+    clientPoc: s.clientPoc || s.clientContact || '',
     raw: s,
   }
 }

@@ -1,8 +1,10 @@
-import pdf from 'pdf-parse';
+import { PDFParse } from 'pdf-parse';
 
 export async function extractPdfText(buffer: Buffer): Promise<string> {
   try {
-    const result = await pdf(buffer);
+    const parser = new PDFParse({ data: buffer });
+    const result = await parser.getText();
+    await parser.destroy?.();
     const text = result?.text?.trim() || '';
     if (text.length > 40) return text;
   } catch (err: any) {

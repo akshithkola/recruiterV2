@@ -41,8 +41,12 @@ export class SubmissionRepository {
    * Uniform Soft Delete (P0-04)
    */
   async softDelete(id: string | Types.ObjectId, currentUser?: any): Promise<SubmissionDocument> {
+    const filter: any = { _id: id, deletedAt: null };
+    if (currentUser?.orgId) {
+      filter.orgId = new Types.ObjectId(currentUser.orgId.toString());
+    }
     const updated = await this.submissionModel
-      .findByIdAndUpdate(id, { deletedAt: new Date() }, { new: true, currentUser })
+      .findOneAndUpdate(filter, { deletedAt: new Date() }, { new: true, currentUser })
       .exec();
 
     if (!updated) throw new NotFoundException(`Submission ${id} not found`);

@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Schema as MongooseSchema } from 'mongoose';
+import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import { DataScopePlugin } from '../../../database/plugins/data-scope.plugin';
 
 export type CandidateDocumentRecordDocument = CandidateDocumentRecord & Document;
@@ -7,16 +7,16 @@ export type CandidateDocumentRecordDocument = CandidateDocumentRecord & Document
 @Schema({ timestamps: true, collection: 'candidate_documents' })
 export class CandidateDocumentRecord {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Organization', required: true, index: true })
-  orgId: MongooseSchema.Types.ObjectId;
+  orgId: Types.ObjectId;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Candidate', required: true })
-  candidateId: MongooseSchema.Types.ObjectId;
+  candidateId: Types.ObjectId;
 
   @Prop({ required: true, enum: ['Resume', 'Offer Letter', 'Government ID', 'Degree Certificate', 'Payslip'] })
   documentType: string;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'FileMetadata', required: true })
-  fileMetadataId: MongooseSchema.Types.ObjectId;
+  fileMetadataId: Types.ObjectId;
 
   @Prop({ default: false })
   isPrimaryResume: boolean;

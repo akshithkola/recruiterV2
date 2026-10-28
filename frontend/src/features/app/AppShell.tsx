@@ -8,6 +8,7 @@ import { SubmitCandidateModal } from '../../components/modals/SubmitCandidateMod
 import { InterviewFeedbackModal } from '../../components/modals/InterviewFeedbackModal'
 import { CandidateDetailModal } from '../../components/modals/CandidateDetailModal'
 import { AppShellContent } from './AppShell.content'
+import { AnimatedPage } from '../../lib/animations'
 
 export interface AppShellProps {
   role: Role
@@ -63,7 +64,9 @@ export function AppShell(props: AppShellProps) {
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         <main className="flex-1 overflow-y-auto w-full min-w-0 px-4 py-5 lg:px-6 xl:px-8 app-main-content">
           <PageContainer>
-            <AppShellContent {...props} />
+            <AnimatedPage animationKey={`${props.role}:${props.activeNav}`}>
+              <AppShellContent {...props} />
+            </AnimatedPage>
           </PageContainer>
         </main>
       </div>

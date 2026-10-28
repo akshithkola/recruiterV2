@@ -9,152 +9,7 @@ export interface TrackerPreset {
 }
 
 export const CLIENT_TRACKER_PRESETS: Record<string, TrackerPreset> = {
-  MetaForge: {
-    headerColor: '#C5E0B4',
-    subtitle: 'MetaForge layout: 18 columns in the client submission order.',
-    columns: [
-      'Sl No',
-      'Submission Date',
-      'Skillset',
-      'Candidate Name',
-      'Contact Number',
-      'Email ID',
-      'Total Yrs of Exp',
-      'Relevant Exp',
-      'Current Company',
-      'Current CTC',
-      'Expected CTC/Rate Card',
-      'Notice Period',
-      'Current Location',
-      'Preferred Location',
-      'Availability for Interview',
-      'Reason',
-      'Offer in Hand',
-      'LinkedIn URL',
-    ],
-  },
-  KPMG: {
-    headerColor: '#D6E3F0',
-    subtitle: 'KPMG layout: 15 columns in the client submission order.',
-    columns: [
-      'Submission Date',
-      'Name of Candidate',
-      'Email ID',
-      'Contact Number',
-      'Skill',
-      'Current Company',
-      'Total Experience',
-      'Relevant Experience',
-      'Current Location',
-      'Preferred Location',
-      'Contract/Fulltime',
-      'Current CTC',
-      'Expected CTC',
-      'Notice Period',
-      'Vendor',
-    ],
-  },
-  UST: {
-    headerColor: '#C6EFCE',
-    subtitle: 'UST layout: 30 columns in the client submission order.',
-    columns: [
-      'Account',
-      'Profile Submission Date',
-      'SO Number',
-      'Recruiter Name',
-      'Recruiter UID',
-      'Source',
-      'Sub Source',
-      'Mandatory Skill',
-      'Skill Combinations',
-      'Candidate Status',
-      'Detailed Status',
-      'Hire Type',
-      'RH ID',
-      'Candidate Name',
-      'Contact Number',
-      'Email ID',
-      'Total Yrs of Exp',
-      'Relevant Exp',
-      'Current Company',
-      'Current CTC',
-      'Expected CTC/Rate Card',
-      'Notice Period',
-      'Buyout (Y/N)',
-      'Ex-Employee (Y/N)',
-      'Rehire Ex-Employee ID',
-      'Current Location',
-      'Preferred Location',
-      'Remarks',
-      'Screening Interview',
-      'Availability',
-    ],
-  },
-  LTTS: {
-    headerColor: '#FFB800',
-    subtitle: 'LTTS layout: 17 columns in the client submission order.',
-    columns: [
-      'Sl.No',
-      'Vendor Name',
-      'BU/IS',
-      'Position/Title',
-      'Skill',
-      'Resumes Sent Date (DDMMYY)',
-      'Full Name of Candidate',
-      'Last Full-Time Qualification',
-      'Mobile No',
-      'Mail ID',
-      'NP (Days)',
-      'Total Exp',
-      'Relevant Exp',
-      'Current Location',
-      'Job Location',
-      'Current Organization',
-      'Rate per Month',
-    ],
-  },
-  'Accenture to Vendor (Shaum)': {
-    headerColor: '#D9D2E9',
-    subtitle: 'Accenture to Vendor (Shaum) layout: 35 columns in the client submission order.',
-    columns: [
-      'Sl. No',
-      'RV ID',
-      'Date of Submission',
-      'Candidate DOB',
-      'Req ID',
-      'Beeline ID',
-      'First Name',
-      'Last Name',
-      'Contact Number',
-      'Email ID',
-      'Gender',
-      'Primary Skill',
-      'Total Experience',
-      'Relevant Experience',
-      'Current Location',
-      'Job Location',
-      'Notice Period in Days',
-      'Acc Ex Emp/Cont',
-      'Ex Employee-EMP ID',
-      'Current CTC (Monthly)',
-      'Expected CTC (Monthly)',
-      'Markup %',
-      'Final Bill Rate Monthly',
-      'Supplier Name',
-      'Current Employer Name',
-      'Available Documents',
-      'Previous Employer Name',
-      PREVIOUS_AVAILABLE_DOCUMENTS,
-      'Highest Education',
-      'College Name',
-      'University Name',
-      'Technical Evaluation',
-      'Technical Assessment Proof Attached in Resume',
-      'PAN Card Number',
-      'OT Amount',
-    ],
-  },
-  'ITC Infotech': {
+  'ITC infotech': {
     headerColor: '#FFFF00',
     subtitle: 'ITC Infotech layout: 18 columns in the client submission order.',
     columns: [
@@ -178,9 +33,32 @@ export const CLIENT_TRACKER_PRESETS: Record<string, TrackerPreset> = {
       'Status',
     ],
   },
-  'Accenture Direct': {
-    headerColor: '#F4B183',
-    subtitle: 'Accenture Direct layout: 12 columns in the client submission order.',
+  LTTS: {
+    headerColor: '#FFB800',
+    subtitle: 'LTTS layout: 17 columns in the client submission order.',
+    columns: [
+      'S.No',
+      'Vendor Name',
+      'BU/IS',
+      'Position/ Title',
+      'Skill',
+      'Resumes sent Date (DDMMYY)',
+      'Full Name of the candidate',
+      'Status',
+      'MOBILE NO',
+      'Mail ID',
+      'NP(Days)',
+      'Total Exp',
+      'Relevant Exp',
+      'Current Location',
+      'Job Location',
+      'Current Organization',
+      'Rate per Month',
+    ],
+  },
+  KPMG: {
+    headerColor: '#D6E3F0',
+    subtitle: 'KPMG layout: 15 columns in the client submission order.',
     columns: [
       'Submission Date',
       'Name of Candidate',
@@ -192,8 +70,144 @@ export const CLIENT_TRACKER_PRESETS: Record<string, TrackerPreset> = {
       'Relevant Experience',
       'Current Location',
       'Preferred Location',
+      'Contract/Fulltime',
+      'Current CTC',
+      'Expected CTC',
       'Notice Period',
-      'Rate Card',
+      'Vendor',
+    ],
+  },
+  Deloitte: {
+    headerColor: '#C5E0B4',
+    subtitle: 'Deloitte layout: 14 columns in the client submission order.',
+    columns: [
+      'S.No',
+      'Candidate Name',
+      'Email ID',
+      'Contact Number',
+      'Skill',
+      'Total Experience',
+      'Relevant Experience',
+      'Current Company',
+      'Current Location',
+      'Preferred Location',
+      'Current CTC',
+      'Expected CTC',
+      'Notice Period',
+      'Availability for Interview',
+    ],
+  },
+  PWC: {
+    headerColor: '#FCE4D6',
+    subtitle: 'PWC layout: 15 columns in the client submission order.',
+    columns: [
+      'Sl No',
+      'Submission Date',
+      'Candidate Name',
+      'Contact Number',
+      'Email ID',
+      'Skill',
+      'Total Experience',
+      'Relevant Experience',
+      'Current Company',
+      'Current Location',
+      'Preferred Location',
+      'Current CTC',
+      'Expected CTC',
+      'Notice Period',
+      'Availability for Interview',
+    ],
+  },
+  Accenture: {
+    headerColor: '#D9D2E9',
+    subtitle: 'Accenture layout: 38 columns in the client submission order.',
+    columns: [
+      'Sl. NO',
+      'RV ID',
+      'Date of Submission',
+      'Candidate DOB',
+      'Req ID',
+      'Beeline ID',
+      'First Name (As per Govt ID )',
+      'Last Name (As per Govt ID)',
+      'Contact Number',
+      'Email ID',
+      'Gender',
+      'Primary Skill',
+      'Total Experience',
+      'Relevant Experience',
+      'Current Location',
+      'Job Location',
+      'Notice Period in days',
+      'Acc Ex Emp/Cont',
+      'Ex Employee- EMP ID(Share EMP ID and Enterprise ID)',
+      'Current CTC (Monthly)',
+      'Exp CTC (Monthly)',
+      'Mark up %',
+      'Final Bill Rate Monthly (Exp CTC + mark up)',
+      'Supplier name',
+      'Current Employer Name',
+      'Available Documents',
+      'Previous Employer Name',
+      PREVIOUS_AVAILABLE_DOCUMENTS,
+      'Highest Education',
+      'Name of college for highest education',
+      'Name of University for highest education',
+      'Technical Evaluation',
+      'Technical Assessment proof attched in Resume',
+      'PAN Card Number',
+      'OT Amount',
+      'Platform',
+      'Linkedin ID',
+      'Remarks',
+    ],
+  },
+  'Metaforge ( internal )': {
+    headerColor: '#C5E0B4',
+    subtitle: 'Metaforge ( internal ) layout: 18 columns in the client submission order.',
+    columns: [
+      'Sl No',
+      'Submission Date',
+      'Candidate Name',
+      'Skillset',
+      'Contact Number',
+      'Email id',
+      'Total Yrs of Exp',
+      'Relevant Exp',
+      'Current Company',
+      'Current CTC',
+      'Notice period',
+      'Current Location',
+      'Preferred Location',
+      'Availability for Interview',
+      'Reason',
+      'Offer in Hand',
+      'Linkedin URL',
+      'Educational Qualification',
+    ],
+  },
+  'ED - Eximietas Design': {
+    headerColor: '#B4D5E5',
+    subtitle: 'ED - Eximietas Design layout: 18 columns in the client submission order.',
+    columns: [
+      'Submission Date',
+      'Name of candidate',
+      'Email ID',
+      'Contact Number',
+      'Skill',
+      'Current company',
+      'Total Experience',
+      'Relevant Experience',
+      'Current Location',
+      'Preferred Location',
+      'Contract/ Fulltime',
+      'Current CTC',
+      'Expected CTC',
+      'Notice Period',
+      'Vendor',
+      'Reason for job change',
+      'offer in hand',
+      'Highest Qualification',
     ],
   },
 }
@@ -205,20 +219,22 @@ export function columnLabel(column: string): string {
 export function resolveClientPreset(clientName?: string | null): string {
   const name = String(clientName || '').trim().toLowerCase()
   if (CLIENT_TRACKER_PRESETS[clientName || '']) return String(clientName)
-  if (name.includes('kpmg')) return 'KPMG'
-  if (name.includes('ust')) return 'UST'
+  if (name.includes('itc')) return 'ITC infotech'
   if (name.includes('ltts') || name.includes('l&t') || name.includes('l & t')) return 'LTTS'
-  if (name.includes('itc')) return 'ITC Infotech'
-  if (name.includes('accenture') && (name.includes('vendor') || name.includes('shaum'))) return 'Accenture to Vendor (Shaum)'
-  if (name.includes('accenture')) return 'Accenture Direct'
-  return 'MetaForge'
+  if (name.includes('kpmg')) return 'KPMG'
+  if (name.includes('deloitte')) return 'Deloitte'
+  if (name.includes('pwc') || name.includes('pricewaterhouse')) return 'PWC'
+  if (name.includes('accenture')) return 'Accenture'
+  if (name.includes('eximietas') || name === 'ed' || name.startsWith('ed -') || name.startsWith('ed-')) return 'ED - Eximietas Design'
+  if (name.includes('metaforge')) return 'Metaforge ( internal )'
+  return 'Metaforge ( internal )'
 }
 
 export function submissionIntroduction(role?: string | null): string {
   return `I hope you are doing well. Please find the attached resume and tracker below for the Role - ${String(role || '').trim()}.`
 }
 
-const LAYOUT_KEY = 'metaforge.submitTracker.layouts'
+const LAYOUT_KEY = 'metaforge.submitTracker.layouts.v2'
 
 interface SavedLayout {
   columns: string[]
@@ -237,9 +253,14 @@ function readLayouts(): Record<string, SavedLayout> {
 }
 
 export function columnsForClient(clientKey: string): { columns: string[]; hidden: string[]; headerColor: string } {
-  const preset = CLIENT_TRACKER_PRESETS[clientKey] || CLIENT_TRACKER_PRESETS.MetaForge
+  const preset = CLIENT_TRACKER_PRESETS[clientKey] || CLIENT_TRACKER_PRESETS['Metaforge ( internal )'] || Object.values(CLIENT_TRACKER_PRESETS)[0]
   const saved = readLayouts()[clientKey]
   if (!saved || !Array.isArray(saved.columns) || saved.columns.length === 0) {
+    return { columns: [...preset.columns], hidden: [], headerColor: preset.headerColor }
+  }
+  const savedSet = new Set(saved.columns)
+  const isSubset = preset.columns.every(col => savedSet.has(col))
+  if (!isSubset) {
     return { columns: [...preset.columns], hidden: [], headerColor: preset.headerColor }
   }
   const columns = [...saved.columns]
@@ -332,19 +353,27 @@ export function monthlyBillRate(expectedMonthly: string, markup: string): string
 }
 
 export function applyBillRate(row: Record<string, string>, editedColumn?: string): Record<string, string> {
-  if (!('Final Bill Rate Monthly' in row) && editedColumn !== 'Expected CTC (Monthly)' && editedColumn !== 'Markup %') {
-    return row
-  }
-  if (editedColumn === 'Final Bill Rate Monthly') return row
-  const expected = row['Expected CTC (Monthly)'] || ''
-  const markup = row['Markup %'] || ''
+  const finalKey = 'Final Bill Rate Monthly (Exp CTC + mark up)' in row
+    ? 'Final Bill Rate Monthly (Exp CTC + mark up)'
+    : ('Final Bill Rate Monthly' in row ? 'Final Bill Rate Monthly' : null)
+
+  if (!finalKey) return row
+  if (editedColumn === finalKey) return row
+
+  const expected = row['Exp CTC (Monthly)'] || row['Expected CTC (Monthly)'] || ''
+  const markup = row['Mark up %'] || row['Markup %'] || ''
   if (!expected.trim() || !markup.trim()) {
-    if (editedColumn === 'Expected CTC (Monthly)' || editedColumn === 'Markup %') {
-      return { ...row, 'Final Bill Rate Monthly': '' }
+    if (
+      editedColumn === 'Exp CTC (Monthly)' ||
+      editedColumn === 'Expected CTC (Monthly)' ||
+      editedColumn === 'Mark up %' ||
+      editedColumn === 'Markup %'
+    ) {
+      return { ...row, [finalKey]: '' }
     }
     return row
   }
-  return { ...row, 'Final Bill Rate Monthly': monthlyBillRate(expected, markup) }
+  return { ...row, [finalKey]: monthlyBillRate(expected, markup) }
 }
 
 export function buildTrackerRow(
@@ -364,11 +393,13 @@ export function buildTrackerRow(
     'Sl No': String(index + 1),
     'Sl.No': String(index + 1),
     'Sl. No': String(index + 1),
+    'Sl. NO': String(index + 1),
     'S.No': String(index + 1),
     'Submission Date': fullDate,
     'Profile Submission Date': fullDate,
     'Date of Submission': fullDate,
     'Resumes Sent Date (DDMMYY)': shortDate,
+    'Resumes sent Date (DDMMYY)': shortDate,
     Skillset: skills,
     Skill: skills,
     'Primary Skill': skills,
@@ -376,34 +407,58 @@ export function buildTrackerRow(
     'Skill Combinations': skillParts.length > 1 ? skillParts.slice(1).join(', ') : '',
     'Candidate Name': candidate.name || '',
     'Name of Candidate': candidate.name || '',
+    'Name of candidate': candidate.name || '',
     'Full Name of Candidate': candidate.name || '',
+    'Full Name of the candidate': candidate.name || '',
     'First Name': first,
+    'First Name (As per Govt ID )': first,
+    'First Name (As per Govt ID)': first,
     'Last Name': last,
+    'Last Name (As per Govt ID)': last,
     'Contact Number': candidate.phone || '',
     'Mobile No': candidate.phone || '',
+    'MOBILE NO': candidate.phone || '',
     'Candidate Mobile Number': candidate.phone || '',
     'Email ID': candidate.email || '',
+    'Email id': candidate.email || '',
     'Mail ID': candidate.email || '',
+    Gender: '',
+    'Candidate DOB': '',
+    'Beeline ID': '',
     'Total Yrs of Exp': candidate.totalExperience || '',
     'Total Experience': candidate.totalExperience || '',
     'Total Exp': candidate.totalExperience || '',
     'Relevant Exp': candidate.relevantExperience || '',
     'Relevant Experience': candidate.relevantExperience || '',
     'Current Company': candidate.currentCompany || '',
+    'Current company': candidate.currentCompany || '',
     'Current Organization': candidate.currentCompany || '',
     'Current Employer Name': candidate.currentCompany || '',
     'Current Payroll Company': candidate.currentCompany || '',
     'Current CTC': candidate.currentCtc || '',
     CTC: candidate.currentCtc || '',
+    'Current CTC (Monthly)': '',
+    'Exp CTC (Monthly)': '',
+    'Expected CTC (Monthly)': '',
+    'Mark up %': '',
+    'Markup %': '',
+    'Final Bill Rate Monthly (Exp CTC + mark up)': '',
+    'Final Bill Rate Monthly': '',
     'Expected CTC/Rate Card': candidate.expectedCtc || '',
     'Expected CTC': candidate.expectedCtc || '',
     ECTC: candidate.expectedCtc || '',
     'Rate Card': candidate.expectedCtc || '',
     'Rate per Month': candidate.expectedCtc || '',
     'Notice Period': candidate.noticePeriod || '',
-    'NP (Days)': candidate.noticePeriod || '',
+    'Notice period': candidate.noticePeriod || '',
+    'Notice Period in days': candidate.noticePeriod || '',
     'Notice Period in Days': candidate.noticePeriod || '',
+    'NP (Days)': candidate.noticePeriod || '',
+    'NP(Days)': candidate.noticePeriod || '',
     'Official Notice Period / Serving NP (LWD Date)': candidate.noticePeriod || '',
+    'Acc Ex Emp/Cont': 'No',
+    'Ex Employee- EMP ID(Share EMP ID and Enterprise ID)': '',
+    'Ex Employee-EMP ID': '',
     'Current Location': candidate.currentLocation || '',
     'Preferred Location': candidate.preferredLocation || '',
     'Job Location': jobLocation,
@@ -412,18 +467,48 @@ export function buildTrackerRow(
     Availability: candidate.interviewAvailability || '',
     Reason: candidate.reasonForChange || '',
     Remarks: candidate.reasonForChange || '',
+    'Remarks for Accenture': candidate.reasonForChange || '',
+    'Reason for job change': candidate.reasonForChange || '',
     'Offer in Hand': candidate.offerInHand || '',
+    'offer in hand': candidate.offerInHand || '',
     'LinkedIn URL': candidate.linkedIn || '',
+    'Linkedin URL': candidate.linkedIn || '',
+    'Linkedin ID': candidate.linkedIn || '',
+    'LinkedIn ID': candidate.linkedIn || '',
     'Last Full-Time Qualification': candidate.qualification || '',
     'Highest Education': candidate.qualification || '',
+    'Educational Qualification': candidate.qualification || '',
+    'Highest Qualification': candidate.qualification || '',
+    'Available Documents': 'Yes',
+    'Previous Employer Name': '',
+    [PREVIOUS_AVAILABLE_DOCUMENTS]: 'Yes',
+    'Name of college for highest education': '',
+    'College Name': '',
+    'Name of University for highest education': '',
+    'University Name': '',
+    'Technical Evaluation': 'Passed',
+    'Technical Assessment proof attched in Resume': 'Attached',
+    'Technical Assessment Proof Attached in Resume': 'Attached',
+    'PAN Card Number': '',
+    'OT Amount': 'NA',
+    Platform: '',
     Vendor: VENDOR_NAME,
     'Vendor Name': VENDOR_NAME,
     'Supplier Name': SUPPLIER_NAME,
+    'Supplier name': SUPPLIER_NAME,
     'Recruiter Name': context.recruiterName || '',
     Account: context.requirement?.client || '',
+    'BU/IS': '',
     'Position/Title': context.requirement?.title || '',
+    'Position/ Title': context.requirement?.title || '',
     'Req ID': context.requirement?.id || '',
     'RV ID': publicCandidateCode(candidate),
+    'Contract/Fulltime': 'Fulltime',
+    'Contract/ Fulltime': 'Fulltime',
+    'Interview Date': '',
+    'Interview Time': '',
+    'SO Number': '',
+    Status: 'Submitted',
   }
 
   const row: Record<string, string> = {}
